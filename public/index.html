@@ -1,0 +1,863 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DFCS Grievance Tracker — AFSCME Council 31</title>
+<style>
+:root{
+  --ink:#10261b;--green-1:#0f3d24;--green-2:#1b5e20;--green-3:#2e7d32;
+  --green-soft:#e8f5e9;--green-line:#bfe0c4;--paper:#faf9f4;--paper-2:#f1efe6;
+  --amber:#b7791f;--amber-bg:#fdf3da;--red:#9c0006;--red-bg:#fdeceb;--grey:#6b7268;--ok-bg:#e6f4ea;
+  --serif:'Source Serif Pro','Iowan Old Style',Georgia,serif;
+  --sans:'Inter',-apple-system,BlinkMacSystemFont,sans-serif;
+  --mono:'IBM Plex Mono',monospace;--radius:3px;--shadow:0 1px 2px rgba(15,61,36,0.08);
+}
+*{box-sizing:border-box;}
+html,body{margin:0;padding:0;}
+body{font-family:var(--sans);background:var(--paper);color:var(--ink);font-size:15px;line-height:1.5;-webkit-font-smoothing:antialiased;}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important;}}
+
+.topbar{background:var(--green-1);color:#fff;padding:0 24px;display:flex;align-items:center;justify-content:space-between;height:64px;position:sticky;top:0;z-index:100;box-shadow:0 2px 8px rgba(0,0,0,0.15);}
+.brand{display:flex;align-items:center;gap:14px;}
+.brand-mark{width:38px;height:38px;border-radius:50%;background:var(--green-3);display:flex;align-items:center;justify-content:center;font-family:var(--serif);font-weight:700;font-size:17px;color:#fff;flex-shrink:0;border:2px solid rgba(255,255,255,0.25);}
+.brand-text h1{font-family:var(--serif);font-size:17px;margin:0;font-weight:600;}
+.brand-text p{font-size:11px;margin:0;opacity:0.72;}
+.tabs{display:flex;gap:2px;flex-wrap:wrap;}
+.tab-btn{background:transparent;border:none;color:rgba(255,255,255,0.68);font-family:var(--sans);font-size:13.5px;font-weight:500;padding:10px 14px;cursor:pointer;border-radius:var(--radius);white-space:nowrap;display:flex;align-items:center;}
+.tab-btn:hover{background:rgba(255,255,255,0.08);color:#fff;}
+.tab-btn.active{background:rgba(255,255,255,0.14);color:#fff;}
+.count{background:rgba(255,255,255,0.2);border-radius:10px;padding:1px 7px;font-size:11px;margin-left:6px;}
+.count.alert{background:var(--red);color:#fff;}
+.menu-toggle{display:none;background:none;border:none;color:#fff;font-size:22px;cursor:pointer;}
+.conn-dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:6px;}
+
+main{max-width:1280px;margin:0 auto;padding:28px 24px 80px;}
+.section-head{display:flex;align-items:baseline;justify-content:space-between;margin-bottom:22px;flex-wrap:wrap;gap:12px;}
+.section-head h2{font-family:var(--serif);font-size:26px;margin:0;color:var(--green-1);font-weight:600;}
+.section-head .sub{color:var(--grey);font-size:13px;margin-top:3px;}
+
+.btn{font-family:var(--sans);font-size:13.5px;font-weight:600;padding:10px 18px;border-radius:var(--radius);border:1.5px solid transparent;cursor:pointer;display:inline-flex;align-items:center;gap:7px;}
+.btn:active{transform:translateY(1px);}
+.btn-primary{background:var(--green-2);color:#fff;}
+.btn-primary:hover{background:var(--green-1);}
+.btn-secondary{background:#fff;color:var(--green-2);border-color:var(--green-line);}
+.btn-secondary:hover{background:var(--green-soft);}
+.btn-ghost{background:transparent;color:var(--grey);}
+.btn-ghost:hover{background:var(--paper-2);color:var(--ink);}
+.btn:disabled{opacity:0.45;cursor:not-allowed;}
+.btn-lg{padding:13px 26px;font-size:14.5px;}
+.btn-tiny{padding:4px 10px;font-size:11.5px;border:1px solid var(--green-line);background:transparent;color:var(--green-2);border-radius:3px;cursor:pointer;}
+
+.panel{background:#fff;border:1px solid var(--green-line);border-radius:6px;box-shadow:var(--shadow);}
+.panel-pad{padding:24px;}
+
+.form-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:18px 24px;}
+@media (max-width:760px){.form-grid{grid-template-columns:1fr;}}
+.field{display:flex;flex-direction:column;gap:6px;}
+.field.wide{grid-column:1/-1;}
+.field label{font-size:12.5px;font-weight:600;color:var(--green-1);display:flex;align-items:center;gap:6px;}
+.field label .req{color:var(--red);}
+.field label .hint-icon{color:var(--grey);cursor:help;font-size:11px;border:1px solid var(--grey);border-radius:50%;width:14px;height:14px;display:inline-flex;align-items:center;justify-content:center;}
+input[type=text],input[type=date],select,textarea{font-family:var(--sans);font-size:14px;padding:9px 11px;border:1.5px solid #d8d5c8;border-radius:var(--radius);background:#fff;color:var(--ink);width:100%;}
+input:focus,select:focus,textarea:focus{outline:none;border-color:var(--green-3);box-shadow:0 0 0 3px rgba(46,125,50,0.12);}
+textarea{resize:vertical;min-height:64px;}
+.readonly-box{background:var(--green-soft);border:1.5px solid var(--green-line);color:var(--green-1);font-weight:600;font-size:13.5px;padding:9px 11px;border-radius:var(--radius);}
+.field-note{font-size:11.5px;color:var(--grey);margin-top:2px;}
+.section-divider{grid-column:1/-1;display:flex;align-items:center;gap:10px;margin:8px 0 4px;}
+.section-divider .label{font-family:var(--serif);font-size:13px;font-weight:600;color:var(--green-2);white-space:nowrap;}
+.section-divider .line{flex:1;height:1px;background:var(--green-line);}
+.notice-box{grid-column:1/-1;padding:10px 14px;border-radius:var(--radius);font-size:12.5px;display:flex;gap:8px;border-left:3px solid;}
+.notice-amber{background:var(--amber-bg);border-color:var(--amber);color:#6b4d10;}
+.deadline-grid{grid-column:1/-1;display:grid;grid-template-columns:repeat(2,1fr);gap:10px 18px;background:var(--green-soft);border:1px solid var(--green-line);border-radius:6px;padding:16px;margin-top:4px;}
+@media (max-width:760px){.deadline-grid{grid-template-columns:1fr;}}
+.deadline-item{display:flex;flex-direction:column;gap:2px;}
+.deadline-item .dl-label{font-size:11.5px;color:var(--green-2);font-weight:600;}
+.deadline-item .dl-value{font-family:var(--mono);font-size:13.5px;color:var(--green-1);font-weight:600;}
+.status-banner{grid-column:1/-1;padding:12px 16px;border-radius:6px;font-weight:600;font-size:13.5px;border:1.5px solid;}
+.status-open{background:var(--ok-bg);border-color:#9bcaa8;color:var(--green-1);}
+.status-closed{background:var(--red-bg);border-color:#e3a8a5;color:var(--red);}
+.status-wait{background:var(--paper-2);border-color:#d8d5c8;color:var(--grey);}
+.form-footer{grid-column:1/-1;display:flex;justify-content:flex-end;gap:12px;margin-top:8px;padding-top:18px;border-top:1px solid var(--green-line);}
+
+.kpi-row{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:22px;}
+@media (max-width:880px){.kpi-row{grid-template-columns:repeat(2,1fr);}}
+.kpi{background:#fff;border:1px solid var(--green-line);border-radius:6px;padding:16px 18px;box-shadow:var(--shadow);}
+.kpi .num{font-family:var(--serif);font-size:30px;font-weight:700;color:var(--green-1);line-height:1;}
+.kpi .lbl{font-size:12px;color:var(--grey);margin-top:4px;}
+.kpi.red .num{color:var(--red);}
+.kpi.amber .num{color:var(--amber);}
+.legend{display:flex;gap:18px;flex-wrap:wrap;margin-bottom:16px;font-size:12px;color:var(--grey);}
+.legend span{display:inline-flex;align-items:center;gap:6px;}
+.dot{width:9px;height:9px;border-radius:50%;display:inline-block;}
+
+.table-wrap{overflow-x:auto;border:1px solid var(--green-line);border-radius:6px;background:#fff;}
+table{width:100%;border-collapse:collapse;font-size:13px;}
+thead th{background:var(--green-1);color:#fff;text-align:left;padding:10px 12px;font-weight:600;font-size:11.5px;white-space:nowrap;}
+tbody td{padding:10px 12px;border-bottom:1px solid #ece9dd;white-space:nowrap;}
+tbody tr:hover{background:var(--paper-2);}
+tbody tr.row-red{background:var(--red-bg);}
+tbody tr.row-amber{background:var(--amber-bg);}
+tbody tr.row-green{background:var(--ok-bg);}
+.pill{display:inline-block;padding:2px 9px;border-radius:10px;font-size:11px;font-weight:600;}
+.pill-pending{background:#eaf1fb;color:#26395c;}
+.pill-resolved{background:var(--ok-bg);color:var(--green-1);}
+.pill-arb{background:#f3e8fb;color:#5b2a86;}
+.empty-state{text-align:center;padding:60px 24px;color:var(--grey);}
+.empty-state .icon{font-size:36px;margin-bottom:10px;opacity:0.4;}
+.empty-state h3{font-family:var(--serif);color:var(--ink);margin:0 0 6px;}
+.row-link{color:var(--green-2);font-weight:600;cursor:pointer;text-decoration:none;}
+.row-link:hover{text-decoration:underline;}
+
+.activity-item{display:grid;grid-template-columns:90px 1fr auto;gap:16px;padding:14px 4px;border-bottom:1px solid #ece9dd;}
+.activity-item:last-child{border-bottom:none;}
+.activity-date{font-family:var(--mono);font-size:12px;color:var(--grey);}
+.a-type{font-weight:600;font-size:13.5px;color:var(--green-1);}
+.a-gid{font-size:11.5px;color:var(--green-3);font-weight:600;margin-left:6px;}
+.a-notes{font-size:13px;margin-top:3px;}
+.a-meta{font-size:11.5px;color:var(--grey);margin-top:4px;}
+.followup-flag{background:var(--amber-bg);color:var(--amber);font-size:11px;font-weight:700;padding:3px 8px;border-radius:10px;white-space:nowrap;}
+
+.steward-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:16px;margin-bottom:24px;}
+.steward-card{background:#fff;border:1px solid var(--green-line);border-radius:6px;padding:18px;box-shadow:var(--shadow);}
+.steward-card.has-overdue{border-color:#e3a8a5;background:linear-gradient(180deg,var(--red-bg),#fff 60%);}
+.steward-card .s-name{font-family:var(--serif);font-weight:600;font-size:16px;}
+.steward-card .s-stats{display:flex;gap:14px;margin-top:10px;flex-wrap:wrap;}
+.steward-card .s-stat b{font-size:18px;color:var(--green-1);font-family:var(--serif);display:block;}
+.steward-card .s-stat span{font-size:10.5px;color:var(--grey);text-transform:uppercase;}
+.s-alert{margin-top:12px;font-size:11.5px;font-weight:700;padding:5px 10px;border-radius:4px;display:inline-block;}
+.alert-overdue{background:var(--red);color:#fff;}
+.alert-highload{background:var(--amber-bg);color:var(--amber);}
+.alert-ok{background:var(--ok-bg);color:var(--green-2);}
+.breakdown-grid{display:grid;grid-template-columns:1fr 1fr;gap:20px;}
+@media (max-width:880px){.breakdown-grid{grid-template-columns:1fr;}}
+
+.modal-overlay{position:fixed;inset:0;background:rgba(15,38,27,0.55);display:none;align-items:center;justify-content:center;z-index:200;padding:20px;}
+.modal-overlay.show{display:flex;}
+.modal{background:#fff;border-radius:8px;max-width:560px;width:100%;box-shadow:0 20px 50px rgba(0,0,0,0.25);overflow:hidden;}
+.modal-head{background:var(--green-1);color:#fff;padding:18px 22px;display:flex;align-items:center;gap:10px;}
+.modal-head h3{font-family:var(--serif);margin:0;font-size:17px;}
+.modal-body{padding:20px 22px;font-size:14px;line-height:1.6;max-height:60vh;overflow-y:auto;}
+.modal-foot{padding:14px 22px 20px;display:flex;justify-content:flex-end;gap:10px;}
+.modal.modal-amber .modal-head{background:#92620f;}
+
+.toast-stack{position:fixed;bottom:24px;right:24px;z-index:300;display:flex;flex-direction:column;gap:10px;align-items:flex-end;}
+.toast{background:var(--green-1);color:#fff;padding:13px 18px;border-radius:6px;font-size:13.5px;font-weight:500;box-shadow:0 6px 20px rgba(0,0,0,0.25);max-width:340px;}
+.toast.err{background:var(--red);}
+
+.banner{padding:10px 16px;border-radius:6px;font-size:13px;margin-bottom:18px;}
+.banner-red{background:var(--red-bg);border:1px solid #e3a8a5;color:var(--red);}
+.banner-amber{background:var(--amber-bg);border:1px solid var(--amber);color:#6b4d10;}
+.banner a{color:var(--green-2);font-weight:600;cursor:pointer;}
+
+.hidden{display:none!important;}
+@media (max-width:920px){
+  .tabs{display:none;position:absolute;top:64px;left:0;right:0;background:var(--green-1);flex-direction:column;padding:8px;box-shadow:0 8px 16px rgba(0,0,0,0.2);}
+  .tabs.open{display:flex;}
+  .tab-btn{text-align:left;width:100%;}
+  .menu-toggle{display:block;}
+}
+footer.app-foot{text-align:center;color:var(--grey);font-size:11.5px;padding:30px 0 10px;border-top:1px solid var(--green-line);margin-top:40px;}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="brand">
+    <div class="brand-mark">31</div>
+    <div class="brand-text"><h1>DFCS Grievance Tracker</h1><p>AFSCME Council 31 &middot; Division of Family &amp; Community Services</p></div>
+  </div>
+  <button class="menu-toggle" id="menuToggle">&#9776;</button>
+  <nav class="tabs" id="tabs">
+    <button class="tab-btn active" data-tab="intake">Intake Form</button>
+    <button class="tab-btn" data-tab="dashboard">Priority Dashboard <span class="count" id="navOverdueCount">0</span></button>
+    <button class="tab-btn" data-tab="log">Grievance Log</button>
+    <button class="tab-btn" data-tab="activity">Activity Log</button>
+    <button class="tab-btn" data-tab="workload">Steward Workload</button>
+    <button class="tab-btn" data-tab="archive">Archive</button>
+  </nav>
+</div>
+
+<main>
+  <div id="connBanner"></div>
+
+  <!-- INTAKE -->
+  <section id="tab-intake">
+    <div class="section-head">
+      <div><h2>Grievance Intake</h2><div class="sub">Master Contract 2023&ndash;2027 &middot; Art. V Grievance Procedure</div></div>
+      <button class="btn btn-ghost" id="clearFormBtn">Clear form</button>
+    </div>
+    <div class="panel panel-pad">
+      <form id="intakeForm" autocomplete="off">
+        <div class="form-grid">
+          <div class="section-divider"><span class="label">Employee &amp; case identification</span><span class="line"></span></div>
+          <div class="field"><label for="f-gid">Grievance ID <span class="req">*</span></label><input type="text" id="f-gid" placeholder="DFCS-2025-001"><div class="field-note" id="gidNote"></div></div>
+          <div class="field"><label for="f-name">Employee name <span class="req">*</span></label><input type="text" id="f-name" placeholder="Full name"></div>
+          <div class="field"><label for="f-job">Job classification</label><select id="f-job"></select></div>
+          <div class="field"><label for="f-bu">Bargaining unit</label><select id="f-bu"></select></div>
+          <div class="field"><label for="f-shift">Shift</label><select id="f-shift"></select></div>
+          <div class="field"><label for="f-bureau">DFCS bureau / program unit</label><select id="f-bureau"></select></div>
+          <div class="field"><label for="f-loc">FCRC / work location</label><select id="f-loc"></select></div>
+          <div class="field"><label for="f-county">County</label><select id="f-county"></select></div>
+
+          <div class="section-divider"><span class="label">Contractual authority &mdash; Art. V Sec. 1</span><span class="line"></span></div>
+          <div class="field"><label for="f-gtype">Grievance type</label><select id="f-gtype"></select></div>
+          <div class="field"><label for="f-article">CBA article violated</label><select id="f-article"></select></div>
+          <div class="field wide"><label for="f-section">Specific section / clause reference</label><input type="text" id="f-section" placeholder="e.g. Art. IX Sec. 2 — Progressive discipline not followed"></div>
+          <div class="field wide"><label for="f-remedy">Remedy sought</label><textarea id="f-remedy" placeholder="Be specific."></textarea></div>
+
+          <div class="section-divider"><span class="label">Lifecycle milestones &mdash; Art. V Sec. 2 (working days)</span><span class="line"></span></div>
+          <div class="field"><label for="f-steward">Steward name</label><select id="f-steward"></select></div>
+          <div class="field"><label>Steward email (auto)</label><div class="readonly-box" id="stewardEmailBox">Select a steward</div></div>
+          <div class="field"><label for="f-awareness">Awareness date (Day 0)</label><input type="date" id="f-awareness"></div>
+          <div class="field"><label for="f-step1filed">Step 1 filed date</label><input type="date" id="f-step1filed"></div>
+          <div class="field"><label for="f-step1resp">Step 1 response date</label><input type="date" id="f-step1resp"></div>
+          <div class="field"><label for="f-step2filed">Step 2 filed date</label><input type="date" id="f-step2filed"></div>
+          <div class="field"><label for="f-step2resp">Step 2 response date</label><input type="date" id="f-step2resp"></div>
+          <div class="field"><label for="f-step3filed">Step 3 filed date</label><input type="date" id="f-step3filed"></div>
+          <div class="field"><label for="f-step3resp">Step 3 response date</label><input type="date" id="f-step3resp"></div>
+          <div class="field"><label for="f-step4filed">Step 4 / arb filed date</label><input type="date" id="f-step4filed"></div>
+
+          <div class="notice-box notice-amber">&#9888;&#65039; <span><b>Benefit Recoupment</b> (Art. XIII) and <b>Upward Mobility denials</b> (Art. XV Sec. 8) file directly at Step 3.</span></div>
+
+          <div class="section-divider"><span class="label">Filing deadline monitor</span><span class="line"></span></div>
+          <div class="deadline-grid" id="deadlineGrid">
+            <div class="deadline-item"><span class="dl-label">15-WD filing deadline (Step 1)</span><span class="dl-value" id="dl-1">&mdash;</span></div>
+            <div class="deadline-item"><span class="dl-label">Step 1 response deadline (10 WD)</span><span class="dl-value" id="dl-2">&mdash;</span></div>
+            <div class="deadline-item"><span class="dl-label">Step 2 filing deadline (5 WD)</span><span class="dl-value" id="dl-3">&mdash;</span></div>
+            <div class="deadline-item"><span class="dl-label">Step 2 answer deadline (10+5 WD)</span><span class="dl-value" id="dl-4">&mdash;</span></div>
+            <div class="deadline-item"><span class="dl-label">Step 3 filing deadline (15 WD)</span><span class="dl-value" id="dl-5">&mdash;</span></div>
+            <div class="deadline-item"><span class="dl-label">Step 4 filing deadline (15 WD)</span><span class="dl-value" id="dl-6">&mdash;</span></div>
+          </div>
+          <div class="status-banner status-wait" id="filingStatusBanner">Enter the awareness date to see the filing window status.</div>
+
+          <div class="field"><label for="f-status">Current status / outcome</label><select id="f-status"></select></div>
+          <div></div>
+
+          <div class="form-footer">
+            <button type="button" class="btn btn-secondary" id="clearFormBtn2">Clear</button>
+            <button type="submit" class="btn btn-primary btn-lg" id="submitBtn">Submit &amp; clear</button>
+          </div>
+        </div>
+      </form>
+    </div>
+  </section>
+
+  <!-- DASHBOARD -->
+  <section id="tab-dashboard" class="hidden">
+    <div class="section-head"><div><h2>Priority Case Monitor</h2><div class="sub">Active grievances ranked by next contractual deadline</div></div></div>
+    <div class="kpi-row">
+      <div class="kpi"><div class="num" id="kpiPending">0</div><div class="lbl">Total pending</div></div>
+      <div class="kpi red"><div class="num" id="kpiOverdue">0</div><div class="lbl">Response overdue</div></div>
+      <div class="kpi amber"><div class="num" id="kpiSoon">0</div><div class="lbl">Due within 7 days</div></div>
+      <div class="kpi"><div class="num" id="kpiArb">0</div><div class="lbl">At arbitration</div></div>
+    </div>
+    <div class="legend">
+      <span><i class="dot" style="background:#9c0006"></i>Response overdue</span>
+      <span><i class="dot" style="background:#b7791f"></i>Due within 7 days</span>
+      <span><i class="dot" style="background:#2e7d32"></i>Resolved</span>
+      <span><i class="dot" style="background:#c7c4b7"></i>Active / on track</span>
+    </div>
+    <div class="table-wrap"><table><thead><tr><th>Grievance ID</th><th>Employee</th><th>Type</th><th>CBA reference</th><th>Current step</th><th>Next deadline</th><th>Status</th><th>Days open</th></tr></thead><tbody id="dashboardBody"></tbody></table></div>
+  </section>
+
+  <!-- LOG -->
+  <section id="tab-log" class="hidden">
+    <div class="section-head">
+      <div><h2>Grievance Log</h2><div class="sub">Complete master ledger</div></div>
+      <button class="btn btn-secondary" id="archiveClosedBtn">Archive closed</button>
+    </div>
+    <div class="table-wrap"><table><thead><tr><th>ID</th><th>Employee</th><th>Job class</th><th>Bureau</th><th>Location</th><th>Steward</th><th>Type</th><th>Status</th><th>Step</th><th>Step 1 filed</th><th>Step 1 due</th><th>Step 2 filed</th><th>Step 3 filed</th><th>Days open</th><th></th></tr></thead><tbody id="logBody"></tbody></table></div>
+  </section>
+
+  <!-- ACTIVITY -->
+  <section id="tab-activity" class="hidden">
+    <div class="section-head">
+      <div><h2>Activity Log</h2><div class="sub">Paper trail &mdash; every action recorded</div></div>
+      <button class="btn btn-primary" id="addActivityBtn">+ Log activity</button>
+    </div>
+    <div class="panel"><div class="panel-pad" id="activityList"></div></div>
+  </section>
+
+  <!-- WORKLOAD -->
+  <section id="tab-workload" class="hidden">
+    <div class="section-head"><div><h2>Steward Workload</h2><div class="sub">Live counts &middot; Art. V Sec. 5 quarterly steward list</div></div></div>
+    <div class="steward-grid" id="stewardGrid"></div>
+    <div class="breakdown-grid">
+      <div><h3 style="font-family:var(--serif);color:var(--green-1);font-size:15px;margin-bottom:10px;">By DFCS bureau</h3><div class="table-wrap"><table><thead><tr><th>Bureau</th><th>Active</th><th>Overdue</th></tr></thead><tbody id="bureauBody"></tbody></table></div></div>
+      <div><h3 style="font-family:var(--serif);color:var(--green-1);font-size:15px;margin-bottom:10px;">By FCRC / location</h3><div class="table-wrap"><table><thead><tr><th>Location</th><th>Active</th><th>Overdue</th></tr></thead><tbody id="locationBody"></tbody></table></div></div>
+    </div>
+  </section>
+
+  <!-- ARCHIVE -->
+  <section id="tab-archive" class="hidden">
+    <div class="section-head"><div><h2>Archive</h2><div class="sub">Closed grievances &middot; Art. V Sec. 3(a) record retention</div></div></div>
+    <div class="table-wrap"><table><thead><tr><th>ID</th><th>Employee</th><th>Type</th><th>Status</th><th>Archived on</th></tr></thead><tbody id="archiveBody"></tbody></table></div>
+  </section>
+</main>
+
+<footer class="app-foot">AFSCME Council 31 &middot; Division of Family &amp; Community Services, IDHS &middot; Master Contract 2023&ndash;2027</footer>
+
+<div class="modal-overlay" id="activityModalOverlay">
+  <div class="modal">
+    <div class="modal-head"><span>&#128221;</span><h3>Log activity</h3></div>
+    <div class="modal-body">
+      <div class="form-grid" style="gap:14px;">
+        <div class="field wide"><label>Grievance ID</label><select id="actGid"></select></div>
+        <div class="field"><label>Date</label><input type="date" id="actDate"></div>
+        <div class="field"><label>Entered by</label><select id="actSteward"></select></div>
+        <div class="field wide"><label>Activity type</label><select id="actType"></select></div>
+        <div class="field wide"><label>Notes</label><textarea id="actNotes"></textarea></div>
+        <div class="field"><label>Follow-up needed?</label><select id="actFollowup"><option value="No">No</option><option value="Yes">Yes</option></select></div>
+        <div class="field"><label>Follow-up date</label><input type="date" id="actFollowupDate"></div>
+      </div>
+    </div>
+    <div class="modal-foot"><button class="btn btn-ghost" id="actCancelBtn">Cancel</button><button class="btn btn-primary" id="actSaveBtn">Save activity</button></div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="archiveModalOverlay">
+  <div class="modal modal-amber">
+    <div class="modal-head"><span>&#128193;</span><h3>Archive closed grievances</h3></div>
+    <div class="modal-body" id="archiveModalBody"></div>
+    <div class="modal-foot"><button class="btn btn-ghost" id="archiveCancelBtn">Cancel</button><button class="btn btn-primary" id="archiveConfirmBtn">Archive now</button></div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="detailModalOverlay">
+  <div class="modal">
+    <div class="modal-head"><span>&#128203;</span><h3 id="detailTitle">Grievance detail</h3></div>
+    <div class="modal-body" id="detailBody"></div>
+    <div class="modal-foot"><button class="btn btn-secondary" id="detailEditBtn">Edit in form</button><button class="btn btn-ghost" id="detailCloseBtn">Close</button></div>
+  </div>
+</div>
+
+<div class="toast-stack" id="toastStack"></div>
+
+<script>
+/* ===================================================================
+   DFCS GRIEVANCE TRACKER — frontend
+   Talks to the real backend API (server/index.js) which persists
+   to a JSON file on disk. Shared by every steward who opens this URL.
+   =================================================================== */
+
+const TERMINAL_STATUSES = ["Settled","Granted","Denied","Withdrawn","Partially Granted"];
+const HOLIDAYS = new Set([
+  "2024-01-01","2024-01-15","2024-02-19","2024-05-27","2024-06-19","2024-07-04","2024-09-02","2024-11-11","2024-11-28","2024-12-25",
+  "2025-01-01","2025-01-20","2025-02-17","2025-05-26","2025-06-19","2025-07-04","2025-09-01","2025-11-11","2025-11-27","2025-12-25",
+  "2026-01-01","2026-01-19","2026-02-16","2026-05-25","2026-06-19","2026-07-03","2026-09-07","2026-11-11","2026-11-26","2026-12-25",
+  "2027-01-01","2027-01-18","2027-05-31","2027-07-05","2027-09-06","2027-11-11","2027-11-25","2027-12-24"
+]);
+
+function toDateLocal(s){ if(!s) return null; const [y,m,d]=s.split('-').map(Number); return new Date(y,m-1,d); }
+function toISO(d){ if(!d) return ""; const y=d.getFullYear(),m=String(d.getMonth()+1).padStart(2,'0'),dd=String(d.getDate()).padStart(2,'0'); return `${y}-${m}-${dd}`; }
+function isHoliday(d){ return HOLIDAYS.has(toISO(d)); }
+function isWeekend(d){ const w=d.getDay(); return w===0||w===6; }
+function workday(startISO, days){
+  let d = toDateLocal(startISO);
+  if(!d) return null;
+  let remaining = Math.abs(days);
+  const step = days >= 0 ? 1 : -1;
+  while(remaining > 0){
+    d = new Date(d.getFullYear(), d.getMonth(), d.getDate()+step);
+    if(!isWeekend(d) && !isHoliday(d)) remaining--;
+  }
+  return d;
+}
+function addCalendarDays(startISO, days){
+  const d = toDateLocal(startISO);
+  if(!d) return null;
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate()+days);
+}
+function fmt(d){ return d ? toISO(d) : ""; }
+function today(){ const t=new Date(); return new Date(t.getFullYear(),t.getMonth(),t.getDate()); }
+function daysBetween(a,b){ return Math.round((b-a)/86400000); }
+function uid(){ return 'a'+Math.random().toString(36).slice(2,10)+Date.now().toString(36); }
+
+let SETUP = {};
+let STATE = { grievances: [], activity: [], archive: [] };
+
+const $ = id => document.getElementById(id);
+function fillSelect(sel, items, withBlank=true){
+  sel.innerHTML = (withBlank? '<option value=""></option>' : '') +
+    items.map(v=>`<option value="${escapeHtml(v)}">${escapeHtml(v)}</option>`).join('');
+}
+function escapeHtml(s){ return String(s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function toast(msg, type='ok'){
+  const stack = $('toastStack');
+  const el = document.createElement('div');
+  el.className = 'toast' + (type==='err'?' err':'');
+  el.innerHTML = (type==='err'?'&#9888;&#65039; ':'&#10003; ') + msg;
+  stack.appendChild(el);
+  setTimeout(()=>{ el.style.opacity='0'; el.style.transition='opacity 0.3s'; setTimeout(()=>el.remove(),300); }, 3400);
+}
+
+async function apiGet(){
+  const res = await fetch('/api/data');
+  if(!res.ok) throw new Error('Server returned ' + res.status);
+  return res.json();
+}
+async function apiPost(url, body){
+  const res = await fetch(url, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body) });
+  const json = await res.json();
+  if(!res.ok || json.error) throw new Error(json.error || ('Server returned ' + res.status));
+  return json;
+}
+
+async function refresh(){
+  try{
+    const data = await apiGet();
+    SETUP = data.setup || {};
+    STATE.grievances = data.grievances || [];
+    STATE.activity = data.activity || [];
+    STATE.archive = data.archive || [];
+    $('connBanner').innerHTML = '';
+    populateDropdowns();
+    renderAll();
+  }catch(err){
+    $('connBanner').innerHTML = `<div class="banner banner-red"><b>Connection problem.</b> ${escapeHtml(err.message)} — the server may be waking up, try again in a few seconds.</div>`;
+  }
+}
+
+function populateDropdowns(){
+  fillSelect($('f-job'), SETUP.JobClass||[]);
+  fillSelect($('f-bu'), SETUP.BargainingUnit||[]);
+  fillSelect($('f-shift'), SETUP.Shift||[]);
+  fillSelect($('f-bureau'), SETUP.Bureau||[]);
+  fillSelect($('f-loc'), SETUP.Location||[]);
+  fillSelect($('f-county'), SETUP.County||[]);
+  fillSelect($('f-gtype'), SETUP.GrievanceType||[]);
+  fillSelect($('f-article'), SETUP.Article||[]);
+  fillSelect($('f-steward'), SETUP.Steward||[]);
+  fillSelect($('f-status'), SETUP.Status||[]);
+  fillSelect($('actSteward'), SETUP.Steward||[], false);
+  fillSelect($('actType'), SETUP.ActivityType||[], false);
+}
+
+$('f-steward')?.addEventListener('change', e=>{
+  const idx = (SETUP.Steward||[]).indexOf(e.target.value);
+  $('stewardEmailBox').textContent = idx>=0 ? (SETUP.StewardEmail||[])[idx] : "Select a steward";
+});
+
+function recalcDeadlines(){
+  const awareness = $('f-awareness').value;
+  const s1filed = $('f-step1filed').value;
+  const s1resp = $('f-step1resp').value;
+  const s2filed = $('f-step2filed').value;
+  const s3filed = $('f-step3filed').value;
+
+  setDl('dl-1', awareness ? fmt(workday(awareness,15)) : '—');
+  setDl('dl-2', s1filed ? fmt(workday(s1filed,10)) : '—');
+  setDl('dl-3', s1filed ? fmt(workday(s1filed,5)) : '—');
+  setDl('dl-4', s2filed ? fmt(workday(toISO(workday(s2filed,10)),5)) : '—');
+  setDl('dl-5', s2filed ? fmt(workday(s2filed,15)) : '—');
+  setDl('dl-6', s3filed ? fmt(workday(s3filed,15)) : '—');
+
+  const banner = $('filingStatusBanner');
+  if(!awareness){
+    banner.className = 'status-banner status-wait';
+    banner.textContent = 'Enter the awareness date to see the filing window status.';
+  } else if(s1filed){
+    banner.className = 'status-banner status-open';
+    banner.textContent = `Step 1 filed on ${s1filed}.`;
+  } else {
+    const dl = workday(awareness,15);
+    if(dl < today()){
+      banner.className = 'status-banner status-closed';
+      banner.textContent = `Filing window closed — Step 1 deadline was ${fmt(dl)}.`;
+    } else {
+      banner.className = 'status-banner status-open';
+      banner.textContent = `Filing window open — Step 1 must be filed by ${fmt(dl)}.`;
+    }
+  }
+}
+function setDl(id, text){ $(id).textContent = text; }
+['f-awareness','f-step1filed','f-step1resp','f-step2filed','f-step2resp','f-step3filed','f-step4filed']
+  .forEach(id => $(id)?.addEventListener('change', recalcDeadlines));
+
+$('f-gid')?.addEventListener('input', e=>{
+  const v = e.target.value.trim();
+  const existing = STATE.grievances.find(g=>g.id===v);
+  $('gidNote').textContent = existing ? `Existing record — submitting will UPDATE "${v}" (historic dates are preserved).` : '';
+});
+
+$('intakeForm').addEventListener('submit', e=>{ e.preventDefault(); submitAndClear(); });
+
+async function submitAndClear(){
+  const gid = $('f-gid').value.trim();
+  const name = $('f-name').value.trim();
+  if(!gid){ toast('Grievance ID is required.', 'err'); $('f-gid').focus(); return; }
+  if(!name){ toast('Employee name is required.', 'err'); $('f-name').focus(); return; }
+
+  const existing = STATE.grievances.find(g=>g.id===gid);
+  const isNew = !existing;
+  const stewardIdx = (SETUP.Steward||[]).indexOf($('f-steward').value);
+  const stewardEmail = stewardIdx>=0 ? (SETUP.StewardEmail||[])[stewardIdx] : "";
+
+  const record = {
+    id: gid, employee: name, jobClass: $('f-job').value, bu: $('f-bu').value, shift: $('f-shift').value,
+    bureau: $('f-bureau').value, location: $('f-loc').value, county: $('f-county').value,
+    steward: $('f-steward').value, stewardEmail, gtype: $('f-gtype').value, article: $('f-article').value,
+    section: $('f-section').value, remedy: $('f-remedy').value, status: $('f-status').value || 'Pending',
+    awareness: $('f-awareness').value, step1filed: $('f-step1filed').value, step1resp: $('f-step1resp').value,
+    step2filed: $('f-step2filed').value, step2resp: $('f-step2resp').value,
+    step3filed: $('f-step3filed').value, step3resp: $('f-step3resp').value, step4filed: $('f-step4filed').value
+  };
+
+  const btn = $('submitBtn');
+  btn.disabled = true; btn.textContent = 'Saving…';
+  try{
+    const result = await apiPost('/api/grievance', record);
+    await apiPost('/api/activity', {
+      id: uid(), gid, date: toISO(today()),
+      type: isNew ? "Step 1 - Oral Grievance Raised with Supervisor" : "Note - General Update",
+      steward: record.steward, step: currentStep(result.record),
+      notes: `Submitted via web form. Status: ${record.status}`,
+      followup: "No", followupDate: ""
+    });
+    toast(isNew ? `Grievance ${gid} added.` : `Grievance ${gid} updated.`);
+    clearForm();
+    await refresh();
+  }catch(err){
+    toast(err.message || 'Could not save — check connection.', 'err');
+  }finally{
+    btn.disabled = false; btn.textContent = 'Submit & clear';
+  }
+}
+
+function clearForm(){
+  ['f-gid','f-name','f-section','f-remedy'].forEach(id=>$(id).value='');
+  ['f-job','f-bu','f-shift','f-bureau','f-loc','f-county','f-gtype','f-article','f-steward','f-status']
+    .forEach(id=>$(id).value='');
+  ['f-awareness','f-step1filed','f-step1resp','f-step2filed','f-step2resp','f-step3filed','f-step3resp','f-step4filed']
+    .forEach(id=>$(id).value='');
+  $('stewardEmailBox').textContent = 'Select a steward';
+  $('gidNote').textContent = '';
+  recalcDeadlines();
+  $('f-gid').focus();
+}
+$('clearFormBtn').addEventListener('click', clearForm);
+$('clearFormBtn2').addEventListener('click', clearForm);
+
+function deriveDeadlines(rec){
+  const d = {};
+  d.step1Due = rec.step1filed ? workday(rec.step1filed,10) : null;
+  d.step2MeetingDue = rec.step2filed ? workday(rec.step2filed,10) : null;
+  d.step2AnswerDue = d.step2MeetingDue ? workday(toISO(d.step2MeetingDue),5) : null;
+  d.step3SignDue = rec.step3filed ? workday(rec.step3filed,10) : null;
+  d.arbHearingDue = rec.step4filed ? addCalendarDays(rec.step4filed,60) : null;
+  d.arbDecisionDue = d.arbHearingDue ? addCalendarDays(toISO(d.arbHearingDue),30) : null;
+  return d;
+}
+function currentStep(rec){
+  if(rec.step4filed) return "Step 4 / Arbitration";
+  if(rec.step3filed) return "Step 3 — Agency Head";
+  if(rec.step2filed) return "Step 2 — Intermediate Admin";
+  if(rec.step1filed) return "Step 1 — Immediate Supervisor";
+  return "Intake";
+}
+function isResolved(rec){ return TERMINAL_STATUSES.includes(rec.status); }
+function isOverdue(rec){
+  if(isResolved(rec)) return false;
+  const d = deriveDeadlines(rec);
+  const t = today();
+  if(d.step1Due && !rec.step1resp && d.step1Due < t) return true;
+  if(d.step2AnswerDue && !rec.step2resp && d.step2AnswerDue < t) return true;
+  if(d.step3SignDue && !rec.step3resp && d.step3SignDue < t) return true;
+  if(d.arbHearingDue && !rec.arbResult && d.arbHearingDue < t) return true;
+  return false;
+}
+function nextDeadline(rec){
+  if(isResolved(rec)) return null;
+  const d = deriveDeadlines(rec);
+  const candidates = [];
+  if(d.step1Due && !rec.step1resp) candidates.push(d.step1Due);
+  if(d.step2AnswerDue && !rec.step2resp) candidates.push(d.step2AnswerDue);
+  if(d.step3SignDue && !rec.step3resp) candidates.push(d.step3SignDue);
+  if(d.arbHearingDue && !rec.arbResult) candidates.push(d.arbHearingDue);
+  if(!candidates.length) return null;
+  return candidates.reduce((a,b)=> a<b?a:b);
+}
+function daysSinceFiled(rec){
+  if(!rec.step1filed) return null;
+  return daysBetween(toDateLocal(rec.step1filed), today());
+}
+function rowClass(rec){
+  if(isOverdue(rec)) return 'row-red';
+  if(isResolved(rec)) return 'row-green';
+  const nd = nextDeadline(rec);
+  if(nd && daysBetween(today(), nd) <= 7 && daysBetween(today(), nd) >= 0) return 'row-amber';
+  return '';
+}
+function cbaRef(rec){
+  if(!rec.article) return '';
+  return rec.section ? `${rec.article} \u00a7 ${rec.section}` : rec.article;
+}
+
+function renderDashboard(){
+  const active = STATE.grievances.filter(g=>!isResolved(g));
+  const overdue = active.filter(isOverdue);
+  const soon = active.filter(g=>{ const nd=nextDeadline(g); if(!nd) return false; const diff=daysBetween(today(),nd); return diff>=0 && diff<=7; });
+  const arb = STATE.grievances.filter(g=>g.status==='Pending Arbitration'||g.status==='Arbitration Scheduled');
+
+  $('kpiPending').textContent = active.length;
+  $('kpiOverdue').textContent = overdue.length;
+  $('kpiSoon').textContent = soon.length;
+  $('kpiArb').textContent = arb.length;
+  $('navOverdueCount').textContent = overdue.length;
+  $('navOverdueCount').classList.toggle('alert', overdue.length>0);
+
+  const sorted = [...active].sort((a,b)=>{
+    const na = nextDeadline(a), nb = nextDeadline(b);
+    if(!na && !nb) return 0; if(!na) return 1; if(!nb) return -1;
+    return na-nb;
+  });
+
+  const body = $('dashboardBody');
+  if(!sorted.length){
+    body.innerHTML = `<tr><td colspan="8"><div class="empty-state"><div class="icon">&#128203;</div><h3>No active grievances</h3><p>Submit a new grievance from the Intake Form to see it here.</p></div></td></tr>`;
+    return;
+  }
+  body.innerHTML = sorted.map(rec=>{
+    const nd = nextDeadline(rec);
+    const days = daysSinceFiled(rec);
+    return `<tr class="${rowClass(rec)}">
+      <td><a class="row-link" data-gid="${escapeHtml(rec.id)}">${escapeHtml(rec.id)}</a></td>
+      <td>${escapeHtml(rec.employee||'')}</td>
+      <td>${escapeHtml(rec.gtype||'')}</td>
+      <td>${escapeHtml(cbaRef(rec))}</td>
+      <td>${escapeHtml(currentStep(rec))}</td>
+      <td>${nd?fmt(nd):'—'}</td>
+      <td><span class="pill ${rec.status==='Pending Arbitration'?'pill-arb':'pill-pending'}">${escapeHtml(rec.status||'Pending')}</span></td>
+      <td>${days!==null?days:'—'}</td>
+    </tr>`;
+  }).join('');
+  body.querySelectorAll('.row-link').forEach(a=>a.addEventListener('click', ()=>openDetail(a.dataset.gid)));
+}
+
+function renderLog(){
+  const body = $('logBody');
+  if(!STATE.grievances.length){
+    body.innerHTML = `<tr><td colspan="15"><div class="empty-state"><div class="icon">&#128193;</div><h3>Log is empty</h3><p>Records appear here after you submit the Intake Form.</p></div></td></tr>`;
+    return;
+  }
+  body.innerHTML = STATE.grievances.slice().reverse().map(rec=>{
+    const d = deriveDeadlines(rec);
+    return `<tr class="${rowClass(rec)}">
+      <td><a class="row-link" data-gid="${escapeHtml(rec.id)}">${escapeHtml(rec.id)}</a></td>
+      <td>${escapeHtml(rec.employee||'')}</td><td>${escapeHtml(rec.jobClass||'')}</td>
+      <td>${escapeHtml(rec.bureau||'')}</td><td>${escapeHtml(rec.location||'')}</td>
+      <td>${escapeHtml(rec.steward||'')}</td><td>${escapeHtml(rec.gtype||'')}</td>
+      <td><span class="pill ${isResolved(rec)?'pill-resolved':'pill-pending'}">${escapeHtml(rec.status||'')}</span></td>
+      <td>${escapeHtml(currentStep(rec))}</td>
+      <td>${rec.step1filed||''}</td><td>${d.step1Due?fmt(d.step1Due):''}</td>
+      <td>${rec.step2filed||''}</td><td>${rec.step3filed||''}</td>
+      <td>${daysSinceFiled(rec)??''}</td>
+      <td><button class="btn-tiny" data-gid="${escapeHtml(rec.id)}">View</button></td>
+    </tr>`;
+  }).join('');
+  body.querySelectorAll('.row-link, button[data-gid]').forEach(el=>el.addEventListener('click', ()=>openDetail(el.dataset.gid)));
+}
+
+function renderActivity(){
+  const list = $('activityList');
+  if(!STATE.activity.length){
+    list.innerHTML = `<div class="empty-state"><div class="icon">&#128221;</div><h3>No activity logged yet</h3><p>Click "+ Log activity" to record meetings, documents, and communications.</p></div>`;
+    return;
+  }
+  list.innerHTML = STATE.activity.slice().reverse().map(a=>{
+    const followBadge = a.followup==='Yes' ? `<span class="followup-flag">Follow up ${a.followupDate||''}</span>` : '';
+    return `<div class="activity-item">
+      <div class="activity-date">${a.date}</div>
+      <div><span class="a-type">${escapeHtml(a.type)}</span><span class="a-gid">${escapeHtml(a.gid)}</span>
+      <div class="a-notes">${escapeHtml(a.notes||'')}</div>
+      <div class="a-meta">${escapeHtml(a.steward||'')} &middot; ${escapeHtml(a.step||'')}</div></div>
+      <div>${followBadge}</div>
+    </div>`;
+  }).join('');
+}
+
+$('addActivityBtn').addEventListener('click', ()=>{
+  fillSelect($('actGid'), STATE.grievances.map(g=>g.id), false);
+  $('actDate').value = toISO(today());
+  $('actNotes').value = '';
+  $('actFollowup').value = 'No';
+  $('actFollowupDate').value = '';
+  $('activityModalOverlay').classList.add('show');
+});
+$('actCancelBtn').addEventListener('click', ()=>$('activityModalOverlay').classList.remove('show'));
+$('actSaveBtn').addEventListener('click', async ()=>{
+  const gid = $('actGid').value;
+  if(!gid){ toast('Select a grievance ID.', 'err'); return; }
+  const rec = STATE.grievances.find(g=>g.id===gid);
+  try{
+    await apiPost('/api/activity', {
+      id: uid(), gid, date: $('actDate').value || toISO(today()),
+      type: $('actType').value, steward: $('actSteward').value,
+      step: rec?currentStep(rec):'', notes: $('actNotes').value,
+      followup: $('actFollowup').value, followupDate: $('actFollowupDate').value
+    });
+    $('activityModalOverlay').classList.remove('show');
+    toast('Activity logged.');
+    await refresh();
+  }catch(err){ toast(err.message, 'err'); }
+});
+
+function renderWorkload(){
+  const grid = $('stewardGrid');
+  const stewards = SETUP.Steward || [];
+  grid.innerHTML = stewards.map(name=>{
+    const mine = STATE.grievances.filter(g=>g.steward===name);
+    const active = mine.filter(g=>!isResolved(g));
+    const overdue = active.filter(isOverdue);
+    const resolved = mine.filter(isResolved);
+    const atStep1 = active.filter(g=>currentStep(g).startsWith('Step 1')).length;
+    const atStep2 = active.filter(g=>currentStep(g).startsWith('Step 2')).length;
+    const atStep3 = active.filter(g=>currentStep(g).startsWith('Step 3')).length;
+    const atArb = mine.filter(g=>g.status==='Pending Arbitration'||g.status==='Arbitration Scheduled').length;
+
+    let alertHtml;
+    if(overdue.length>0) alertHtml = `<span class="s-alert alert-overdue">${overdue.length} overdue</span>`;
+    else if(active.length>10) alertHtml = `<span class="s-alert alert-highload">High load</span>`;
+    else alertHtml = `<span class="s-alert alert-ok">On track</span>`;
+
+    return `<div class="steward-card ${overdue.length>0?'has-overdue':''}">
+      <div class="s-name">${escapeHtml(name)}</div>
+      <div class="s-stats">
+        <div class="s-stat"><b>${active.length}</b><span>Active</span></div>
+        <div class="s-stat"><b>${atStep1}</b><span>Step 1</span></div>
+        <div class="s-stat"><b>${atStep2}</b><span>Step 2</span></div>
+        <div class="s-stat"><b>${atStep3}</b><span>Step 3</span></div>
+        <div class="s-stat"><b>${atArb}</b><span>Arb</span></div>
+        <div class="s-stat"><b>${resolved.length}</b><span>Resolved</span></div>
+      </div>${alertHtml}
+    </div>`;
+  }).join('');
+
+  const bureauBody = $('bureauBody');
+  bureauBody.innerHTML = (SETUP.Bureau||[]).map(b=>{
+    const active = STATE.grievances.filter(g=>g.bureau===b && !isResolved(g));
+    const overdue = active.filter(isOverdue);
+    return `<tr><td>${escapeHtml(b)}</td><td>${active.length}</td><td>${overdue.length}</td></tr>`;
+  }).join('') || `<tr><td colspan="3" style="color:var(--grey);text-align:center;">No data</td></tr>`;
+
+  const locBody = $('locationBody');
+  const activeLocs = (SETUP.Location||[]).filter(loc => STATE.grievances.some(g=>g.location===loc && !isResolved(g)));
+  locBody.innerHTML = activeLocs.map(loc=>{
+    const active = STATE.grievances.filter(g=>g.location===loc && !isResolved(g));
+    const overdue = active.filter(isOverdue);
+    return `<tr><td>${escapeHtml(loc)}</td><td>${active.length}</td><td>${overdue.length}</td></tr>`;
+  }).join('') || `<tr><td colspan="3" style="color:var(--grey);text-align:center;">No data</td></tr>`;
+}
+
+$('archiveClosedBtn').addEventListener('click', ()=>{
+  const eligible = STATE.grievances.filter(isResolved);
+  $('archiveModalBody').innerHTML = eligible.length
+    ? `This will move <b>${eligible.length}</b> grievance(s) marked Settled, Granted, Denied, Withdrawn, or Partially Granted to the Archive tab.`
+    : `No closed grievances to archive right now.`;
+  $('archiveConfirmBtn').disabled = eligible.length===0;
+  $('archiveModalOverlay').classList.add('show');
+});
+$('archiveCancelBtn').addEventListener('click', ()=>$('archiveModalOverlay').classList.remove('show'));
+$('archiveConfirmBtn').addEventListener('click', async ()=>{
+  try{
+    const result = await apiPost('/api/archive', {});
+    $('archiveModalOverlay').classList.remove('show');
+    toast(`${result.archivedCount} grievance(s) archived.`);
+    await refresh();
+  }catch(err){ toast(err.message, 'err'); }
+});
+
+function renderArchive(){
+  const body = $('archiveBody');
+  if(!STATE.archive.length){
+    body.innerHTML = `<tr><td colspan="5"><div class="empty-state"><div class="icon">&#128193;</div><h3>Archive is empty</h3><p>Closed grievances appear here after you run Archive closed.</p></div></td></tr>`;
+    return;
+  }
+  body.innerHTML = STATE.archive.slice().reverse().map(rec=>`<tr>
+    <td>${escapeHtml(rec.id)}</td><td>${escapeHtml(rec.employee||'')}</td>
+    <td>${escapeHtml(rec.gtype||'')}</td><td>${escapeHtml(rec.status||'')}</td>
+    <td>${rec.archivedAt||''}</td>
+  </tr>`).join('');
+}
+
+function openDetail(gid){
+  const rec = STATE.grievances.find(g=>g.id===gid) || STATE.archive.find(g=>g.id===gid);
+  if(!rec) return;
+  $('detailTitle').textContent = `Grievance ${rec.id}`;
+  const d = deriveDeadlines(rec);
+  $('detailBody').innerHTML = `
+    <p><b>Employee:</b> ${escapeHtml(rec.employee||'')} &middot; <b>Job class:</b> ${escapeHtml(rec.jobClass||'')}</p>
+    <p><b>Bureau:</b> ${escapeHtml(rec.bureau||'')} &middot; <b>Location:</b> ${escapeHtml(rec.location||'')} &middot; <b>County:</b> ${escapeHtml(rec.county||'')}</p>
+    <p><b>Steward:</b> ${escapeHtml(rec.steward||'')} (${escapeHtml(rec.stewardEmail||'')})</p>
+    <p><b>Type:</b> ${escapeHtml(rec.gtype||'')}</p>
+    <p><b>CBA reference:</b> ${escapeHtml(cbaRef(rec))}</p>
+    <p><b>Remedy sought:</b> ${escapeHtml(rec.remedy||'—')}</p>
+    <p><b>Status:</b> ${escapeHtml(rec.status||'')} &middot; <b>Current step:</b> ${escapeHtml(currentStep(rec))}</p>
+    <hr style="border:none;border-top:1px solid var(--green-line);margin:14px 0;">
+    <p><b>Awareness:</b> ${rec.awareness||'—'} &middot; <b>15-WD deadline:</b> ${rec.awareness?fmt(workday(rec.awareness,15)):'—'}</p>
+    <p><b>Step 1 filed:</b> ${rec.step1filed||'—'} &middot; <b>due:</b> ${d.step1Due?fmt(d.step1Due):'—'} &middot; <b>response:</b> ${rec.step1resp||'—'}</p>
+    <p><b>Step 2 filed:</b> ${rec.step2filed||'—'} &middot; <b>answer due:</b> ${d.step2AnswerDue?fmt(d.step2AnswerDue):'—'} &middot; <b>response:</b> ${rec.step2resp||'—'}</p>
+    <p><b>Step 3 filed:</b> ${rec.step3filed||'—'} &middot; <b>sign-off due:</b> ${d.step3SignDue?fmt(d.step3SignDue):'—'} &middot; <b>response:</b> ${rec.step3resp||'—'}</p>
+    <p><b>Step 4/Arb filed:</b> ${rec.step4filed||'—'} &middot; <b>hearing due:</b> ${d.arbHearingDue?fmt(d.arbHearingDue):'—'}</p>
+  `;
+  $('detailEditBtn').onclick = ()=>{ loadIntoForm(rec); $('detailModalOverlay').classList.remove('show'); switchTab('intake'); };
+  $('detailModalOverlay').classList.add('show');
+}
+$('detailCloseBtn').addEventListener('click', ()=>$('detailModalOverlay').classList.remove('show'));
+
+function loadIntoForm(rec){
+  $('f-gid').value = rec.id;
+  $('f-name').value = rec.employee||'';
+  $('f-job').value = rec.jobClass||'';
+  $('f-bu').value = rec.bu||'';
+  $('f-shift').value = rec.shift||'';
+  $('f-bureau').value = rec.bureau||'';
+  $('f-loc').value = rec.location||'';
+  $('f-county').value = rec.county||'';
+  $('f-gtype').value = rec.gtype||'';
+  $('f-article').value = rec.article||'';
+  $('f-section').value = rec.section||'';
+  $('f-remedy').value = rec.remedy||'';
+  $('f-steward').value = rec.steward||'';
+  $('f-steward').dispatchEvent(new Event('change'));
+  $('f-awareness').value = rec.awareness||'';
+  $('f-step1filed').value = '';
+  $('f-step1resp').value = '';
+  $('f-step2filed').value = '';
+  $('f-step2resp').value = '';
+  $('f-step3filed').value = '';
+  $('f-step3resp').value = '';
+  $('f-step4filed').value = '';
+  $('f-status').value = rec.status||'';
+  $('gidNote').textContent = `Existing record — submitting will UPDATE "${rec.id}" (historic dates are preserved).`;
+  recalcDeadlines();
+}
+
+function switchTab(tab){
+  document.querySelectorAll('section[id^="tab-"]').forEach(s=>s.classList.add('hidden'));
+  $('tab-'+tab).classList.remove('hidden');
+  document.querySelectorAll('.tab-btn').forEach(b=>b.classList.toggle('active', b.dataset.tab===tab));
+  $('tabs').classList.remove('open');
+  window.scrollTo(0,0);
+}
+document.querySelectorAll('.tab-btn').forEach(btn=>{
+  btn.addEventListener('click', ()=>switchTab(btn.dataset.tab));
+});
+$('menuToggle').addEventListener('click', ()=>$('tabs').classList.toggle('open'));
+
+function renderAll(){
+  renderDashboard();
+  renderLog();
+  renderActivity();
+  renderWorkload();
+  renderArchive();
+}
+
+recalcDeadlines();
+refresh();
+setInterval(()=>refresh(), 15000); // keep all stewards' views in sync
+$('f-gid').focus();
+</script>
+</body>
+</html>

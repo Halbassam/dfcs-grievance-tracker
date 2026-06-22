@@ -1,0 +1,187 @@
+/**
+ * ================================================================
+ * AFSCME Council 31 — DFCS Grievance Tracker
+ * Simple file-based database (no native dependencies)
+ *
+ * Stores all data as a single JSON file on disk. Writes are
+ * serialized through an in-process queue so two simultaneous
+ * requests can never corrupt the file. This is a Node.js
+ * process-per-instance design: it is safe for a single
+ * Render web service instance, which is what the free tier runs.
+ * ================================================================
+ */
+
+const fs = require("fs");
+const path = require("path");
+
+const DATA_DIR = path.join(__dirname, "..", "data");
+const DB_FILE = path.join(DATA_DIR, "tracker.json");
+
+function ensureDataFile() {
+  if (!fs.existsSync(DATA_DIR)) {
+    fs.mkdirSync(DATA_DIR, { recursive: true });
+  }
+  if (!fs.existsSync(DB_FILE)) {
+    fs.writeFileSync(DB_FILE, JSON.stringify(defaultData(), null, 2));
+  }
+}
+
+function defaultData() {
+  return {
+    grievances: [],
+    activity: [],
+    archive: [],
+    setup: {
+      Status: ["Pending","Granted","Denied","Withdrawn","Settled","Partially Granted","Pending Arbitration","Arbitration Scheduled","Held in Abeyance"],
+      Bureau: ["Bureau of Family & Community Programs"],
+      Location: ["North Suburban (1N)","West Suburban (1N)","Northside (1N)","Lincolnwood (1N)","Humboldt Park (1N)","Lower North (1N)","Northwest (1N)","Ogden (1N)","Special Units (1N)","South Loop (1N)","Roseland (1S)","Aurora (Kane County)","Elgin (Kane County)","Waukegan (Lake County)","Joliet (Will County)","Alton (Madison County)","DuPage County"],
+      County: ["Cook R1N","Cook R1S","Kane","Lake","Will","Madison"],
+      Steward: ["Hazem Albassam","Maria Perez","John Todd","Kimberly Huster","Elijah Edwards"],
+      StewardEmail: ["hazem.albassam@illinois.gov","maria.p.perez@illinois.gov","john.todd@illinois.gov","kimberly.huster@illinois.gov","elijah.edwards@illinois.gov"],
+      BargainingUnit: ["RC-14 (Clerical / Office)","RC-28 (Technical)","RC-62 (Professional)","RC-63 (Supervisory Professional)","All Affected"],
+      JobClass: ["Human Services Caseworker (RC-62)","Human Services Caseworker Manager (RC-62)","Social Service Career Trainee - Option 1","Social Service Career Trainee - Option 2 (Bilingual/MSW)","Public Aid Eligibility Assistant (RC-28)","Clerical Trainee I (RC-14)","Office Aide (RC-14)","Office Clerk (RC-14)","Office Assistant (RC-14)","Office Associate (RC-14)","Office Coordinator (RC-14)","All Affected"],
+      Shift: ["Day (1st Shift)","Evening (2nd Shift)","Night (3rd Shift)","Rotating","Flexible / Variable","Monday-Friday Regular","Other"],
+      Article: ["Art. I - Agreement","Art. II - Definition of Terms","Art. III - Recognition","Art. IV - Dues Deductions","Art. V - Grievance Procedure","Art. V Sec. 1 - Definition of Grievance","Art. V Sec. 2 - Grievance Steps (Step 1 through Arbitration)","Art. V Sec. 3 - Time Limits","Art. V Sec. 3(b) - Extensions by Mutual Agreement Only","Art. V Sec. 3(c) - Auto-Advance on Employer Failure to Respond","Art. V Sec. 3(e) - Discipline Clock (from receipt of documentation)","Art. V Sec. 4 - Special Grievances MOU","Art. V Sec. 7 - Advanced Step Filing","Art. V Sec. 8 - Information Request (Pertinent Witnesses & Documents)","Art. VI - Union Rights","Art. VI Sec. 9 - Stewards and Union Representatives","Art. VII - Labor/Management Committee","Art. VIII - Work Rules","Art. IX - Discipline","Art. IX Sec. 2 - Progressive Discipline","Art. IX Sec. 3 - Suspension Pending Discharge","Art. IX Sec. 4 - Pre-Disciplinary Meeting","Art. IX Sec. 4 - Cook County PA Pre-Suspension Procedure","Art. IX Sec. 5 - Oral Reprimands","Art. IX Sec. 6 - Notification of Disciplinary Action","Art. IX Sec. 7 - Removal of Discipline from File","Art. X - Vacations","Art. X Sec. 1 - Vacation Amounts","Art. X Sec. 5 - Vacation Schedules","Art. X Sec. 6 - Vacation Scheduling by Seniority","Art. XI - Holidays","Art. XI Sec. 1 - Holiday Amounts","Art. XI Sec. 6 - Holiday Eligibility","Art. XII - Hours of Work and Overtime","Art. XII Sec. 10 - Overtime Payments","Art. XII Sec. 12 - Rest Periods","Art. XII Sec. 13 - Flexible Hours","Art. XII Sec. 16 - Compensatory Time","Art. XII Sec. 19 - Overtime Scheduling Information to Union","Art. XIII - Insurance, Pension, EAP & Indemnification","Art. XIII Sec. 1 - Health Insurance","Art. XIII - Benefit Recoupment (File Directly at Step 3)","Art. XIV - Temporary Assignment","Art. XV - Upward Mobility Program","Art. XV Sec. 8 - UMP Vacancies (File Directly at Step 3)","Art. XVI - Demotions","Art. XVII - Records and Forms","Art. XVIII - Seniority","Art. XVIII Sec. 1 - Definition","Art. XVIII Sec. 2 - Application","Art. XIX - Filling of Vacancies","Art. XIX Sec. 2 - Posting (County-Wide RC-14/28/62/63)","Art. XIX Sec. 3 - Job Assignment","Art. XIX Sec. 4 - Shift Preference","Art. XIX Sec. 5 - Promotion / Reduction / Parallel Movement","Art. XIX Sec. 7 - Transfers","Art. XX - Layoff","Art. XX Sec. 2 - General Layoff Procedures","Art. XX Sec. 3 - Bumping Rights (County-Based RC-14/28/62/63)","Art. XX Sec. 4 - Recall from Layoff","Art. XXI - Continuous Service","Art. XXII - Geographical Transfer","Art. XXIII - Leaves of Absence","Art. XXIII Sec. 16 - Sick Leave","Art. XXIII Sec. 27 - Parental Leave","Art. XXIII Sec. 28 - Family Medical Leave Act (FMLA)","Art. XXIV - Personnel Files","Art. XXV - Working Conditions, Safety and Health","Art. XXVI - Job Classifications","Art. XXVI Sec. 6 - New Classifications & Reclassification","Art. XXVI Sec. 8 - Salary Grade Placement","Art. XXVII - Evaluations","Art. XXVIII - Employee Development","Art. XXIX - Sub-Contracting","Art. XXXI Sec. 15 - Payroll Errors","Art. XXXII - Wages and Other Pay Provisions","Art. XXXII Sec. 4 - Steps","Art. XXXII Sec. 6 - General Increases","Art. XXXII Sec. 10 - Bi-lingual Pay"],
+      GrievanceType: ["Discipline - Oral Reprimand (Art. IX Sec. 5)","Discipline - Written Reprimand (Art. IX Sec. 6)","Discipline - Suspension 1-29 Days (Art. IX Sec. 6)","Discipline - Suspension 30+ Days (Art. IX Sec. 6)","Discipline - Discharge (Special Grievance MOU)","Discipline - Suspension Pending Discharge (Art. IX Sec. 3)","Discipline - Improper Progressive Discipline (Art. IX Sec. 2)","Cook County PA - Pre-Suspension Procedure Violation (Art. IX Sec. 4)","Cook County PA - Pre-Separation Procedure Violation (Art. IX Sec. 4)","Wages - Improper Step Placement (Art. XXXII Sec. 4)","Wages - Missing General Increase (Art. XXXII Sec. 6)","Wages - Bi-lingual Pay Denied (Art. XXXII Sec. 10)","Wages - Payroll Error (Art. XXXI Sec. 15)","Overtime - Improper Payment (Art. XII Sec. 10)","Overtime - Improper Scheduling / Rotation (Art. XII)","Holiday Pay - Improper / Denied (Art. XI)","Temporary Assignment - Improper / No Pay (Art. XIV)","Benefit Recoupment Dispute (Art. XIII - File at Step 3 Directly)","Health Insurance Dispute (Art. XIII Sec. 1)","Vacation - Denied / Improper Schedule (Art. X)","Vacation - Improper Seniority Order (Art. X Sec. 6)","Sick Leave - Denied (Art. XXIII Sec. 16)","Sick Leave - Abuse Charge Dispute (Art. XXIII Sec. 16)","Affirmative Attendance - Improper Discipline","FMLA - Interference / Denial (Art. XXIII Sec. 28)","Parental Leave - Denied (Art. XXIII Sec. 27)","Bereavement Leave - Denied / Improper (Art. XXIII Sec. 15)","General Leave - Denied (Art. XXIII Sec. 1)","Educational Leave - Denied (Art. XXIII Sec. 3)","Schedule Change - Improper (Art. V Sec. 4)","Rest Period - Denied (Art. XII Sec. 12)","Comp Time - Denied / Improper (Art. XII Sec. 16)","Workload - Unreasonable / Excessive Caseload (Art. XXXI Sec. 1)","Safety & Health Violation (Art. XXV Sec. 1)","Seniority - Improper Calculation (Art. XVIII Sec. 1)","Seniority - Improper Application (Art. XVIII Sec. 2)","Posting - County-Wide Violation (Art. XIX Sec. 2)","Job Assignment - Improper (Art. XIX Sec. 3)","Shift Preference - Denied (Art. XIX Sec. 4)","Promotion - Improper (Art. XIX Sec. 5)","Transfer - Improper Denial (Art. XIX Sec. 7)","Upward Mobility - Denied (Art. XV Sec. 8 - File at Step 3 Directly)","Training / Development - Denied (Art. XXVIII)","Layoff - Improper Procedure (Special Grievance MOU)","Layoff - Improper Bumping Order County-Based (Art. XX Sec. 3)","Layoff - Recall Violation (Art. XX Sec. 4)","Demotion - Improper (Special Grievance MOU)","Geographical Transfer - Improper (Special Grievance MOU)","Reclassification - Improper (Special Grievance MOU)","Salary Grade Placement - New Classification (Art. XXVI Sec. 8)","Personnel File - Improper Content (Art. XXIV)","Personnel File - Access Denied (Art. XXIV Sec. 3)","Performance Evaluation - Improper (Art. XXVII Sec. 2)","Work Rules - Improper / Not Posted (Art. VIII)","Union Rights - Steward Access Denied (Art. VI Sec. 9)","Sub-Contracting Violation (Art. XXIX)","Group Grievance","Union Grievance"],
+      ActivityType: ["Step 1 - Oral Grievance Raised with Supervisor","Step 1 - Supervisor Oral Response Received","Step 1 - No Response / Auto-Advance to Step 2","Step 2 - Written Grievance Filed with Intermediate Admin","Step 2 - Meeting Held with Intermediate Admin","Step 2 - Written Answer Received","Step 2 - No Response / Auto-Advance to Step 3","Step 3 - Grievance Filed with Agency Head","Step 3 - Monthly DFCS Grievance Committee Meeting","Step 3 - Hold Placed (Art. V Sec. 2)","Step 3 - Hold Released","Step 3 - Resolution Signed / Settled","Step 3 - Denied by Agency","Step 4 - Pre-Arb Staff Meeting Filed with CMS","Step 4 - CMS Pre-Arb Meeting Held","Step 4 - Resolution Signed / Settled at Pre-Arb","Arbitration - Moved to Expedited Arb","Arbitration - Moved to Regular Arb","Arbitration - Hearing Held","Arbitration - Award Issued (Union Prevails)","Arbitration - Award Issued (Employer Prevails)","Benefit Recoupment - Filed Directly at Step 3 (Art. XIII)","Upward Mobility - Filed Directly at Step 3 (Art. XV Sec. 8)","Cook County PA - Pre-Suspension Hearing Requested","Cook County PA - Pre-Separation Hearing Requested","Grievance - Withdrawn by Union (Art. V Sec. 3a)","Grievance - Settled","Grievance - Granted","Grievance - Denied","Grievance - Partially Granted","Document - Art. V Sec. 8 Information Request Submitted","Document - Art. V Sec. 8 Information Received","Document - Caseload / Workload Records Obtained","Document - Personnel File Reviewed (Art. XXIV Sec. 3)","Document - Discipline Letter / Transaction Notice Obtained","Document - Witness Statement Taken","Document - Comparator Cases / Employees Identified","Communication - Email / Letter Sent to Management","Communication - In-Person Meeting with Grievant","Communication - Council 31 Staff Consulted","Communication - Local Union President Notified","Deadline - Extension Requested (Art. V Sec. 3b)","Deadline - Extension Granted by Mutual Agreement","Deadline - Extension Denied","Note - General Update / Follow-Up Entry"]
+    }
+  };
+}
+
+function readRaw() {
+  ensureDataFile();
+  const text = fs.readFileSync(DB_FILE, "utf8");
+  try {
+    return JSON.parse(text);
+  } catch (e) {
+    // Corrupted file fallback — never crash the app, start fresh
+    console.error("DB file corrupted, resetting:", e.message);
+    const fresh = defaultData();
+    fs.writeFileSync(DB_FILE, JSON.stringify(fresh, null, 2));
+    return fresh;
+  }
+}
+
+function writeRawAtomic(data) {
+  // Write to a temp file then rename — rename is atomic on POSIX filesystems,
+  // so a crash mid-write can never leave a half-written file on disk.
+  const tmpFile = DB_FILE + ".tmp";
+  fs.writeFileSync(tmpFile, JSON.stringify(data, null, 2));
+  fs.renameSync(tmpFile, DB_FILE);
+}
+
+// ---------- write queue: serializes all writes within this process ----------
+let queue = Promise.resolve();
+function withLock(fn) {
+  const result = queue.then(() => fn());
+  // swallow errors in the queue chain itself so one failure doesn't wedge it,
+  // but still propagate the error to the caller of withLock
+  queue = result.catch(() => {});
+  return result;
+}
+
+// ================================================================
+// Public API
+// ================================================================
+
+function getAll() {
+  return readRaw();
+}
+
+const TERMINAL_STATUSES = ["Settled", "Denied", "Withdrawn", "Granted", "Partially Granted"];
+const DATE_FIELDS = ["awareness","step1filed","step1resp","step2filed","step2resp","step3filed","step3resp","step4filed"];
+
+async function submitGrievance(record) {
+  return withLock(() => {
+    const data = readRaw();
+    const id = String(record.id || "").trim();
+    if (!id) throw new Error("Grievance ID is required.");
+
+    let target = data.grievances.find(g => g.id === id);
+    const isNew = !target;
+
+    if (!target) {
+      target = { id };
+      data.grievances.push(target);
+    }
+
+    // Static metadata — always overwrite
+    target.employee = record.employee || "";
+    target.jobClass = record.jobClass || "";
+    target.bu = record.bu || "";
+    target.shift = record.shift || "";
+    target.bureau = record.bureau || "";
+    target.location = record.location || "";
+    target.county = record.county || "";
+    target.steward = record.steward || "";
+    target.stewardEmail = record.stewardEmail || "";
+    target.gtype = record.gtype || "";
+    target.article = record.article || "";
+    target.section = record.section || "";
+    target.remedy = record.remedy || "";
+    target.status = record.status || "Pending";
+
+    // Date fields — only overwrite if the incoming value is non-blank.
+    // This preserves historic step dates exactly like the VBA macro did.
+    for (const field of DATE_FIELDS) {
+      const incoming = record[field];
+      if (incoming) {
+        target[field] = incoming;
+      }
+      // else: leave whatever was already there (or blank if truly new)
+    }
+
+    target.createdAt = target.createdAt || record.createdAt || new Date().toISOString();
+    target.updatedAt = new Date().toISOString();
+
+    writeRawAtomic(data);
+    return { isNew, record: { ...target } };
+  });
+}
+
+async function logActivity(record) {
+  return withLock(() => {
+    const data = readRaw();
+    data.activity.push({
+      id: record.id,
+      gid: record.gid,
+      date: record.date,
+      type: record.type,
+      steward: record.steward,
+      step: record.step,
+      notes: record.notes,
+      followup: record.followup || "No",
+      followupDate: record.followupDate || ""
+    });
+    writeRawAtomic(data);
+    return { ok: true };
+  });
+}
+
+async function archiveClosed() {
+  return withLock(() => {
+    const data = readRaw();
+    const archivedAt = new Date().toISOString().slice(0, 10);
+    const keep = [];
+    let archivedCount = 0;
+
+    for (const rec of data.grievances) {
+      if (TERMINAL_STATUSES.includes(rec.status)) {
+        data.archive.push({ ...rec, archivedAt });
+        archivedCount++;
+      } else {
+        keep.push(rec);
+      }
+    }
+    data.grievances = keep;
+    writeRawAtomic(data);
+    return { archivedCount };
+  });
+}
+
+module.exports = {
+  getAll,
+  submitGrievance,
+  logActivity,
+  archiveClosed
+};
