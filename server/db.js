@@ -25,6 +25,7 @@ function ensureDataFile() {
     fs.writeFileSync(DB_FILE, JSON.stringify(defaultData(), null, 2));
   }
 }
+ensureDataFile(); // run once eagerly at module load so startup failures are loud
 
 function defaultData() {
   return {

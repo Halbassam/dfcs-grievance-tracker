@@ -12,6 +12,14 @@
 const http = require("http");
 const fs = require("fs");
 const path = require("path");
+
+process.on("uncaughtException", (err) => {
+  console.error("FATAL uncaughtException:", err);
+});
+process.on("unhandledRejection", (err) => {
+  console.error("FATAL unhandledRejection:", err);
+});
+
 const db = require("./db");
 
 const PORT = process.env.PORT || 3000;
@@ -134,6 +142,6 @@ const server = http.createServer(async (req, res) => {
   }
 });
 
-server.listen(PORT, () => {
+server.listen(PORT, "0.0.0.0", () => {
   console.log(`DFCS Grievance Tracker running on port ${PORT}`);
 });
