@@ -12,6 +12,7 @@
 const http = require("http");
 const fs = require("fs");
 const path = require("path");
+const crypto = require("crypto");
 
 process.on("uncaughtException", (err) => {
   console.error("FATAL uncaughtException:", err);
@@ -24,6 +25,56 @@ const db = require("./db");
 
 const PORT = process.env.PORT || 3000;
 const PUBLIC_DIR = path.join(__dirname, "..", "public");
+
+// ----------------------------------------------------------------
+// Shared password protection (HTTP Basic Auth)
+//
+// Set APP_PASSWORD as an environment variable on Render
+// (Dashboard > your service > Environment > Add Environment Variable).
+// Username can be anything stewards are told (e.g. "dfcs") since
+// only the password is actually checked here.
+//
+// If APP_PASSWORD is not set, the app falls back to NO password
+// protection — this is intentional so local development never
+// gets locked out by accident, but it means you MUST set
+// APP_PASSWORD on Render or the site stays fully public.
+// ----------------------------------------------------------------
+const APP_PASSWORD = process.env.APP_PASSWORD || "";
+
+function timingSafeEqual(a, b) {
+  const bufA = Buffer.from(String(a));
+  const bufB = Buffer.from(String(b));
+  if (bufA.length !== bufB.length) {
+    // Still run a comparison of equal length to avoid leaking length via timing
+    crypto.timingSafeEqual(bufA, bufA);
+    return false;
+  }
+  return crypto.timingSafeEqual(bufA, bufB);
+}
+
+function checkAuth(req) {
+  if (!APP_PASSWORD) return true; // no password configured — open access
+
+  const header = req.headers["authorization"] || "";
+  if (!header.startsWith("Basic ")) return false;
+
+  const decoded = Buffer.from(header.slice(6), "base64").toString("utf8");
+  const sepIndex = decoded.indexOf(":");
+  if (sepIndex === -1) return false;
+
+  const password = decoded.slice(sepIndex + 1);
+  return timingSafeEqual(password, APP_PASSWORD);
+}
+
+function sendAuthChallenge(res) {
+  res.writeHead(401, {
+    "WWW-Authenticate": 'Basic realm="DFCS Grievance Tracker", charset="UTF-8"',
+    "Content-Type": "text/html; charset=utf-8"
+  });
+  res.end(
+    "<h1>401 Unauthorized</h1><p>A valid password is required to access the DFCS Grievance Tracker.</p>"
+  );
+}
 
 const MIME = {
   ".html": "text/html; charset=utf-8",
@@ -100,6 +151,10 @@ function serveStatic(req, res, urlPath) {
 }
 
 const server = http.createServer(async (req, res) => {
+  if (!checkAuth(req)) {
+    return sendAuthChallenge(res);
+  }
+
   const urlObj = new URL(req.url, `http://${req.headers.host}`);
   const pathname = urlObj.pathname;
 
@@ -145,3 +200,4 @@ const server = http.createServer(async (req, res) => {
 server.listen(PORT, "0.0.0.0", () => {
   console.log(`DFCS Grievance Tracker running on port ${PORT}`);
 });
+
