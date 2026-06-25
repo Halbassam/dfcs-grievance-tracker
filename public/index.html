@@ -175,6 +175,7 @@ footer.app-foot{text-align:center;color:var(--grey);font-size:11.5px;padding:30p
     <button class="tab-btn" data-tab="activity">Activity Log</button>
     <button class="tab-btn" data-tab="workload">Steward Workload</button>
     <button class="tab-btn" data-tab="archive">Archive</button>
+    <button class="tab-btn" data-tab="settings">Settings</button>
   </nav>
 </div>
 
@@ -281,7 +282,10 @@ footer.app-foot{text-align:center;color:var(--grey);font-size:11.5px;padding:30p
 
   <!-- WORKLOAD -->
   <section id="tab-workload" class="hidden">
-    <div class="section-head"><div><h2>Steward Workload</h2><div class="sub">Live counts &middot; Art. V Sec. 5 quarterly steward list</div></div></div>
+    <div class="section-head">
+      <div><h2>Steward Workload</h2><div class="sub">Live counts &middot; Art. V Sec. 5 quarterly steward list</div></div>
+      <button class="btn btn-secondary" id="manageStewardsBtn">Manage stewards</button>
+    </div>
     <div class="steward-grid" id="stewardGrid"></div>
     <div class="breakdown-grid">
       <div><h3 style="font-family:var(--serif);color:var(--green-1);font-size:15px;margin-bottom:10px;">By DFCS bureau</h3><div class="table-wrap"><table><thead><tr><th>Bureau</th><th>Active</th><th>Overdue</th></tr></thead><tbody id="bureauBody"></tbody></table></div></div>
@@ -293,6 +297,52 @@ footer.app-foot{text-align:center;color:var(--grey);font-size:11.5px;padding:30p
   <section id="tab-archive" class="hidden">
     <div class="section-head"><div><h2>Archive</h2><div class="sub">Closed grievances &middot; Art. V Sec. 3(a) record retention</div></div></div>
     <div class="table-wrap"><table><thead><tr><th>ID</th><th>Employee</th><th>Type</th><th>Status</th><th>Archived on</th></tr></thead><tbody id="archiveBody"></tbody></table></div>
+  </section>
+
+  <!-- SETTINGS -->
+  <section id="tab-settings" class="hidden">
+    <div class="section-head"><div><h2>Settings</h2><div class="sub">Holiday list, FCRC locations, and deadline email reminders</div></div></div>
+
+    <div class="panel panel-pad" style="margin-bottom:24px;">
+      <div style="display:flex;justify-content:space-between;align-items:baseline;flex-wrap:wrap;gap:10px;margin-bottom:14px;">
+        <h3 style="font-family:var(--serif);color:var(--green-1);margin:0;font-size:17px;">Holiday list</h3>
+        <button class="btn btn-secondary" id="manageHolidaysBtn">Edit holidays</button>
+      </div>
+      <p style="font-size:13px;color:var(--grey);margin:0;">These dates are excluded from every working-day deadline calculation (Art. V Sec. 2). Currently <b id="holidayCount">0</b> holidays loaded.</p>
+    </div>
+
+    <div class="panel panel-pad" style="margin-bottom:24px;">
+      <div style="display:flex;justify-content:space-between;align-items:baseline;flex-wrap:wrap;gap:10px;margin-bottom:14px;">
+        <h3 style="font-family:var(--serif);color:var(--green-1);margin:0;font-size:17px;">FCRC / work locations</h3>
+        <button class="btn btn-secondary" id="manageLocationsBtn">Edit locations</button>
+      </div>
+      <p style="font-size:13px;color:var(--grey);margin:0;">The list of offices shown in the FCRC / Work Location dropdown on the Intake Form. Currently <b id="locationCount">0</b> locations.</p>
+    </div>
+
+    <div class="panel panel-pad">
+      <h3 style="font-family:var(--serif);color:var(--green-1);margin:0 0 6px;font-size:17px;">Deadline email reminders</h3>
+      <p style="font-size:13px;color:var(--grey);margin:6px 0 14px;">Every day, the system checks for grievance deadlines coming up within 3 days and emails each affected steward a summary.</p>
+
+      <div id="emailStatusBox" style="padding:12px 16px;border-radius:6px;font-size:13px;margin-bottom:14px;"></div>
+
+      <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:18px;">
+        <button class="btn btn-primary" id="runEmailCheckBtn">Run deadline check now</button>
+        <button class="btn btn-ghost" id="viewEmailLogBtn">View recent runs</button>
+      </div>
+
+      <details style="font-size:12.5px;color:var(--grey);">
+        <summary style="cursor:pointer;font-weight:600;color:var(--green-2);">How to set up email sending (one-time, on Render)</summary>
+        <div style="margin-top:10px;line-height:1.6;">
+          <p>This uses your Gmail account to send reminder emails. Two environment variables must be set on Render &mdash; Dashboard &rarr; your service &rarr; <b>Environment</b>:</p>
+          <ol style="padding-left:20px;">
+            <li><b>GMAIL_USER</b> &mdash; your Gmail address (e.g. <code>you@gmail.com</code>)</li>
+            <li><b>GMAIL_APP_PASSWORD</b> &mdash; a 16-character App Password from Google, <i>not</i> your normal Gmail password</li>
+          </ol>
+          <p>To create an App Password: turn on 2-Step Verification at <code>myaccount.google.com/security</code>, then create one at <code>myaccount.google.com/apppasswords</code>.</p>
+          <p>Once both variables are saved on Render, the service redeploys automatically and the status above will show "Configured."</p>
+        </div>
+      </details>
+    </div>
   </section>
 </main>
 
@@ -329,6 +379,59 @@ footer.app-foot{text-align:center;color:var(--grey);font-size:11.5px;padding:30p
     <div class="modal-head"><span>&#128203;</span><h3 id="detailTitle">Grievance detail</h3></div>
     <div class="modal-body" id="detailBody"></div>
     <div class="modal-foot"><button class="btn btn-secondary" id="detailEditBtn">Edit in form</button><button class="btn btn-ghost" id="detailCloseBtn">Close</button></div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="stewardsModalOverlay">
+  <div class="modal" style="max-width:640px;">
+    <div class="modal-head"><span>&#128101;</span><h3>Manage stewards</h3></div>
+    <div class="modal-body">
+      <p style="margin-top:0;color:var(--grey);font-size:13px;">Add, edit, or remove stewards below. Removing a steward here does <b>not</b> delete any grievances already assigned to them &mdash; it only removes them from the dropdown for future entries.</p>
+      <div id="stewardRows" style="display:flex;flex-direction:column;gap:10px;margin-top:14px;"></div>
+      <button class="btn btn-ghost" id="addStewardRowBtn" style="margin-top:6px;">+ Add another steward</button>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost" id="stewardsCancelBtn">Cancel</button>
+      <button class="btn btn-primary" id="stewardsSaveBtn">Save changes</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="holidaysModalOverlay">
+  <div class="modal" style="max-width:640px;">
+    <div class="modal-head"><span>&#128197;</span><h3>Manage holiday list</h3></div>
+    <div class="modal-body">
+      <p style="margin-top:0;color:var(--grey);font-size:13px;">These dates are skipped in every working-day deadline calculation (Art. V Sec. 2). Add your local's specific holidays or adjust observed dates as needed.</p>
+      <div id="holidayRows" style="display:flex;flex-direction:column;gap:10px;margin-top:14px;max-height:360px;overflow-y:auto;"></div>
+      <button class="btn btn-ghost" id="addHolidayRowBtn" style="margin-top:6px;">+ Add another holiday</button>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost" id="holidaysCancelBtn">Cancel</button>
+      <button class="btn btn-primary" id="holidaysSaveBtn">Save changes</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="locationsModalOverlay">
+  <div class="modal" style="max-width:640px;">
+    <div class="modal-head"><span>&#127968;</span><h3>Manage FCRC / work locations</h3></div>
+    <div class="modal-body">
+      <p style="margin-top:0;color:var(--grey);font-size:13px;">The list of offices stewards can select on the Intake Form. Add, rename, or remove locations as your local's offices change.</p>
+      <div id="locationRows" style="display:flex;flex-direction:column;gap:10px;margin-top:14px;max-height:360px;overflow-y:auto;"></div>
+      <button class="btn btn-ghost" id="addLocationRowBtn" style="margin-top:6px;">+ Add another location</button>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost" id="locationsCancelBtn">Cancel</button>
+      <button class="btn btn-primary" id="locationsSaveBtn">Save changes</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="emailLogModalOverlay">
+  <div class="modal" style="max-width:600px;">
+    <div class="modal-head"><span>&#128231;</span><h3>Recent deadline email runs</h3></div>
+    <div class="modal-body" id="emailLogBody" style="max-height:50vh;overflow-y:auto;"></div>
+    <div class="modal-foot"><button class="btn btn-ghost" id="emailLogCloseBtn">Close</button></div>
   </div>
 </div>
 
@@ -375,7 +478,7 @@ function daysBetween(a,b){ return Math.round((b-a)/86400000); }
 function uid(){ return 'a'+Math.random().toString(36).slice(2,10)+Date.now().toString(36); }
 
 let SETUP = {};
-let STATE = { grievances: [], activity: [], archive: [] };
+let STATE = { grievances: [], activity: [], archive: [], holidays: [] };
 
 const $ = id => document.getElementById(id);
 function fillSelect(sel, items, withBlank=true){
@@ -411,9 +514,11 @@ async function refresh(){
     STATE.grievances = data.grievances || [];
     STATE.activity = data.activity || [];
     STATE.archive = data.archive || [];
+    STATE.holidays = data.holidays || [];
     $('connBanner').innerHTML = '';
     populateDropdowns();
     renderAll();
+    renderSettingsCounts();
   }catch(err){
     $('connBanner').innerHTML = `<div class="banner banner-red"><b>Connection problem.</b> ${escapeHtml(err.message)} — the server may be waking up, try again in a few seconds.</div>`;
   }
@@ -854,9 +959,270 @@ function renderAll(){
   renderArchive();
 }
 
+/* ---------- Manage Stewards modal ---------- */
+function renderStewardRows(){
+  const container = $('stewardRows');
+  const names = SETUP.Steward || [];
+  const emails = SETUP.StewardEmail || [];
+  const rows = names.length ? names.map((n,i)=>({name:n, email: emails[i]||''})) : [{name:'',email:''}];
+  container.innerHTML = rows.map((r,i)=>stewardRowHtml(i, r.name, r.email)).join('');
+  attachStewardRowHandlers();
+}
+function stewardRowHtml(idx, name, email){
+  return `<div class="steward-row" data-idx="${idx}" style="display:grid;grid-template-columns:1fr 1fr auto;gap:10px;align-items:center;">
+    <input type="text" class="sr-name" placeholder="Full name" value="${escapeHtml(name)}">
+    <input type="text" class="sr-email" placeholder="email@illinois.gov" value="${escapeHtml(email)}">
+    <button type="button" class="btn-tiny sr-remove" title="Remove this steward">&#10005;</button>
+  </div>`;
+}
+function attachStewardRowHandlers(){
+  $('stewardRows').querySelectorAll('.sr-remove').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      const row = btn.closest('.steward-row');
+      const allRows = $('stewardRows').querySelectorAll('.steward-row');
+      if(allRows.length <= 1){
+        // Keep at least one empty row instead of removing entirely
+        row.querySelector('.sr-name').value = '';
+        row.querySelector('.sr-email').value = '';
+        return;
+      }
+      row.remove();
+    });
+  });
+}
+$('manageStewardsBtn').addEventListener('click', ()=>{
+  renderStewardRows();
+  $('stewardsModalOverlay').classList.add('show');
+});
+$('stewardsCancelBtn').addEventListener('click', ()=>$('stewardsModalOverlay').classList.remove('show'));
+$('addStewardRowBtn').addEventListener('click', ()=>{
+  const container = $('stewardRows');
+  const idx = container.querySelectorAll('.steward-row').length;
+  container.insertAdjacentHTML('beforeend', stewardRowHtml(idx, '', ''));
+  attachStewardRowHandlers();
+});
+$('stewardsSaveBtn').addEventListener('click', async ()=>{
+  const rows = $('stewardRows').querySelectorAll('.steward-row');
+  const stewards = [];
+  const emails = [];
+  rows.forEach(row=>{
+    const name = row.querySelector('.sr-name').value.trim();
+    const email = row.querySelector('.sr-email').value.trim();
+    if(name){ stewards.push(name); emails.push(email); }
+  });
+  if(stewards.length === 0){
+    toast('Add at least one steward before saving.', 'err');
+    return;
+  }
+  const btn = $('stewardsSaveBtn');
+  btn.disabled = true; btn.textContent = 'Saving…';
+  try{
+    await apiPost('/api/setup/stewards', { stewards, emails });
+    toast('Steward list updated.');
+    $('stewardsModalOverlay').classList.remove('show');
+    await refresh();
+  }catch(err){
+    toast(err.message || 'Could not save steward list.', 'err');
+  }finally{
+    btn.disabled = false; btn.textContent = 'Save changes';
+  }
+});
+
+/* ---------- Settings tab: Holiday List management ---------- */
+function holidayRowHtml(idx, date, name){
+  return `<div class="holiday-row" data-idx="${idx}" style="display:grid;grid-template-columns:160px 1fr auto;gap:10px;align-items:center;">
+    <input type="date" class="hr-date" value="${escapeHtml(date)}">
+    <input type="text" class="hr-name" placeholder="Holiday name" value="${escapeHtml(name)}">
+    <button type="button" class="btn-tiny hr-remove" title="Remove this holiday">&#10005;</button>
+  </div>`;
+}
+function attachHolidayRowHandlers(){
+  $('holidayRows').querySelectorAll('.hr-remove').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      const row = btn.closest('.holiday-row');
+      const allRows = $('holidayRows').querySelectorAll('.holiday-row');
+      if(allRows.length <= 1){
+        row.querySelector('.hr-date').value = '';
+        row.querySelector('.hr-name').value = '';
+        return;
+      }
+      row.remove();
+    });
+  });
+}
+function renderHolidayRows(){
+  const container = $('holidayRows');
+  const list = STATE.holidays && STATE.holidays.length ? STATE.holidays : [{date:'',name:''}];
+  container.innerHTML = list.map((h,i)=>holidayRowHtml(i, h.date, h.name)).join('');
+  attachHolidayRowHandlers();
+}
+$('manageHolidaysBtn').addEventListener('click', ()=>{
+  renderHolidayRows();
+  $('holidaysModalOverlay').classList.add('show');
+});
+$('holidaysCancelBtn').addEventListener('click', ()=>$('holidaysModalOverlay').classList.remove('show'));
+$('addHolidayRowBtn').addEventListener('click', ()=>{
+  const container = $('holidayRows');
+  const idx = container.querySelectorAll('.holiday-row').length;
+  container.insertAdjacentHTML('beforeend', holidayRowHtml(idx, '', ''));
+  attachHolidayRowHandlers();
+});
+$('holidaysSaveBtn').addEventListener('click', async ()=>{
+  const rows = $('holidayRows').querySelectorAll('.holiday-row');
+  const holidays = [];
+  rows.forEach(row=>{
+    const date = row.querySelector('.hr-date').value.trim();
+    const name = row.querySelector('.hr-name').value.trim();
+    if(date && name){ holidays.push({date, name}); }
+  });
+  const btn = $('holidaysSaveBtn');
+  btn.disabled = true; btn.textContent = 'Saving…';
+  try{
+    await apiPost('/api/holidays', { holidays });
+    toast('Holiday list updated.');
+    $('holidaysModalOverlay').classList.remove('show');
+    await refresh();
+  }catch(err){
+    toast(err.message || 'Could not save holiday list.', 'err');
+  }finally{
+    btn.disabled = false; btn.textContent = 'Save changes';
+  }
+});
+
+/* ---------- Settings tab: FCRC Location management ---------- */
+function locationRowHtml(idx, name){
+  return `<div class="location-row" data-idx="${idx}" style="display:grid;grid-template-columns:1fr auto;gap:10px;align-items:center;">
+    <input type="text" class="lr-name" placeholder="FCRC / work location name" value="${escapeHtml(name)}">
+    <button type="button" class="btn-tiny lr-remove" title="Remove this location">&#10005;</button>
+  </div>`;
+}
+function attachLocationRowHandlers(){
+  $('locationRows').querySelectorAll('.lr-remove').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      const row = btn.closest('.location-row');
+      const allRows = $('locationRows').querySelectorAll('.location-row');
+      if(allRows.length <= 1){
+        row.querySelector('.lr-name').value = '';
+        return;
+      }
+      row.remove();
+    });
+  });
+}
+function renderLocationRows(){
+  const container = $('locationRows');
+  const list = SETUP.Location && SETUP.Location.length ? SETUP.Location : [''];
+  container.innerHTML = list.map((name,i)=>locationRowHtml(i, name)).join('');
+  attachLocationRowHandlers();
+}
+$('manageLocationsBtn').addEventListener('click', ()=>{
+  renderLocationRows();
+  $('locationsModalOverlay').classList.add('show');
+});
+$('locationsCancelBtn').addEventListener('click', ()=>$('locationsModalOverlay').classList.remove('show'));
+$('addLocationRowBtn').addEventListener('click', ()=>{
+  const container = $('locationRows');
+  const idx = container.querySelectorAll('.location-row').length;
+  container.insertAdjacentHTML('beforeend', locationRowHtml(idx, ''));
+  attachLocationRowHandlers();
+});
+$('locationsSaveBtn').addEventListener('click', async ()=>{
+  const rows = $('locationRows').querySelectorAll('.location-row');
+  const items = [];
+  rows.forEach(row=>{
+    const name = row.querySelector('.lr-name').value.trim();
+    if(name) items.push(name);
+  });
+  if(items.length === 0){
+    toast('Add at least one location before saving.', 'err');
+    return;
+  }
+  const btn = $('locationsSaveBtn');
+  btn.disabled = true; btn.textContent = 'Saving…';
+  try{
+    await apiPost('/api/setup/list', { key: 'Location', items });
+    toast('Location list updated.');
+    $('locationsModalOverlay').classList.remove('show');
+    await refresh();
+  }catch(err){
+    toast(err.message || 'Could not save location list.', 'err');
+  }finally{
+    btn.disabled = false; btn.textContent = 'Save changes';
+  }
+});
+
+/* ---------- Settings tab: Email status & manual run ---------- */
+async function refreshEmailStatus(){
+  try{
+    const res = await fetch('/api/email/status');
+    const data = await res.json();
+    const box = $('emailStatusBox');
+    if(data.emailConfigured){
+      box.style.background = 'var(--ok-bg)';
+      box.style.border = '1px solid #9bcaa8';
+      box.style.color = 'var(--green-1)';
+      box.innerHTML = `<b>&#10003; Configured.</b> Last run: ${data.lastEmailRunDate || 'never yet'}.`;
+    } else {
+      box.style.background = 'var(--amber-bg)';
+      box.style.border = '1px solid var(--amber)';
+      box.style.color = '#6b4d10';
+      box.innerHTML = `<b>Not configured.</b> Set GMAIL_USER and GMAIL_APP_PASSWORD on Render to enable deadline emails (see instructions below).`;
+    }
+    window._emailLogCache = data.emailLog || [];
+  }catch(err){
+    // silent — settings tab isn't critical path
+  }
+}
+$('runEmailCheckBtn').addEventListener('click', async ()=>{
+  const btn = $('runEmailCheckBtn');
+  btn.disabled = true; btn.textContent = 'Running…';
+  try{
+    const res = await fetch('/api/email/run-now', { method:'POST' });
+    const summary = await res.json();
+    if(summary.errors && summary.errors.length){
+      toast(summary.errors[0], 'err');
+    } else {
+      toast(`Sent ${summary.sent} email(s) to ${summary.stewardsNotified.length} steward(s).`);
+    }
+    await refreshEmailStatus();
+  }catch(err){
+    toast('Could not run deadline check.', 'err');
+  }finally{
+    btn.disabled = false; btn.textContent = 'Run deadline check now';
+  }
+});
+$('viewEmailLogBtn').addEventListener('click', ()=>{
+  const log = window._emailLogCache || [];
+  const body = $('emailLogBody');
+  if(!log.length){
+    body.innerHTML = `<div class="empty-state"><div class="icon">&#128231;</div><h3>No runs yet</h3><p>Click "Run deadline check now" or wait for the daily automatic check.</p></div>`;
+  } else {
+    body.innerHTML = log.map(entry=>{
+      const when = new Date(entry.date).toLocaleString();
+      const names = (entry.stewardsNotified||[]).map(s=>`${escapeHtml(s.steward)} (${s.count})`).join(', ') || 'none';
+      const errs = (entry.errors||[]).length ? `<div style="color:var(--red);margin-top:4px;">${entry.errors.map(escapeHtml).join('<br>')}</div>` : '';
+      return `<div style="padding:12px 0;border-bottom:1px solid #ece9dd;">
+        <div style="font-family:var(--mono);font-size:12px;color:var(--grey);">${when}</div>
+        <div style="margin-top:4px;"><b>${entry.sent}</b> email(s) sent &middot; notified: ${names}</div>
+        ${errs}
+      </div>`;
+    }).join('');
+  }
+  $('emailLogModalOverlay').classList.add('show');
+});
+$('emailLogCloseBtn').addEventListener('click', ()=>$('emailLogModalOverlay').classList.remove('show'));
+
+/* ---------- Update settings tab counts whenever data refreshes ---------- */
+function renderSettingsCounts(){
+  $('holidayCount').textContent = (STATE.holidays||[]).length;
+  $('locationCount').textContent = (SETUP.Location||[]).length;
+}
+
 recalcDeadlines();
 refresh();
+refreshEmailStatus();
 setInterval(()=>refresh(), 15000); // keep all stewards' views in sync
+setInterval(()=>refreshEmailStatus(), 60000);
 $('f-gid').focus();
 </script>
 </body>

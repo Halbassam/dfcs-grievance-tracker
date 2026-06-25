@@ -32,6 +32,48 @@ function defaultData() {
     grievances: [],
     activity: [],
     archive: [],
+    emailLog: [],
+    lastEmailRunDate: "",
+    holidays: [
+      { date: "2024-01-01", name: "New Year's Day" },
+      { date: "2024-01-15", name: "Martin Luther King Jr. Day" },
+      { date: "2024-02-19", name: "Presidents' Day" },
+      { date: "2024-05-27", name: "Memorial Day" },
+      { date: "2024-06-19", name: "Juneteenth" },
+      { date: "2024-07-04", name: "Independence Day" },
+      { date: "2024-09-02", name: "Labor Day" },
+      { date: "2024-11-11", name: "Veterans Day" },
+      { date: "2024-11-28", name: "Thanksgiving Day" },
+      { date: "2024-12-25", name: "Christmas Day" },
+      { date: "2025-01-01", name: "New Year's Day" },
+      { date: "2025-01-20", name: "Martin Luther King Jr. Day" },
+      { date: "2025-02-17", name: "Presidents' Day" },
+      { date: "2025-05-26", name: "Memorial Day" },
+      { date: "2025-06-19", name: "Juneteenth" },
+      { date: "2025-07-04", name: "Independence Day" },
+      { date: "2025-09-01", name: "Labor Day" },
+      { date: "2025-11-11", name: "Veterans Day" },
+      { date: "2025-11-27", name: "Thanksgiving Day" },
+      { date: "2025-12-25", name: "Christmas Day" },
+      { date: "2026-01-01", name: "New Year's Day" },
+      { date: "2026-01-19", name: "Martin Luther King Jr. Day" },
+      { date: "2026-02-16", name: "Presidents' Day" },
+      { date: "2026-05-25", name: "Memorial Day" },
+      { date: "2026-06-19", name: "Juneteenth" },
+      { date: "2026-07-03", name: "Independence Day (Observed)" },
+      { date: "2026-09-07", name: "Labor Day" },
+      { date: "2026-11-11", name: "Veterans Day" },
+      { date: "2026-11-26", name: "Thanksgiving Day" },
+      { date: "2026-12-25", name: "Christmas Day" },
+      { date: "2027-01-01", name: "New Year's Day" },
+      { date: "2027-01-18", name: "Martin Luther King Jr. Day" },
+      { date: "2027-05-31", name: "Memorial Day" },
+      { date: "2027-07-05", name: "Independence Day (Observed)" },
+      { date: "2027-09-06", name: "Labor Day" },
+      { date: "2027-11-11", name: "Veterans Day" },
+      { date: "2027-11-25", name: "Thanksgiving Day" },
+      { date: "2027-12-24", name: "Christmas Day (Observed)" }
+    ],
     setup: {
       Status: ["Pending","Granted","Denied","Withdrawn","Settled","Partially Granted","Pending Arbitration","Arbitration Scheduled","Held in Abeyance"],
       Bureau: ["Bureau of Family & Community Programs"],
@@ -49,11 +91,41 @@ function defaultData() {
   };
 }
 
+function migrateData(data) {
+  // Existing deployed data files won't have these fields yet —
+  // backfill them from defaults without touching real grievance data.
+  const defaults = defaultData();
+  let changed = false;
+
+  if (!Array.isArray(data.holidays)) {
+    data.holidays = defaults.holidays;
+    changed = true;
+  }
+  if (!Array.isArray(data.emailLog)) {
+    data.emailLog = [];
+    changed = true;
+  }
+  if (typeof data.lastEmailRunDate !== "string") {
+    data.lastEmailRunDate = "";
+    changed = true;
+  }
+  if (!data.setup) {
+    data.setup = defaults.setup;
+    changed = true;
+  }
+  return { data, changed };
+}
+
 function readRaw() {
   ensureDataFile();
   const text = fs.readFileSync(DB_FILE, "utf8");
   try {
-    return JSON.parse(text);
+    const parsed = JSON.parse(text);
+    const { data, changed } = migrateData(parsed);
+    if (changed) {
+      writeRawAtomic(data);
+    }
+    return data;
   } catch (e) {
     // Corrupted file fallback — never crash the app, start fresh
     console.error("DB file corrupted, resetting:", e.message);
@@ -180,9 +252,219 @@ async function archiveClosed() {
   });
 }
 
+// ================================================================
+// SETUP / DROPDOWN LIST MANAGEMENT
+// ================================================================
+
+/**
+ * Replaces the full Steward list and the matching StewardEmail list.
+ * The two arrays must be the same length — position i in `stewards`
+ * pairs with position i in `emails`, exactly like the Setup tab in
+ * the original spreadsheet version.
+ */
+async function updateStewards(stewards, emails) {
+  return withLock(() => {
+    if (!Array.isArray(stewards) || !Array.isArray(emails)) {
+      throw new Error("Stewards and emails must both be arrays.");
+    }
+    if (stewards.length !== emails.length) {
+      throw new Error("Steward names and emails must be the same length.");
+    }
+    const cleanStewards = stewards.map(s => String(s || "").trim()).filter(s => s !== "");
+    const cleanEmails = emails.slice(0, cleanStewards.length).map(e => String(e || "").trim());
+
+    const data = readRaw();
+    if (!data.setup) data.setup = {};
+    data.setup.Steward = cleanStewards;
+    data.setup.StewardEmail = cleanEmails;
+    writeRawAtomic(data);
+    return { ok: true, count: cleanStewards.length };
+  });
+}
+
+/**
+ * Generic single-column setup list updater for everything else
+ * (Location, Bureau, County, BargainingUnit, JobClass, Shift,
+ * Article, GrievanceType, ActivityType, Status). Stewards are
+ * handled separately above because they are a paired two-column list.
+ */
+const SIMPLE_SETUP_KEYS = [
+  "Status", "Bureau", "Location", "County", "BargainingUnit",
+  "JobClass", "Shift", "Article", "GrievanceType", "ActivityType"
+];
+
+async function updateSetupList(key, items) {
+  return withLock(() => {
+    if (!SIMPLE_SETUP_KEYS.includes(key)) {
+      throw new Error(`Unknown or unsupported setup list: ${key}`);
+    }
+    if (!Array.isArray(items)) {
+      throw new Error("Items must be an array.");
+    }
+    const cleanItems = items.map(s => String(s || "").trim()).filter(s => s !== "");
+
+    const data = readRaw();
+    if (!data.setup) data.setup = {};
+    data.setup[key] = cleanItems;
+    writeRawAtomic(data);
+    return { ok: true, count: cleanItems.length };
+  });
+}
+
+// ================================================================
+// HOLIDAY LIST MANAGEMENT
+// ================================================================
+
+function isValidISODate(s) {
+  return /^\d{4}-\d{2}-\d{2}$/.test(String(s || ""));
+}
+
+/**
+ * Replaces the entire holiday list. Expects an array of
+ * { date: "YYYY-MM-DD", name: "..." } objects. Sorted by date
+ * before saving so the list always displays chronologically.
+ */
+async function updateHolidays(holidays) {
+  return withLock(() => {
+    if (!Array.isArray(holidays)) {
+      throw new Error("Holidays must be an array.");
+    }
+    const clean = holidays
+      .map(h => ({
+        date: String((h && h.date) || "").trim(),
+        name: String((h && h.name) || "").trim()
+      }))
+      .filter(h => isValidISODate(h.date) && h.name !== "");
+
+    clean.sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
+
+    const data = readRaw();
+    data.holidays = clean;
+    writeRawAtomic(data);
+    return { ok: true, count: clean.length };
+  });
+}
+
+// ================================================================
+// SERVER-SIDE WORKING-DAY / DEADLINE LOGIC
+//
+// This mirrors the logic in public/index.html exactly. It has to
+// be duplicated here (rather than shared) because the browser
+// version runs client-side with no build step, and this version
+// runs in the daily email job with no browser involved at all.
+// Keep both in sync if the deadline rules ever change.
+// ================================================================
+
+function toDateLocal(s) {
+  if (!s) return null;
+  const [y, m, d] = String(s).split("-").map(Number);
+  return new Date(y, m - 1, d);
+}
+function toISODate(d) {
+  if (!d) return "";
+  const y = d.getFullYear(), m = String(d.getMonth() + 1).padStart(2, "0"), dd = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${dd}`;
+}
+function isWeekend(d) {
+  const w = d.getDay();
+  return w === 0 || w === 6;
+}
+function buildHolidaySet(holidays) {
+  return new Set((holidays || []).map(h => h.date));
+}
+function workday(startISO, days, holidaySet) {
+  let d = toDateLocal(startISO);
+  if (!d) return null;
+  let remaining = Math.abs(days);
+  const step = days >= 0 ? 1 : -1;
+  while (remaining > 0) {
+    d = new Date(d.getFullYear(), d.getMonth(), d.getDate() + step);
+    if (!isWeekend(d) && !holidaySet.has(toISODate(d))) remaining--;
+  }
+  return d;
+}
+function addCalendarDays(startISO, days) {
+  const d = toDateLocal(startISO);
+  if (!d) return null;
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate() + days);
+}
+
+const TERMINAL_STATUSES_FOR_DEADLINES = ["Settled", "Granted", "Denied", "Withdrawn", "Partially Granted"];
+
+function deriveDeadlinesServer(rec, holidaySet) {
+  const d = {};
+  d.step1Due = rec.step1filed ? workday(rec.step1filed, 10, holidaySet) : null;
+  d.step2MeetingDue = rec.step2filed ? workday(rec.step2filed, 10, holidaySet) : null;
+  d.step2AnswerDue = d.step2MeetingDue ? workday(toISODate(d.step2MeetingDue), 5, holidaySet) : null;
+  d.step3SignDue = rec.step3filed ? workday(rec.step3filed, 10, holidaySet) : null;
+  d.arbHearingDue = rec.step4filed ? addCalendarDays(rec.step4filed, 60) : null;
+  return d;
+}
+
+function isResolvedRec(rec) {
+  return TERMINAL_STATUSES_FOR_DEADLINES.includes(rec.status);
+}
+
+/**
+ * Returns the single next unresolved deadline for a grievance,
+ * along with which milestone it corresponds to (for the email text).
+ */
+function nextDeadlineServer(rec, holidaySet) {
+  if (isResolvedRec(rec)) return null;
+  const d = deriveDeadlinesServer(rec, holidaySet);
+  const candidates = [];
+  if (d.step1Due && !rec.step1resp) candidates.push({ date: d.step1Due, label: "Step 1 response" });
+  if (d.step2AnswerDue && !rec.step2resp) candidates.push({ date: d.step2AnswerDue, label: "Step 2 answer" });
+  if (d.step3SignDue && !rec.step3resp) candidates.push({ date: d.step3SignDue, label: "Step 3 sign-off" });
+  if (d.arbHearingDue && !rec.arbResult) candidates.push({ date: d.arbHearingDue, label: "Arbitration hearing" });
+  if (!candidates.length) return null;
+  return candidates.reduce((a, b) => (a.date < b.date ? a : b));
+}
+
+/**
+ * Scans every active grievance and returns the ones with a next
+ * deadline landing within `withinDays` days from today (inclusive),
+ * grouped by steward. Used by both the manual "Check deadlines now"
+ * button and the daily automatic email job.
+ */
+function findUpcomingDeadlines(withinDays = 3) {
+  const data = readRaw();
+  const holidaySet = buildHolidaySet(data.holidays);
+  const today = new Date();
+  const todayMid = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+
+  const results = [];
+  for (const rec of data.grievances) {
+    if (isResolvedRec(rec)) continue;
+    const nd = nextDeadlineServer(rec, holidaySet);
+    if (!nd) continue;
+    const diffDays = Math.round((nd.date - todayMid) / 86400000);
+    if (diffDays >= 0 && diffDays <= withinDays) {
+      results.push({
+        id: rec.id,
+        employee: rec.employee,
+        steward: rec.steward,
+        stewardEmail: rec.stewardEmail,
+        deadlineLabel: nd.label,
+        deadlineDate: toISODate(nd.date),
+        daysAway: diffDays
+      });
+    }
+  }
+  return results;
+}
+
 module.exports = {
   getAll,
   submitGrievance,
   logActivity,
-  archiveClosed
+  archiveClosed,
+  updateStewards,
+  updateSetupList,
+  updateHolidays,
+  findUpcomingDeadlines,
+  readRaw,
+  writeRawAtomic,
+  withLock,
+  SIMPLE_SETUP_KEYS
 };

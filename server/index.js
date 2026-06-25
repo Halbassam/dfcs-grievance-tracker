@@ -22,6 +22,8 @@ process.on("unhandledRejection", (err) => {
 });
 
 const db = require("./db");
+const { sendMail } = require("./mailer");
+const scheduler = require("./scheduler");
 
 const PORT = process.env.PORT || 3000;
 const PUBLIC_DIR = path.join(__dirname, "..", "public");
@@ -185,6 +187,39 @@ const server = http.createServer(async (req, res) => {
       return sendJson(res, 200, { ok: true, ...result });
     }
 
+    if (pathname === "/api/setup/stewards" && req.method === "POST") {
+      const body = await readBody(req);
+      const result = await db.updateStewards(body.stewards, body.emails);
+      return sendJson(res, 200, result);
+    }
+
+    if (pathname === "/api/setup/list" && req.method === "POST") {
+      const body = await readBody(req);
+      const result = await db.updateSetupList(body.key, body.items);
+      return sendJson(res, 200, result);
+    }
+
+    if (pathname === "/api/holidays" && req.method === "POST") {
+      const body = await readBody(req);
+      const result = await db.updateHolidays(body.holidays);
+      return sendJson(res, 200, result);
+    }
+
+    if (pathname === "/api/email/run-now" && req.method === "POST") {
+      const summary = await scheduler.runDeadlineCheck();
+      return sendJson(res, 200, summary);
+    }
+
+    if (pathname === "/api/email/status" && req.method === "GET") {
+      const data = db.getAll();
+      const emailConfigured = !!(process.env.GMAIL_USER && process.env.GMAIL_APP_PASSWORD);
+      return sendJson(res, 200, {
+        emailConfigured,
+        lastEmailRunDate: data.lastEmailRunDate || "",
+        emailLog: (data.emailLog || []).slice(0, 20)
+      });
+    }
+
     if (pathname.startsWith("/api/")) {
       return sendJson(res, 404, { error: "Unknown API route" });
     }
@@ -199,5 +234,5 @@ const server = http.createServer(async (req, res) => {
 
 server.listen(PORT, "0.0.0.0", () => {
   console.log(`DFCS Grievance Tracker running on port ${PORT}`);
+  scheduler.startScheduler();
 });
-
