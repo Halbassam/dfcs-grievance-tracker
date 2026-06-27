@@ -26,30 +26,46 @@ modules, so there is no `npm install` step that can fail.
 
 ---
 
-### Step 4 — Protect it with a shared password
+### Step 4 — Set up individual user accounts (login)
 
-By default this app has no login screen at all. To require a password
-before anyone can view or use it:
+Each steward signs in with their own username and password — there's
+no shared password to hand out anymore.
 
-1. On the Render dashboard, open your web service.
-2. Click **Environment** in the left sidebar.
-3. Click **Add Environment Variable**.
-4. Set:
-   - **Key**: `APP_PASSWORD`
-   - **Value**: whatever password you want stewards to use (e.g. `union2025`)
-5. Click **Save Changes**. Render will automatically redeploy.
+**The first time you open the app**, there are no accounts yet, so it
+loads with no login screen at all. Go straight to:
 
-Once that's set, anyone opening the URL will see a browser login prompt.
-The **username can be anything** (e.g. type `dfcs`) — only the password
-is checked. Give your stewards the URL plus the password; the username
-field can be left blank or filled with anything.
+1. Click the **Settings** tab.
+2. Under **User accounts**, click **Manage users**.
+3. Fill in a username, full name, and password for yourself (or whoever
+   is setting this up).
+4. Click **Save changes**.
 
-**If you ever skip Step 4, the site stays fully public with no password
-at all** — this is the default so local testing never gets accidentally
-locked out, but it means production use requires setting `APP_PASSWORD`.
+The moment that first account is saved, the app immediately requires
+everyone — including you — to sign in. You'll see a login screen
+appear right away; sign in with the account you just created.
 
-To change the password later, just edit the `APP_PASSWORD` environment
-variable value and save — no code changes needed.
+**To add the rest of your stewards**, while logged in:
+
+1. Settings → **Manage users**
+2. Click **+ Add another user** for each steward
+3. Fill in their username, display name, and a password you've chosen
+   for them
+4. Click **Save changes**
+
+Give each steward their username and password directly (text, email,
+in person — whatever's convenient). They can't reset their own
+password from inside the app; if someone forgets theirs, an admin
+edits their row in **Manage users**, types a new password into their
+existing row, and saves — leaving the password field blank on an
+existing user keeps their current password unchanged.
+
+**To remove someone** (they've left the local, etc.), click the **✕**
+next to their row in Manage Users and confirm. This does not delete
+any grievances they previously worked on — those records stay exactly
+as they are, just with their name preserved in the "entered by" history.
+
+Every grievance and activity log entry now records who created and
+last updated it, visible in the grievance detail view.
 
 ---
 
@@ -82,11 +98,13 @@ For a guaranteed fixed time every day, you'd need Render's paid tier
 
 ---
 
-## Managing stewards, FCRC locations, and holidays
+## Managing user accounts, stewards, FCRC locations, and holidays
 
 No code edits or Render shell access needed for any of this — it's
 all done from inside the running app itself:
 
+- **Settings tab** → **Manage users** — add, edit, or remove login
+  accounts. Each steward should have their own.
 - **Steward Workload tab** → **Manage stewards** — add, rename, or
   remove stewards and their email addresses.
 - **Settings tab** → **Edit locations** — add, rename, or remove
@@ -99,6 +117,14 @@ all done from inside the running app itself:
 Removing a steward or location does **not** delete any existing
 grievance records that reference it — it only removes the option
 from the dropdown for future entries.
+
+**Note**: a login account (Settings → Manage users) and a steward name
+(Steward Workload → Manage stewards) are two separate things. The
+login account is who's signed into the website right now. The steward
+name on a grievance is who that specific case is assigned to. They're
+often the same person, but don't have to be — for example, someone
+covering for another steward can log in with their own account and
+still assign a grievance to the absent steward's name.
 
 ---
 

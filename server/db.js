@@ -33,6 +33,8 @@ function defaultData() {
     activity: [],
     archive: [],
     emailLog: [],
+    users: [],
+    sessions: [],
     lastEmailRunDate: "",
     holidays: [
       { date: "2024-01-01", name: "New Year's Day" },
@@ -111,6 +113,14 @@ function migrateData(data) {
   }
   if (!data.setup) {
     data.setup = defaults.setup;
+    changed = true;
+  }
+  if (!Array.isArray(data.users)) {
+    data.users = [];
+    changed = true;
+  }
+  if (!Array.isArray(data.sessions)) {
+    data.sessions = [];
     changed = true;
   }
   return { data, changed };
@@ -206,6 +216,8 @@ async function submitGrievance(record) {
 
     target.createdAt = target.createdAt || record.createdAt || new Date().toISOString();
     target.updatedAt = new Date().toISOString();
+    target.createdBy = target.createdBy || record.actingUser || "";
+    target.updatedBy = record.actingUser || "";
 
     writeRawAtomic(data);
     return { isNew, record: { ...target } };
@@ -224,7 +236,8 @@ async function logActivity(record) {
       step: record.step,
       notes: record.notes,
       followup: record.followup || "No",
-      followupDate: record.followupDate || ""
+      followupDate: record.followupDate || "",
+      enteredBy: record.actingUser || ""
     });
     writeRawAtomic(data);
     return { ok: true };
@@ -393,10 +406,47 @@ const TERMINAL_STATUSES_FOR_DEADLINES = ["Settled", "Granted", "Denied", "Withdr
 
 function deriveDeadlinesServer(rec, holidaySet) {
   const d = {};
+
+  // Step 1 Response Due: 10 WD from Step 1 filed
   d.step1Due = rec.step1filed ? workday(rec.step1filed, 10, holidaySet) : null;
+
+  // Step 2 Filing Deadline: 5 WD from Step 1's answer (actual response if
+  // given, otherwise the due date itself, per the auto-advance rule).
+  let step2FilingBasis = null;
+  if (rec.step1resp) {
+    step2FilingBasis = rec.step1resp;
+  } else if (d.step1Due) {
+    step2FilingBasis = toISODate(d.step1Due);
+  }
+  d.step2FilingDue = step2FilingBasis ? workday(step2FilingBasis, 5, holidaySet) : null;
+
+  // Step 2 Answer Due: 10 WD for the meeting, then 5 WD more for the written answer
   d.step2MeetingDue = rec.step2filed ? workday(rec.step2filed, 10, holidaySet) : null;
   d.step2AnswerDue = d.step2MeetingDue ? workday(toISODate(d.step2MeetingDue), 5, holidaySet) : null;
+
+  // Step 3 Filing Deadline: 15 WD from Step 2's answer (actual response if
+  // given, otherwise the computed answer-due date).
+  let step3FilingBasis = null;
+  if (rec.step2resp) {
+    step3FilingBasis = rec.step2resp;
+  } else if (d.step2AnswerDue) {
+    step3FilingBasis = toISODate(d.step2AnswerDue);
+  }
+  d.step3FilingDue = step3FilingBasis ? workday(step3FilingBasis, 15, holidaySet) : null;
+
+  // Step 3 Sign-Off Due: 10 WD from Step 3 filed
   d.step3SignDue = rec.step3filed ? workday(rec.step3filed, 10, holidaySet) : null;
+
+  // Step 4 Filing Deadline: 15 WD from Step 3's sign-off (actual response
+  // if given, otherwise the computed sign-off due date).
+  let step4FilingBasis = null;
+  if (rec.step3resp) {
+    step4FilingBasis = rec.step3resp;
+  } else if (d.step3SignDue) {
+    step4FilingBasis = toISODate(d.step3SignDue);
+  }
+  d.step4FilingDue = step4FilingBasis ? workday(step4FilingBasis, 15, holidaySet) : null;
+
   d.arbHearingDue = rec.step4filed ? addCalendarDays(rec.step4filed, 60) : null;
   return d;
 }
@@ -454,6 +504,151 @@ function findUpcomingDeadlines(withinDays = 3) {
   return results;
 }
 
+// ================================================================
+// USER ACCOUNT MANAGEMENT
+// ================================================================
+
+const { hashPassword, verifyPassword } = require("./passwords");
+const crypto = require("crypto");
+
+function normalizeUsername(u) {
+  return String(u || "").trim().toLowerCase();
+}
+
+/**
+ * Returns the full user list with password hashes REMOVED, safe to
+ * send to the browser. Never expose the raw `users` array directly.
+ */
+function listUsersSafe() {
+  const data = readRaw();
+  return (data.users || []).map(u => ({
+    username: u.username,
+    displayName: u.displayName,
+    createdAt: u.createdAt
+  }));
+}
+
+/**
+ * Creates a new user account, or updates the password/display name
+ * of an existing one if the username already exists (case-insensitive).
+ * Always re-hashes the password — there is no way to "keep the old
+ * password" through this function; pass the existing plain password
+ * back in if you don't want to change it (the UI handles this by
+ * leaving the password field blank meaning "don't change").
+ */
+async function upsertUser({ username, displayName, password }) {
+  return withLock(() => {
+    const uname = normalizeUsername(username);
+    if (!uname) throw new Error("Username is required.");
+    if (!displayName || !String(displayName).trim()) throw new Error("Display name is required.");
+
+    const data = readRaw();
+    data.users = data.users || [];
+
+    let user = data.users.find(u => normalizeUsername(u.username) === uname);
+    const isNew = !user;
+
+    if (!user) {
+      if (!password) throw new Error("A password is required for a new user.");
+      user = { username: uname, displayName: String(displayName).trim(), createdAt: new Date().toISOString() };
+      data.users.push(user);
+    } else {
+      user.displayName = String(displayName).trim();
+    }
+
+    if (password) {
+      user.passwordHash = hashPassword(password);
+    }
+
+    writeRawAtomic(data);
+    return { ok: true, isNew };
+  });
+}
+
+/**
+ * Removes a user account. Also invalidates any active sessions
+ * belonging to that user so a removed steward is logged out
+ * immediately rather than staying logged in until their cookie expires.
+ */
+async function deleteUser(username) {
+  return withLock(() => {
+    const uname = normalizeUsername(username);
+    const data = readRaw();
+    data.users = (data.users || []).filter(u => normalizeUsername(u.username) !== uname);
+    data.sessions = (data.sessions || []).filter(s => normalizeUsername(s.username) !== uname);
+    writeRawAtomic(data);
+    return { ok: true };
+  });
+}
+
+/**
+ * Verifies a username/password pair. Returns the user record
+ * (without passwordHash) on success, or null on failure. Does NOT
+ * create a session — call createSession separately so login and
+ * "am I still logged in" checks share the same session logic.
+ */
+function verifyLogin(username, password) {
+  const data = readRaw();
+  const uname = normalizeUsername(username);
+  const user = (data.users || []).find(u => normalizeUsername(u.username) === uname);
+  if (!user) return null;
+  if (!verifyPassword(password, user.passwordHash)) return null;
+  return { username: user.username, displayName: user.displayName };
+}
+
+const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000; // sessions last 30 days
+
+/**
+ * Creates a new session token for a username and persists it.
+ * Returns the raw token to set as a cookie.
+ */
+async function createSession(username) {
+  return withLock(() => {
+    const data = readRaw();
+    data.sessions = data.sessions || [];
+
+    const token = crypto.randomBytes(32).toString("hex");
+    const expiresAt = Date.now() + SESSION_TTL_MS;
+    data.sessions.push({ token, username: normalizeUsername(username), expiresAt });
+
+    // Opportunistically clean up expired sessions so this array
+    // doesn't grow forever on a long-running deployment.
+    data.sessions = data.sessions.filter(s => s.expiresAt > Date.now());
+
+    writeRawAtomic(data);
+    return token;
+  });
+}
+
+/**
+ * Looks up a session token and returns the associated user info,
+ * or null if the token is missing, unknown, or expired.
+ * This is a read-only lookup — does not need the write lock.
+ */
+function getSessionUser(token) {
+  if (!token) return null;
+  const data = readRaw();
+  const session = (data.sessions || []).find(s => s.token === token);
+  if (!session) return null;
+  if (session.expiresAt < Date.now()) return null;
+
+  const user = (data.users || []).find(u => normalizeUsername(u.username) === session.username);
+  if (!user) return null;
+  return { username: user.username, displayName: user.displayName };
+}
+
+/**
+ * Deletes a single session (used for logout).
+ */
+async function destroySession(token) {
+  return withLock(() => {
+    const data = readRaw();
+    data.sessions = (data.sessions || []).filter(s => s.token !== token);
+    writeRawAtomic(data);
+    return { ok: true };
+  });
+}
+
 module.exports = {
   getAll,
   submitGrievance,
@@ -466,5 +661,12 @@ module.exports = {
   readRaw,
   writeRawAtomic,
   withLock,
-  SIMPLE_SETUP_KEYS
+  SIMPLE_SETUP_KEYS,
+  listUsersSafe,
+  upsertUser,
+  deleteUser,
+  verifyLogin,
+  createSession,
+  getSessionUser,
+  destroySession
 };

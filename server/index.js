@@ -29,53 +29,71 @@ const PORT = process.env.PORT || 3000;
 const PUBLIC_DIR = path.join(__dirname, "..", "public");
 
 // ----------------------------------------------------------------
-// Shared password protection (HTTP Basic Auth)
+// Per-user login (session cookies)
 //
-// Set APP_PASSWORD as an environment variable on Render
-// (Dashboard > your service > Environment > Add Environment Variable).
-// Username can be anything stewards are told (e.g. "dfcs") since
-// only the password is actually checked here.
+// Each steward has their own username and password, set up by an
+// admin from the Settings tab inside the app (Settings > Manage
+// users). Logging in issues a signed session cookie that's checked
+// on every request. This replaces the old single shared password.
 //
-// If APP_PASSWORD is not set, the app falls back to NO password
-// protection — this is intentional so local development never
-// gets locked out by accident, but it means you MUST set
-// APP_PASSWORD on Render or the site stays fully public.
+// IMPORTANT: if no user accounts exist yet, the app falls back to
+// fully OPEN access (no login wall at all) — this is intentional
+// so you're never locked out of your own fresh deployment. As soon
+// as you create the first user account from Settings, login becomes
+// required for everyone, including you.
 // ----------------------------------------------------------------
-const APP_PASSWORD = process.env.APP_PASSWORD || "";
 
-function timingSafeEqual(a, b) {
-  const bufA = Buffer.from(String(a));
-  const bufB = Buffer.from(String(b));
-  if (bufA.length !== bufB.length) {
-    // Still run a comparison of equal length to avoid leaking length via timing
-    crypto.timingSafeEqual(bufA, bufA);
-    return false;
-  }
-  return crypto.timingSafeEqual(bufA, bufB);
-}
+const SESSION_COOKIE_NAME = "dfcs_session";
 
-function checkAuth(req) {
-  if (!APP_PASSWORD) return true; // no password configured — open access
-
-  const header = req.headers["authorization"] || "";
-  if (!header.startsWith("Basic ")) return false;
-
-  const decoded = Buffer.from(header.slice(6), "base64").toString("utf8");
-  const sepIndex = decoded.indexOf(":");
-  if (sepIndex === -1) return false;
-
-  const password = decoded.slice(sepIndex + 1);
-  return timingSafeEqual(password, APP_PASSWORD);
-}
-
-function sendAuthChallenge(res) {
-  res.writeHead(401, {
-    "WWW-Authenticate": 'Basic realm="DFCS Grievance Tracker", charset="UTF-8"',
-    "Content-Type": "text/html; charset=utf-8"
+function parseCookies(req) {
+  const header = req.headers["cookie"] || "";
+  const out = {};
+  header.split(";").forEach(pair => {
+    const idx = pair.indexOf("=");
+    if (idx === -1) return;
+    const key = pair.slice(0, idx).trim();
+    const val = pair.slice(idx + 1).trim();
+    if (key) out[key] = decodeURIComponent(val);
   });
-  res.end(
-    "<h1>401 Unauthorized</h1><p>A valid password is required to access the DFCS Grievance Tracker.</p>"
+  return out;
+}
+
+function getSessionTokenFromRequest(req) {
+  const cookies = parseCookies(req);
+  return cookies[SESSION_COOKIE_NAME] || "";
+}
+
+function setSessionCookie(res, token) {
+  const maxAgeSeconds = 30 * 24 * 60 * 60; // 30 days, matches db.js SESSION_TTL_MS
+  res.setHeader(
+    "Set-Cookie",
+    `${SESSION_COOKIE_NAME}=${encodeURIComponent(token)}; HttpOnly; Path=/; Max-Age=${maxAgeSeconds}; SameSite=Lax`
   );
+}
+
+function clearSessionCookie(res) {
+  res.setHeader(
+    "Set-Cookie",
+    `${SESSION_COOKIE_NAME}=; HttpOnly; Path=/; Max-Age=0; SameSite=Lax`
+  );
+}
+
+/**
+ * Returns the logged-in user ({username, displayName}) for this
+ * request, or null if not logged in. If no user accounts exist at
+ * all yet, returns a synthetic "open access" user so the app keeps
+ * working normally until the first account is created.
+ */
+function getCurrentUser(req) {
+  const data = db.getAll();
+  const hasAnyUsers = (data.users || []).length > 0;
+
+  if (!hasAnyUsers) {
+    return { username: "", displayName: "", openAccess: true };
+  }
+
+  const token = getSessionTokenFromRequest(req);
+  return db.getSessionUser(token); // null if invalid/expired/missing
 }
 
 const MIME = {
@@ -153,14 +171,46 @@ function serveStatic(req, res, urlPath) {
 }
 
 const server = http.createServer(async (req, res) => {
-  if (!checkAuth(req)) {
-    return sendAuthChallenge(res);
-  }
-
   const urlObj = new URL(req.url, `http://${req.headers.host}`);
   const pathname = urlObj.pathname;
 
   try {
+    // ---------- Routes that must work WITHOUT being logged in ----------
+    if (pathname === "/api/auth/login" && req.method === "POST") {
+      const body = await readBody(req);
+      const user = db.verifyLogin(body.username, body.password);
+      if (!user) {
+        return sendJson(res, 401, { error: "Incorrect username or password." });
+      }
+      const token = await db.createSession(user.username);
+      setSessionCookie(res, token);
+      return sendJson(res, 200, { ok: true, user });
+    }
+
+    if (pathname === "/api/auth/session" && req.method === "GET") {
+      const user = getCurrentUser(req);
+      return sendJson(res, 200, { user });
+    }
+
+    if (pathname === "/api/auth/logout" && req.method === "POST") {
+      const token = getSessionTokenFromRequest(req);
+      if (token) await db.destroySession(token);
+      clearSessionCookie(res);
+      return sendJson(res, 200, { ok: true });
+    }
+
+    // ---------- Static frontend always loads — login state is handled client-side ----------
+    if (!pathname.startsWith("/api/")) {
+      return serveStatic(req, res, pathname);
+    }
+
+    // ---------- Everything else requires a valid session ----------
+    // (unless no user accounts exist yet at all — see getCurrentUser)
+    const currentUser = getCurrentUser(req);
+    if (!currentUser) {
+      return sendJson(res, 401, { error: "Not logged in." });
+    }
+
     if (pathname === "/api/data" && req.method === "GET") {
       const data = db.getAll();
       return sendJson(res, 200, data);
@@ -172,12 +222,14 @@ const server = http.createServer(async (req, res) => {
 
     if (pathname === "/api/grievance" && req.method === "POST") {
       const body = await readBody(req);
+      body.actingUser = currentUser.displayName || currentUser.username || "";
       const result = await db.submitGrievance(body);
       return sendJson(res, 200, { ok: true, ...result });
     }
 
     if (pathname === "/api/activity" && req.method === "POST") {
       const body = await readBody(req);
+      body.actingUser = currentUser.displayName || currentUser.username || "";
       const result = await db.logActivity(body);
       return sendJson(res, 200, result);
     }
@@ -220,11 +272,32 @@ const server = http.createServer(async (req, res) => {
       });
     }
 
+    // ---------- User account management (Settings > Manage users) ----------
+    if (pathname === "/api/users" && req.method === "GET") {
+      return sendJson(res, 200, { users: db.listUsersSafe() });
+    }
+
+    if (pathname === "/api/users" && req.method === "POST") {
+      const body = await readBody(req);
+      const result = await db.upsertUser(body);
+      return sendJson(res, 200, result);
+    }
+
+    if (pathname === "/api/users/delete" && req.method === "POST") {
+      const body = await readBody(req);
+      // Safety: don't allow the currently logged-in user to delete
+      // their own account and lock themselves out by accident.
+      if (currentUser.username && body.username &&
+          currentUser.username.toLowerCase() === String(body.username).toLowerCase()) {
+        return sendJson(res, 400, { error: "You can't delete the account you're currently logged in as." });
+      }
+      const result = await db.deleteUser(body.username);
+      return sendJson(res, 200, result);
+    }
+
     if (pathname.startsWith("/api/")) {
       return sendJson(res, 404, { error: "Unknown API route" });
     }
-
-    return serveStatic(req, res, pathname);
 
   } catch (err) {
     console.error("Request error:", err);

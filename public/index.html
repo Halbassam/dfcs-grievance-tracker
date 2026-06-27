@@ -162,6 +162,26 @@ footer.app-foot{text-align:center;color:var(--grey);font-size:11.5px;padding:30p
 </head>
 <body>
 
+<div id="loginScreen" class="hidden" style="position:fixed;inset:0;background:var(--paper);display:flex;align-items:center;justify-content:center;z-index:500;padding:20px;">
+  <div style="max-width:380px;width:100%;background:#fff;border:1px solid var(--green-line);border-radius:8px;box-shadow:0 8px 30px rgba(0,0,0,0.12);padding:32px;">
+    <div style="text-align:center;margin-bottom:24px;">
+      <div style="width:52px;height:52px;border-radius:50%;background:var(--green-3);display:inline-flex;align-items:center;justify-content:center;font-family:var(--serif);font-weight:700;font-size:22px;color:#fff;margin-bottom:12px;">31</div>
+      <h2 style="font-family:var(--serif);color:var(--green-1);margin:0;font-size:20px;">DFCS Grievance Tracker</h2>
+      <p style="color:var(--grey);font-size:12.5px;margin:4px 0 0;">AFSCME Council 31 &middot; Sign in to continue</p>
+    </div>
+    <div class="field" style="margin-bottom:14px;">
+      <label for="loginUsername">Username</label>
+      <input type="text" id="loginUsername" autocomplete="username">
+    </div>
+    <div class="field" style="margin-bottom:18px;">
+      <label for="loginPassword">Password</label>
+      <input type="password" id="loginPassword" autocomplete="current-password">
+    </div>
+    <div id="loginError" style="display:none;background:var(--red-bg);border:1px solid #e3a8a5;color:var(--red);padding:9px 12px;border-radius:4px;font-size:13px;margin-bottom:14px;"></div>
+    <button class="btn btn-primary btn-lg" id="loginSubmitBtn" style="width:100%;justify-content:center;">Sign in</button>
+  </div>
+</div>
+
 <div class="topbar">
   <div class="brand">
     <div class="brand-mark">31</div>
@@ -176,10 +196,15 @@ footer.app-foot{text-align:center;color:var(--grey);font-size:11.5px;padding:30p
     <button class="tab-btn" data-tab="workload">Steward Workload</button>
     <button class="tab-btn" data-tab="archive">Archive</button>
     <button class="tab-btn" data-tab="settings">Settings</button>
+    <span id="currentUserBadge" class="hidden" style="display:flex;align-items:center;gap:10px;padding:10px 14px;color:rgba(255,255,255,0.85);font-size:12.5px;white-space:nowrap;">
+      <span id="currentUserName"></span>
+      <button id="logoutBtn" style="background:rgba(255,255,255,0.12);border:none;color:#fff;padding:5px 10px;border-radius:3px;font-size:11.5px;cursor:pointer;">Log out</button>
+    </span>
   </nav>
 </div>
 
-<main>
+
+<main id="mainApp" class="hidden">
   <div id="connBanner"></div>
 
   <!-- INTAKE -->
@@ -301,7 +326,15 @@ footer.app-foot{text-align:center;color:var(--grey);font-size:11.5px;padding:30p
 
   <!-- SETTINGS -->
   <section id="tab-settings" class="hidden">
-    <div class="section-head"><div><h2>Settings</h2><div class="sub">Holiday list, FCRC locations, and deadline email reminders</div></div></div>
+    <div class="section-head"><div><h2>Settings</h2><div class="sub">User accounts, holiday list, FCRC locations, and deadline email reminders</div></div></div>
+
+    <div class="panel panel-pad" style="margin-bottom:24px;">
+      <div style="display:flex;justify-content:space-between;align-items:baseline;flex-wrap:wrap;gap:10px;margin-bottom:14px;">
+        <h3 style="font-family:var(--serif);color:var(--green-1);margin:0;font-size:17px;">User accounts</h3>
+        <button class="btn btn-secondary" id="manageUsersBtn">Manage users</button>
+      </div>
+      <p style="font-size:13px;color:var(--grey);margin:0;">Each steward signs in with their own username and password. Currently <b id="userCount">0</b> account(s) set up.</p>
+    </div>
 
     <div class="panel panel-pad" style="margin-bottom:24px;">
       <div style="display:flex;justify-content:space-between;align-items:baseline;flex-wrap:wrap;gap:10px;margin-bottom:14px;">
@@ -318,6 +351,7 @@ footer.app-foot{text-align:center;color:var(--grey);font-size:11.5px;padding:30p
       </div>
       <p style="font-size:13px;color:var(--grey);margin:0;">The list of offices shown in the FCRC / Work Location dropdown on the Intake Form. Currently <b id="locationCount">0</b> locations.</p>
     </div>
+
 
     <div class="panel panel-pad">
       <h3 style="font-family:var(--serif);color:var(--green-1);margin:0 0 6px;font-size:17px;">Deadline email reminders</h3>
@@ -346,7 +380,7 @@ footer.app-foot{text-align:center;color:var(--grey);font-size:11.5px;padding:30p
   </section>
 </main>
 
-<footer class="app-foot">AFSCME Council 31 &middot; Division of Family &amp; Community Services, IDHS &middot; Master Contract 2023&ndash;2027</footer>
+<footer class="app-foot">AFSCME Council 31 &middot; Division of Family &amp; Community Services, IDHS &middot; Master Contract 2023&ndash;2027<br>Developed by Hazem Albassam</footer>
 
 <div class="modal-overlay" id="activityModalOverlay">
   <div class="modal">
@@ -432,6 +466,21 @@ footer.app-foot{text-align:center;color:var(--grey);font-size:11.5px;padding:30p
     <div class="modal-head"><span>&#128231;</span><h3>Recent deadline email runs</h3></div>
     <div class="modal-body" id="emailLogBody" style="max-height:50vh;overflow-y:auto;"></div>
     <div class="modal-foot"><button class="btn btn-ghost" id="emailLogCloseBtn">Close</button></div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="usersModalOverlay">
+  <div class="modal" style="max-width:680px;">
+    <div class="modal-head"><span>&#128272;</span><h3>Manage user accounts</h3></div>
+    <div class="modal-body">
+      <p style="margin-top:0;color:var(--grey);font-size:13px;">Each row is one login. Leave the password field blank when editing an existing user to keep their current password unchanged. Usernames cannot be changed once created &mdash; delete and re-add instead.</p>
+      <div id="userRows" style="display:flex;flex-direction:column;gap:12px;margin-top:14px;max-height:380px;overflow-y:auto;"></div>
+      <button class="btn btn-ghost" id="addUserRowBtn" style="margin-top:10px;">+ Add another user</button>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost" id="usersCloseBtn">Close</button>
+      <button class="btn btn-primary" id="usersSaveBtn">Save changes</button>
+    </div>
   </div>
 </div>
 
@@ -568,14 +617,62 @@ function recalcDeadlines(){
   const s1filed = $('f-step1filed').value;
   const s1resp = $('f-step1resp').value;
   const s2filed = $('f-step2filed').value;
+  const s2resp = $('f-step2resp').value;
   const s3filed = $('f-step3filed').value;
+  const s3resp = $('f-step3resp').value;
+
+  // Step 1 Response Due (10 WD from Step 1 filed) — computed once, reused below
+  const step1Due = s1filed ? workday(s1filed, 10) : null;
+
+  // Step 2 Filing Deadline: 5 WD from Step 1's ANSWER (actual response if
+  // given, otherwise the due date itself — per the auto-advance rule when
+  // management never responds). This was previously (incorrectly) keyed
+  // off the Step 1 FILED date instead of the response/due date.
+  let step2FilingBasis = null;
+  if(s1resp){
+    step2FilingBasis = s1resp;
+  } else if(step1Due){
+    step2FilingBasis = toISO(step1Due);
+  }
+  const step2FilingDue = step2FilingBasis ? workday(step2FilingBasis, 5) : null;
+
+  // Step 2 Answer Due: 10 WD for the meeting, then 5 WD more for the
+  // written answer — unchanged, this part was already correct.
+  const step2MeetingDue = s2filed ? workday(s2filed, 10) : null;
+  const step2AnswerDue = step2MeetingDue ? workday(toISO(step2MeetingDue), 5) : null;
+
+  // Step 3 Filing Deadline: 15 WD from Step 2's ANSWER (actual response
+  // if given, otherwise the computed answer-due date). Same fix pattern
+  // as Step 2 above — this was previously keyed off the Step 2 FILED date.
+  let step3FilingBasis = null;
+  if(s2resp){
+    step3FilingBasis = s2resp;
+  } else if(step2AnswerDue){
+    step3FilingBasis = toISO(step2AnswerDue);
+  }
+  const step3FilingDue = step3FilingBasis ? workday(step3FilingBasis, 15) : null;
+
+  // Step 3 Sign-Off Due: 10 WD from Step 3 filed — needed as the fallback
+  // basis for Step 4's filing deadline below.
+  const step3SignDue = s3filed ? workday(s3filed, 10) : null;
+
+  // Step 4 Filing Deadline: 15 WD from Step 3's SIGN-OFF (actual response
+  // if given, otherwise the computed sign-off due date). Previously this
+  // was incorrectly keyed off the Step 3 FILED date instead.
+  let step4FilingBasis = null;
+  if(s3resp){
+    step4FilingBasis = s3resp;
+  } else if(step3SignDue){
+    step4FilingBasis = toISO(step3SignDue);
+  }
+  const step4FilingDue = step4FilingBasis ? workday(step4FilingBasis, 15) : null;
 
   setDl('dl-1', awareness ? fmt(workday(awareness,15)) : '—');
-  setDl('dl-2', s1filed ? fmt(workday(s1filed,10)) : '—');
-  setDl('dl-3', s1filed ? fmt(workday(s1filed,5)) : '—');
-  setDl('dl-4', s2filed ? fmt(workday(toISO(workday(s2filed,10)),5)) : '—');
-  setDl('dl-5', s2filed ? fmt(workday(s2filed,15)) : '—');
-  setDl('dl-6', s3filed ? fmt(workday(s3filed,15)) : '—');
+  setDl('dl-2', step1Due ? fmt(step1Due) : '—');
+  setDl('dl-3', step2FilingDue ? fmt(step2FilingDue) : '—');
+  setDl('dl-4', step2AnswerDue ? fmt(step2AnswerDue) : '—');
+  setDl('dl-5', step3FilingDue ? fmt(step3FilingDue) : '—');
+  setDl('dl-6', step4FilingDue ? fmt(step4FilingDue) : '—');
 
   const banner = $('filingStatusBanner');
   if(!awareness){
@@ -596,7 +693,7 @@ function recalcDeadlines(){
   }
 }
 function setDl(id, text){ $(id).textContent = text; }
-['f-awareness','f-step1filed','f-step1resp','f-step2filed','f-step2resp','f-step3filed','f-step4filed']
+['f-awareness','f-step1filed','f-step1resp','f-step2filed','f-step2resp','f-step3filed','f-step3resp','f-step4filed']
   .forEach(id => $(id)?.addEventListener('change', recalcDeadlines));
 
 $('f-gid')?.addEventListener('input', e=>{
@@ -665,10 +762,47 @@ $('clearFormBtn2').addEventListener('click', clearForm);
 
 function deriveDeadlines(rec){
   const d = {};
+
+  // Step 1 Response Due: 10 WD from Step 1 filed
   d.step1Due = rec.step1filed ? workday(rec.step1filed,10) : null;
+
+  // Step 2 Filing Deadline: 5 WD from Step 1's answer (actual response if
+  // given, otherwise the due date itself, per the auto-advance rule).
+  let step2FilingBasis = null;
+  if(rec.step1resp){
+    step2FilingBasis = rec.step1resp;
+  } else if(d.step1Due){
+    step2FilingBasis = toISO(d.step1Due);
+  }
+  d.step2FilingDue = step2FilingBasis ? workday(step2FilingBasis, 5) : null;
+
+  // Step 2 Answer Due: 10 WD for the meeting, then 5 WD more for the written answer
   d.step2MeetingDue = rec.step2filed ? workday(rec.step2filed,10) : null;
   d.step2AnswerDue = d.step2MeetingDue ? workday(toISO(d.step2MeetingDue),5) : null;
+
+  // Step 3 Filing Deadline: 15 WD from Step 2's answer (actual response if
+  // given, otherwise the computed answer-due date).
+  let step3FilingBasis = null;
+  if(rec.step2resp){
+    step3FilingBasis = rec.step2resp;
+  } else if(d.step2AnswerDue){
+    step3FilingBasis = toISO(d.step2AnswerDue);
+  }
+  d.step3FilingDue = step3FilingBasis ? workday(step3FilingBasis, 15) : null;
+
+  // Step 3 Sign-Off Due: 10 WD from Step 3 filed
   d.step3SignDue = rec.step3filed ? workday(rec.step3filed,10) : null;
+
+  // Step 4 Filing Deadline: 15 WD from Step 3's sign-off (actual response
+  // if given, otherwise the computed sign-off due date).
+  let step4FilingBasis = null;
+  if(rec.step3resp){
+    step4FilingBasis = rec.step3resp;
+  } else if(d.step3SignDue){
+    step4FilingBasis = toISO(d.step3SignDue);
+  }
+  d.step4FilingDue = step4FilingBasis ? workday(step4FilingBasis, 15) : null;
+
   d.arbHearingDue = rec.step4filed ? addCalendarDays(rec.step4filed,60) : null;
   d.arbDecisionDue = d.arbHearingDue ? addCalendarDays(toISO(d.arbHearingDue),30) : null;
   return d;
@@ -1235,14 +1369,245 @@ $('emailLogCloseBtn').addEventListener('click', ()=>$('emailLogModalOverlay').cl
 function renderSettingsCounts(){
   $('holidayCount').textContent = (STATE.holidays||[]).length;
   $('locationCount').textContent = (SETUP.Location||[]).length;
+  $('userCount').textContent = (window._userListCache||[]).length;
 }
 
-recalcDeadlines();
-refresh();
-refreshEmailStatus();
-setInterval(()=>refresh(true), 15000); // keep all stewards' views in sync (background poll — preserves in-progress form data)
-setInterval(()=>refreshEmailStatus(), 60000);
-$('f-gid').focus();
+/* ===================================================================
+   AUTHENTICATION — login screen, session check, logout
+   =================================================================== */
+
+let CURRENT_USER = null;
+
+async function checkSession(){
+  try{
+    const res = await fetch('/api/auth/session');
+    const data = await res.json();
+    return data.user || null;
+  }catch(err){
+    return null;
+  }
+}
+
+function showLoginScreen(){
+  $('loginScreen').classList.remove('hidden');
+  $('mainApp').classList.add('hidden');
+  $('currentUserBadge').classList.add('hidden');
+  $('loginUsername').focus();
+}
+
+function showMainApp(user){
+  CURRENT_USER = user;
+  $('loginScreen').classList.add('hidden');
+  $('mainApp').classList.remove('hidden');
+  if(user && user.username){
+    $('currentUserBadge').classList.remove('hidden');
+    $('currentUserName').textContent = user.displayName || user.username;
+  } else {
+    // Open-access mode (no user accounts created yet)
+    $('currentUserBadge').classList.add('hidden');
+  }
+}
+
+async function attemptLogin(){
+  const username = $('loginUsername').value.trim();
+  const password = $('loginPassword').value;
+  const errBox = $('loginError');
+  errBox.style.display = 'none';
+
+  if(!username || !password){
+    errBox.textContent = 'Enter both a username and password.';
+    errBox.style.display = 'block';
+    return;
+  }
+
+  const btn = $('loginSubmitBtn');
+  btn.disabled = true; btn.textContent = 'Signing in…';
+  try{
+    const res = await fetch('/api/auth/login', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ username, password })
+    });
+    const data = await res.json();
+    if(!res.ok || data.error){
+      errBox.textContent = data.error || 'Could not sign in.';
+      errBox.style.display = 'block';
+      return;
+    }
+    showMainApp(data.user);
+    await bootApp();
+  }catch(err){
+    errBox.textContent = 'Could not reach the server. Try again.';
+    errBox.style.display = 'block';
+  }finally{
+    btn.disabled = false; btn.textContent = 'Sign in';
+  }
+}
+$('loginSubmitBtn').addEventListener('click', attemptLogin);
+$('loginPassword').addEventListener('keydown', e=>{ if(e.key==='Enter') attemptLogin(); });
+$('loginUsername').addEventListener('keydown', e=>{ if(e.key==='Enter') $('loginPassword').focus(); });
+
+$('logoutBtn').addEventListener('click', async ()=>{
+  try{ await fetch('/api/auth/logout', { method:'POST' }); }catch(err){}
+  CURRENT_USER = null;
+  $('loginUsername').value = '';
+  $('loginPassword').value = '';
+  showLoginScreen();
+});
+
+/* ---------- Settings tab: Manage Users ---------- */
+async function loadUserList(){
+  try{
+    const res = await fetch('/api/users');
+    const data = await res.json();
+    window._userListCache = data.users || [];
+  }catch(err){
+    window._userListCache = [];
+  }
+}
+function userRowHtml(idx, username, displayName, isExisting){
+  return `<div class="user-row" data-idx="${idx}" data-existing="${isExisting?'1':'0'}" style="display:grid;grid-template-columns:1fr 1fr 1fr auto;gap:10px;align-items:center;">
+    <input type="text" class="ur-username" placeholder="username" value="${escapeHtml(username)}" ${isExisting?'readonly style="background:var(--paper-2);"':''}>
+    <input type="text" class="ur-displayname" placeholder="Full name" value="${escapeHtml(displayName)}">
+    <input type="password" class="ur-password" placeholder="${isExisting?'(unchanged)':'Set password'}" autocomplete="new-password">
+    <button type="button" class="btn-tiny ur-remove" title="${isExisting?'Delete this account':'Remove this row'}">&#10005;</button>
+  </div>`;
+}
+function attachUserRowHandlers(){
+  $('userRows').querySelectorAll('.ur-remove').forEach(btn=>{
+    btn.addEventListener('click', async ()=>{
+      const row = btn.closest('.user-row');
+      const isExisting = row.dataset.existing === '1';
+      const username = row.querySelector('.ur-username').value.trim();
+
+      if(!isExisting){
+        row.remove();
+        return;
+      }
+      if(CURRENT_USER && username.toLowerCase() === CURRENT_USER.username.toLowerCase()){
+        toast("You can't delete the account you're currently logged in as.", 'err');
+        return;
+      }
+      if(!confirm(`Delete the account "${username}"? This cannot be undone.`)) return;
+      try{
+        await apiPost('/api/users/delete', { username });
+        toast('User account deleted.');
+        row.remove();
+        await loadUserList();
+        renderSettingsCounts();
+      }catch(err){
+        toast(err.message || 'Could not delete user.', 'err');
+      }
+    });
+  });
+}
+async function renderUserRows(){
+  await loadUserList();
+  const container = $('userRows');
+  const list = window._userListCache && window._userListCache.length ? window._userListCache : [];
+  if(!list.length){
+    container.innerHTML = userRowHtml(0, '', '', false);
+  } else {
+    container.innerHTML = list.map((u,i)=>userRowHtml(i, u.username, u.displayName, true)).join('');
+  }
+  attachUserRowHandlers();
+}
+$('manageUsersBtn').addEventListener('click', async ()=>{
+  await renderUserRows();
+  $('usersModalOverlay').classList.add('show');
+});
+$('usersCloseBtn').addEventListener('click', ()=>$('usersModalOverlay').classList.remove('show'));
+$('addUserRowBtn').addEventListener('click', ()=>{
+  const container = $('userRows');
+  const idx = container.querySelectorAll('.user-row').length;
+  container.insertAdjacentHTML('beforeend', userRowHtml(idx, '', '', false));
+  attachUserRowHandlers();
+});
+$('usersSaveBtn').addEventListener('click', async ()=>{
+  const rows = $('userRows').querySelectorAll('.user-row');
+  const btn = $('usersSaveBtn');
+  btn.disabled = true; btn.textContent = 'Saving…';
+  let savedCount = 0;
+  let errorMsg = '';
+  const wasOpenAccess = !CURRENT_USER || !CURRENT_USER.username;
+  try{
+    for(const row of rows){
+      const username = row.querySelector('.ur-username').value.trim();
+      const displayName = row.querySelector('.ur-displayname').value.trim();
+      const password = row.querySelector('.ur-password').value;
+      const isExisting = row.dataset.existing === '1';
+
+      if(!username && !displayName) continue; // skip fully empty rows
+      if(!username){ errorMsg = 'Every user needs a username.'; continue; }
+      if(!displayName){ errorMsg = 'Every user needs a display name.'; continue; }
+      if(!isExisting && !password){ errorMsg = `"${username}" needs a password since it's a new account.`; continue; }
+
+      await apiPost('/api/users', { username, displayName, password: password || undefined });
+      savedCount++;
+    }
+    if(errorMsg && savedCount === 0){
+      toast(errorMsg, 'err');
+    } else if(wasOpenAccess && savedCount > 0){
+      // We just created the FIRST user account ever. The app was running
+      // in open-access mode (no login required), and that free pass is
+      // now gone — every API call from this browser will be rejected
+      // until someone actually signs in. Rather than leave the page in
+      // a broken half-working state, force a clean re-login right now.
+      toast('First user account created. Please sign in to continue.');
+      $('usersModalOverlay').classList.remove('show');
+      CURRENT_USER = null;
+      $('loginUsername').value = '';
+      $('loginPassword').value = '';
+      setTimeout(()=> showLoginScreen(), 900); // brief pause so the toast is visible
+    } else {
+      toast(`${savedCount} user account(s) saved.${errorMsg ? ' (' + errorMsg + ')' : ''}`);
+      $('usersModalOverlay').classList.remove('show');
+      await loadUserList();
+      renderSettingsCounts();
+    }
+  }catch(err){
+    toast(err.message || 'Could not save user accounts.', 'err');
+  }finally{
+    btn.disabled = false; btn.textContent = 'Save changes';
+  }
+});
+
+/* ===================================================================
+   APP BOOTSTRAP — replaces the old unconditional init calls.
+   Checks login state FIRST; only loads the rest of the app's data
+   once we know the user is actually allowed to see it.
+   =================================================================== */
+
+async function bootApp(){
+  recalcDeadlines();
+  await loadUserList();
+  await refresh();
+  await refreshEmailStatus();
+  renderSettingsCounts();
+  $('f-gid').focus();
+}
+
+let pollingStarted = false;
+function startBackgroundPolling(){
+  if(pollingStarted) return;
+  pollingStarted = true;
+  setInterval(()=>refresh(true), 15000); // keep all stewards' views in sync (background poll — preserves in-progress form data)
+  setInterval(()=>refreshEmailStatus(), 60000);
+}
+
+(async function init(){
+  const user = await checkSession();
+  if(user === null){
+    // Either not logged in, or session expired/invalid — show login.
+    // (If no user accounts exist at all yet, checkSession() returns an
+    // "openAccess" user object from the server, not null — see below.)
+    showLoginScreen();
+    return;
+  }
+  showMainApp(user);
+  await bootApp();
+  startBackgroundPolling();
+})();
 </script>
 </body>
 </html>
