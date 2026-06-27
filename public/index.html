@@ -482,8 +482,15 @@ let STATE = { grievances: [], activity: [], archive: [], holidays: [] };
 
 const $ = id => document.getElementById(id);
 function fillSelect(sel, items, withBlank=true){
+  const previousValue = sel.value; // remember what the user had selected
   sel.innerHTML = (withBlank? '<option value=""></option>' : '') +
     items.map(v=>`<option value="${escapeHtml(v)}">${escapeHtml(v)}</option>`).join('');
+  // Restore the previous selection if it still exists in the new option list.
+  // This is what stops the background 15-second refresh from silently
+  // resetting every dropdown on the Intake Form while someone is mid-entry.
+  if(previousValue && items.includes(previousValue)){
+    sel.value = previousValue;
+  }
 }
 function escapeHtml(s){ return String(s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 function toast(msg, type='ok'){
@@ -507,7 +514,7 @@ async function apiPost(url, body){
   return json;
 }
 
-async function refresh(){
+async function refresh(isBackgroundPoll){
   try{
     const data = await apiGet();
     SETUP = data.setup || {};
@@ -516,7 +523,19 @@ async function refresh(){
     STATE.archive = data.archive || [];
     STATE.holidays = data.holidays || [];
     $('connBanner').innerHTML = '';
-    populateDropdowns();
+
+    // On a silent background poll, don't touch the Intake Form's dropdowns
+    // (or the Activity Log modal's dropdowns) if the steward currently has
+    // unsaved work in progress or a modal open. Rebuilding a <select>'s
+    // option list resets its selected value, which is what caused the
+    // "form clears itself while typing" bug. Manual loads (page open,
+    // after Submit, etc.) always repopulate normally.
+    const formInProgress = !!$('f-gid').value.trim();
+    const modalOpen = document.querySelector('.modal-overlay.show') !== null;
+    if(!isBackgroundPoll || (!formInProgress && !modalOpen)){
+      populateDropdowns();
+    }
+
     renderAll();
     renderSettingsCounts();
   }catch(err){
@@ -1221,7 +1240,7 @@ function renderSettingsCounts(){
 recalcDeadlines();
 refresh();
 refreshEmailStatus();
-setInterval(()=>refresh(), 15000); // keep all stewards' views in sync
+setInterval(()=>refresh(true), 15000); // keep all stewards' views in sync (background poll — preserves in-progress form data)
 setInterval(()=>refreshEmailStatus(), 60000);
 $('f-gid').focus();
 </script>
