@@ -1,4 +1,4 @@
-# DFCS Grievance Tracker
+# FCRC Grievance Tracker
 
 AFSCME Council 31 — Division of Family & Community Services, IDHS
 Master Contract 2023–2027 | Art. V Grievance Procedure
@@ -219,7 +219,7 @@ send the emails.
 1. Turn on 2-Step Verification on the Gmail account you want to send
    from: [myaccount.google.com/security](https://myaccount.google.com/security)
 2. Create an App Password: [myaccount.google.com/apppasswords](https://myaccount.google.com/apppasswords)
-   — name it "DFCS Tracker" and copy the 16-character password it gives you.
+   — name it "FCRC Tracker" and copy the 16-character password it gives you.
 3. On Render: Dashboard → your service → **Environment** → **Add Environment Variable**, twice:
    - **Key**: `GMAIL_USER` → **Value**: your Gmail address
    - **Key**: `GMAIL_APP_PASSWORD` → **Value**: the 16-character App Password
@@ -242,7 +242,8 @@ For a guaranteed fixed time every day, you'd need Render's paid tier
 ## Managing user accounts, stewards, FCRC locations, and holidays
 
 No code edits or Render shell access needed for any of this — it's
-all done from inside the running app itself:
+all done from inside the running app itself (Admin accounts only —
+see Step 6 above for the difference between Admin and Steward):
 
 - **Settings tab** → **Manage users** — add, edit, or remove login
   accounts. Each steward should have their own.
@@ -250,14 +251,19 @@ all done from inside the running app itself:
   remove stewards and their email addresses.
 - **Settings tab** → **Edit locations** — add, rename, or remove
   FCRC / work locations shown on the Intake Form.
+- **Settings tab** → **Other dropdown lists** — add, rename, or
+  remove entries in any of the other Intake Form dropdowns: Status,
+  Bureau / program unit, County, Bargaining unit, Job classification,
+  Shift, CBA article violated, and Grievance type. Click **Edit**
+  next to whichever list needs a change.
 - **Settings tab** → **Edit holidays** — add, remove, or adjust
   observed holiday dates. These are excluded from every working-day
   deadline calculation under Art. V Sec. 2, so keep this list current
   each year.
 
-Removing a steward or location does **not** delete any existing
-grievance records that reference it — it only removes the option
-from the dropdown for future entries.
+Removing a steward, location, or any other dropdown entry does
+**not** delete any existing grievance records that reference it — it
+only removes the option from the dropdown for future entries.
 
 **Note**: a login account (Settings → Manage users) and a steward name
 (Steward Workload → Manage stewards) are two separate things. The
