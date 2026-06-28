@@ -1,13 +1,17 @@
 {
   "name": "dfcs-grievance-tracker",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "description": "AFSCME Council 31 DFCS Grievance Tracking System",
   "main": "server/index.js",
   "scripts": {
-    "start": "node server/index.js"
+    "start": "node server/index.js",
+    "migrate": "node migrations/migrate_from_json.js",
+    "seed": "node migrations/seed_defaults.js"
   },
   "engines": {
     "node": ">=18.0.0"
   },
-  "dependencies": {}
+  "dependencies": {
+    "pg": "^8.11.5"
+  }
 }

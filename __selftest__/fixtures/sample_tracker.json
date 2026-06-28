@@ -1,0 +1,30 @@
+{
+  "grievances": [
+    { "id": "2026-001", "employee": "Jane Doe", "steward": "Hazem Albassam", "status": "Pending", "step1filed": "2026-06-01", "createdAt": "2026-06-01T10:00:00.000Z", "updatedAt": "2026-06-02T10:00:00.000Z" }
+  ],
+  "activity": [
+    { "id": 1, "gid": "2026-001", "date": "2026-06-02", "type": "Step 1 - Oral Grievance Raised with Supervisor", "steward": "Hazem Albassam", "notes": "test" }
+  ],
+  "archive": [
+    { "id": "2025-099", "employee": "Old Case", "steward": "Maria Perez", "status": "Settled", "archivedAt": "2026-01-01" }
+  ],
+  "emailLog": [
+    { "date": "2026-06-27T20:19:11.655Z", "sent": 0, "skippedNoEmail": 0, "errors": [], "stewardsNotified": [] }
+  ],
+  "users": [
+    { "username": "albassam", "displayName": "Hazem Albassam", "createdAt": "2026-06-27T20:18:45.238Z", "passwordHash": "scrypt:abc:def" }
+  ],
+  "sessions": [
+    { "token": "sometoken", "username": "albassam", "expiresAt": 1785183546373 }
+  ],
+  "lastEmailRunDate": "2026-06-27",
+  "holidays": [
+    { "date": "2026-01-01", "name": "New Year's Day" },
+    { "date": "2026-12-25", "name": "Christmas Day" }
+  ],
+  "setup": {
+    "Status": ["Pending", "Granted", "Denied"],
+    "Steward": ["Hazem Albassam", "Maria Perez"],
+    "StewardEmail": ["hazem.albassam@illinois.gov", "maria.p.perez@illinois.gov"]
+  }
+}

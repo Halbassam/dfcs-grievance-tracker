@@ -58,7 +58,6 @@ function buildEmailBody(stewardName, items) {
  * (used by both the daily auto-run and the manual "run now" button).
  */
 async function runDeadlineCheck() {
-  const data = db.readRaw();
   const gmailUser = process.env.GMAIL_USER || "";
   const gmailAppPassword = process.env.GMAIL_APP_PASSWORD || "";
 
@@ -69,7 +68,7 @@ async function runDeadlineCheck() {
     return summary;
   }
 
-  const upcoming = db.findUpcomingDeadlines(REMINDER_WINDOW_DAYS);
+  const upcoming = await db.findUpcomingDeadlines(REMINDER_WINDOW_DAYS);
 
   // Group by steward email so each steward gets ONE email listing all their cases
   const byEmail = new Map();
@@ -101,23 +100,17 @@ async function runDeadlineCheck() {
     }
   }
 
-  // Record this run in the data file so it shows up in an email log /
-  // can be inspected later, and so the daily scheduler knows it already
-  // ran today.
-  await db.withLock(() => {
-    const fresh = db.readRaw();
-    fresh.lastEmailRunDate = todayISO();
-    fresh.emailLog = fresh.emailLog || [];
-    fresh.emailLog.unshift({
+  // Record this run so it shows up in the email log / can be inspected
+  // later, and so the daily scheduler knows it already ran today.
+  await db.withLock(async () => {
+    const fresh = { lastEmailRunDate: todayISO(), emailLog: [{
       date: new Date().toISOString(),
       sent: summary.sent,
       skippedNoEmail: summary.skippedNoEmail,
       errors: summary.errors,
       stewardsNotified: summary.stewardsNotified
-    });
-    // Keep only the most recent 60 log entries so the file doesn't grow forever
-    fresh.emailLog = fresh.emailLog.slice(0, 60);
-    db.writeRawAtomic(fresh);
+    }] };
+    await db.writeRawAtomic(fresh);
     return null;
   });
 
@@ -131,7 +124,7 @@ async function runDeadlineCheck() {
 function startScheduler() {
   setInterval(async () => {
     try {
-      const data = db.readRaw();
+      const data = await db.readRaw();
       const today = todayISO();
       if (data.lastEmailRunDate === today) return; // already ran today
 

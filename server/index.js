@@ -79,21 +79,32 @@ function clearSessionCookie(res) {
 }
 
 /**
- * Returns the logged-in user ({username, displayName}) for this
+ * Returns the logged-in user ({username, displayName, role}) for this
  * request, or null if not logged in. If no user accounts exist at
- * all yet, returns a synthetic "open access" user so the app keeps
- * working normally until the first account is created.
+ * all yet, returns a synthetic "open access" admin user so the app
+ * keeps working normally (including creating that very first account)
+ * until a real account exists.
  */
-function getCurrentUser(req) {
-  const data = db.getAll();
-  const hasAnyUsers = (data.users || []).length > 0;
+async function getCurrentUser(req) {
+  const hasAnyUsers = await db.hasAnyUsers();
 
   if (!hasAnyUsers) {
-    return { username: "", displayName: "", openAccess: true };
+    return { username: "", displayName: "", role: "admin", openAccess: true };
   }
 
   const token = getSessionTokenFromRequest(req);
   return db.getSessionUser(token); // null if invalid/expired/missing
+}
+
+/**
+ * True if the given current-user object has admin privileges.
+ * Used to gate user management and shared-configuration routes
+ * (holidays, dropdown lists, steward roster) to admins only —
+ * everyday grievance/activity work stays open to every logged-in
+ * steward.
+ */
+function isAdmin(currentUser) {
+  return !!(currentUser && currentUser.role === "admin");
 }
 
 const MIME = {
@@ -178,7 +189,7 @@ const server = http.createServer(async (req, res) => {
     // ---------- Routes that must work WITHOUT being logged in ----------
     if (pathname === "/api/auth/login" && req.method === "POST") {
       const body = await readBody(req);
-      const user = db.verifyLogin(body.username, body.password);
+      const user = await db.verifyLogin(body.username, body.password);
       if (!user) {
         return sendJson(res, 401, { error: "Incorrect username or password." });
       }
@@ -188,7 +199,7 @@ const server = http.createServer(async (req, res) => {
     }
 
     if (pathname === "/api/auth/session" && req.method === "GET") {
-      const user = getCurrentUser(req);
+      const user = await getCurrentUser(req);
       return sendJson(res, 200, { user });
     }
 
@@ -206,13 +217,13 @@ const server = http.createServer(async (req, res) => {
 
     // ---------- Everything else requires a valid session ----------
     // (unless no user accounts exist yet at all — see getCurrentUser)
-    const currentUser = getCurrentUser(req);
+    const currentUser = await getCurrentUser(req);
     if (!currentUser) {
       return sendJson(res, 401, { error: "Not logged in." });
     }
 
     if (pathname === "/api/data" && req.method === "GET") {
-      const data = db.getAll();
+      const data = await db.getAll();
       return sendJson(res, 200, data);
     }
 
@@ -240,18 +251,21 @@ const server = http.createServer(async (req, res) => {
     }
 
     if (pathname === "/api/setup/stewards" && req.method === "POST") {
+      if (!isAdmin(currentUser)) return sendJson(res, 403, { error: "Only admins can manage the steward roster." });
       const body = await readBody(req);
       const result = await db.updateStewards(body.stewards, body.emails);
       return sendJson(res, 200, result);
     }
 
     if (pathname === "/api/setup/list" && req.method === "POST") {
+      if (!isAdmin(currentUser)) return sendJson(res, 403, { error: "Only admins can edit dropdown lists." });
       const body = await readBody(req);
       const result = await db.updateSetupList(body.key, body.items);
       return sendJson(res, 200, result);
     }
 
     if (pathname === "/api/holidays" && req.method === "POST") {
+      if (!isAdmin(currentUser)) return sendJson(res, 403, { error: "Only admins can edit the holiday calendar." });
       const body = await readBody(req);
       const result = await db.updateHolidays(body.holidays);
       return sendJson(res, 200, result);
@@ -263,7 +277,7 @@ const server = http.createServer(async (req, res) => {
     }
 
     if (pathname === "/api/email/status" && req.method === "GET") {
-      const data = db.getAll();
+      const data = await db.getAll();
       const emailConfigured = !!(process.env.GMAIL_USER && process.env.GMAIL_APP_PASSWORD);
       return sendJson(res, 200, {
         emailConfigured,
@@ -272,18 +286,21 @@ const server = http.createServer(async (req, res) => {
       });
     }
 
-    // ---------- User account management (Settings > Manage users) ----------
+    // ---------- User account management (Settings > Manage users) — admins only ----------
     if (pathname === "/api/users" && req.method === "GET") {
-      return sendJson(res, 200, { users: db.listUsersSafe() });
+      if (!isAdmin(currentUser)) return sendJson(res, 403, { error: "Only admins can view user accounts." });
+      return sendJson(res, 200, { users: await db.listUsersSafe() });
     }
 
     if (pathname === "/api/users" && req.method === "POST") {
+      if (!isAdmin(currentUser)) return sendJson(res, 403, { error: "Only admins can manage user accounts." });
       const body = await readBody(req);
       const result = await db.upsertUser(body);
       return sendJson(res, 200, result);
     }
 
     if (pathname === "/api/users/delete" && req.method === "POST") {
+      if (!isAdmin(currentUser)) return sendJson(res, 403, { error: "Only admins can manage user accounts." });
       const body = await readBody(req);
       // Safety: don't allow the currently logged-in user to delete
       // their own account and lock themselves out by accident.

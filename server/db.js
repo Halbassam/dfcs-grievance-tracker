@@ -1,194 +1,130 @@
 /**
  * ================================================================
  * AFSCME Council 31 — DFCS Grievance Tracker
- * Simple file-based database (no native dependencies)
+ * Database layer — Supabase Postgres.
  *
- * Stores all data as a single JSON file on disk. Writes are
- * serialized through an in-process queue so two simultaneous
- * requests can never corrupt the file. This is a Node.js
- * process-per-instance design: it is safe for a single
- * Render web service instance, which is what the free tier runs.
+ * This module exports the exact same function names, signatures,
+ * and return shapes as the original file-based server/db.js. Every
+ * other file in this app (index.js, scheduler.js, public/index.html
+ * via the API) calls these functions and has NO IDEA whether the
+ * data underneath is a JSON file or a Postgres database — so none
+ * of those files needed to change for this migration.
+ *
+ * Where the original kept "the whole JSON blob" as the unit of
+ * read/write, this version assembles the equivalent shape on read
+ * (getAll) from several tables, and writes to the specific table(s)
+ * each operation actually touches.
  * ================================================================
  */
 
-const fs = require("fs");
-const path = require("path");
+const { query, withTransaction, pool } = require("./pool");
+const { hashPassword, verifyPassword } = require("./passwords");
+const crypto = require("crypto");
 
-const DATA_DIR = path.join(__dirname, "..", "data");
-const DB_FILE = path.join(DATA_DIR, "tracker.json");
+// ================================================================
+// Static defaults (used only for first-run seeding via the
+// migration script / seed script — NOT used at request time).
+// Kept here so SIMPLE_SETUP_KEYS and the holiday defaults still
+// live in one place, same as before.
+// ================================================================
 
-function ensureDataFile() {
-  if (!fs.existsSync(DATA_DIR)) {
-    fs.mkdirSync(DATA_DIR, { recursive: true });
+const SIMPLE_SETUP_KEYS = [
+  "Status", "Bureau", "Location", "County", "BargainingUnit",
+  "JobClass", "Shift", "Article", "GrievanceType", "ActivityType"
+];
+
+const DATE_FIELDS = ["awareness","step1filed","step1resp","step2filed","step2resp","step3filed","step3resp","step4filed"];
+const TERMINAL_STATUSES = ["Settled", "Denied", "Withdrawn", "Granted", "Partially Granted"];
+
+// ================================================================
+// getAll() — reassembles the full data blob the frontend expects
+// from /api/data, in the same shape the old JSON file had.
+// ================================================================
+
+async function getAll() {
+  const [
+    grievancesRes,
+    activityRes,
+    archiveRes,
+    usersRes,
+    sessionsRes,
+    holidaysRes,
+    setupRes,
+    emailLogRes,
+    metaRes
+  ] = await Promise.all([
+    query("select data from grievances order by created_at asc"),
+    query("select data from activity order by row_id asc"),
+    query("select data from archive order by created_at asc"),
+    query("select username, display_name, role, created_at, password_hash from users"),
+    query("select token, username, expires_at from sessions"),
+    query("select date, name from holidays order by date asc"),
+    query("select key, items from setup_lists"),
+    query("select data from email_log order by row_id desc limit 60"),
+    query("select key, value from app_meta")
+  ]);
+
+  const setup = {};
+  for (const row of setupRes.rows) {
+    setup[row.key] = row.items || [];
   }
-  if (!fs.existsSync(DB_FILE)) {
-    fs.writeFileSync(DB_FILE, JSON.stringify(defaultData(), null, 2));
-  }
-}
-ensureDataFile(); // run once eagerly at module load so startup failures are loud
 
-function defaultData() {
+  const users = usersRes.rows.map(r => ({
+    username: r.username,
+    displayName: r.display_name,
+    role: r.role || "steward",
+    createdAt: r.created_at instanceof Date ? r.created_at.toISOString() : r.created_at,
+    passwordHash: r.password_hash
+  }));
+
+  const sessions = sessionsRes.rows.map(r => ({
+    token: r.token,
+    username: r.username,
+    expiresAt: r.expires_at instanceof Date ? r.expires_at.getTime() : Number(r.expires_at)
+  }));
+
+  const metaMap = {};
+  for (const row of metaRes.rows) metaMap[row.key] = row.value;
+
   return {
-    grievances: [],
-    activity: [],
-    archive: [],
-    emailLog: [],
-    users: [],
-    sessions: [],
-    lastEmailRunDate: "",
-    holidays: [
-      { date: "2024-01-01", name: "New Year's Day" },
-      { date: "2024-01-15", name: "Martin Luther King Jr. Day" },
-      { date: "2024-02-19", name: "Presidents' Day" },
-      { date: "2024-05-27", name: "Memorial Day" },
-      { date: "2024-06-19", name: "Juneteenth" },
-      { date: "2024-07-04", name: "Independence Day" },
-      { date: "2024-09-02", name: "Labor Day" },
-      { date: "2024-11-11", name: "Veterans Day" },
-      { date: "2024-11-28", name: "Thanksgiving Day" },
-      { date: "2024-12-25", name: "Christmas Day" },
-      { date: "2025-01-01", name: "New Year's Day" },
-      { date: "2025-01-20", name: "Martin Luther King Jr. Day" },
-      { date: "2025-02-17", name: "Presidents' Day" },
-      { date: "2025-05-26", name: "Memorial Day" },
-      { date: "2025-06-19", name: "Juneteenth" },
-      { date: "2025-07-04", name: "Independence Day" },
-      { date: "2025-09-01", name: "Labor Day" },
-      { date: "2025-11-11", name: "Veterans Day" },
-      { date: "2025-11-27", name: "Thanksgiving Day" },
-      { date: "2025-12-25", name: "Christmas Day" },
-      { date: "2026-01-01", name: "New Year's Day" },
-      { date: "2026-01-19", name: "Martin Luther King Jr. Day" },
-      { date: "2026-02-16", name: "Presidents' Day" },
-      { date: "2026-05-25", name: "Memorial Day" },
-      { date: "2026-06-19", name: "Juneteenth" },
-      { date: "2026-07-03", name: "Independence Day (Observed)" },
-      { date: "2026-09-07", name: "Labor Day" },
-      { date: "2026-11-11", name: "Veterans Day" },
-      { date: "2026-11-26", name: "Thanksgiving Day" },
-      { date: "2026-12-25", name: "Christmas Day" },
-      { date: "2027-01-01", name: "New Year's Day" },
-      { date: "2027-01-18", name: "Martin Luther King Jr. Day" },
-      { date: "2027-05-31", name: "Memorial Day" },
-      { date: "2027-07-05", name: "Independence Day (Observed)" },
-      { date: "2027-09-06", name: "Labor Day" },
-      { date: "2027-11-11", name: "Veterans Day" },
-      { date: "2027-11-25", name: "Thanksgiving Day" },
-      { date: "2027-12-24", name: "Christmas Day (Observed)" }
-    ],
-    setup: {
-      Status: ["Pending","Granted","Denied","Withdrawn","Settled","Partially Granted","Pending Arbitration","Arbitration Scheduled","Held in Abeyance"],
-      Bureau: ["Bureau of Family & Community Programs"],
-      Location: ["North Suburban (1N)","West Suburban (1N)","Northside (1N)","Lincolnwood (1N)","Humboldt Park (1N)","Lower North (1N)","Northwest (1N)","Ogden (1N)","Special Units (1N)","South Loop (1N)","Roseland (1S)","Aurora (Kane County)","Elgin (Kane County)","Waukegan (Lake County)","Joliet (Will County)","Alton (Madison County)","DuPage County"],
-      County: ["Cook R1N","Cook R1S","Kane","Lake","Will","Madison"],
-      Steward: ["Hazem Albassam","Maria Perez","John Todd","Kimberly Huster","Elijah Edwards"],
-      StewardEmail: ["hazem.albassam@illinois.gov","maria.p.perez@illinois.gov","john.todd@illinois.gov","kimberly.huster@illinois.gov","elijah.edwards@illinois.gov"],
-      BargainingUnit: ["RC-14 (Clerical / Office)","RC-28 (Technical)","RC-62 (Professional)","RC-63 (Supervisory Professional)","All Affected"],
-      JobClass: ["Human Services Caseworker (RC-62)","Human Services Caseworker Manager (RC-62)","Social Service Career Trainee - Option 1","Social Service Career Trainee - Option 2 (Bilingual/MSW)","Public Aid Eligibility Assistant (RC-28)","Clerical Trainee I (RC-14)","Office Aide (RC-14)","Office Clerk (RC-14)","Office Assistant (RC-14)","Office Associate (RC-14)","Office Coordinator (RC-14)","All Affected"],
-      Shift: ["Day (1st Shift)","Evening (2nd Shift)","Night (3rd Shift)","Rotating","Flexible / Variable","Monday-Friday Regular","Other"],
-      Article: ["Art. I - Agreement","Art. II - Definition of Terms","Art. III - Recognition","Art. IV - Dues Deductions","Art. V - Grievance Procedure","Art. V Sec. 1 - Definition of Grievance","Art. V Sec. 2 - Grievance Steps (Step 1 through Arbitration)","Art. V Sec. 3 - Time Limits","Art. V Sec. 3(b) - Extensions by Mutual Agreement Only","Art. V Sec. 3(c) - Auto-Advance on Employer Failure to Respond","Art. V Sec. 3(e) - Discipline Clock (from receipt of documentation)","Art. V Sec. 4 - Special Grievances MOU","Art. V Sec. 7 - Advanced Step Filing","Art. V Sec. 8 - Information Request (Pertinent Witnesses & Documents)","Art. VI - Union Rights","Art. VI Sec. 9 - Stewards and Union Representatives","Art. VII - Labor/Management Committee","Art. VIII - Work Rules","Art. IX - Discipline","Art. IX Sec. 2 - Progressive Discipline","Art. IX Sec. 3 - Suspension Pending Discharge","Art. IX Sec. 4 - Pre-Disciplinary Meeting","Art. IX Sec. 4 - Cook County PA Pre-Suspension Procedure","Art. IX Sec. 5 - Oral Reprimands","Art. IX Sec. 6 - Notification of Disciplinary Action","Art. IX Sec. 7 - Removal of Discipline from File","Art. X - Vacations","Art. X Sec. 1 - Vacation Amounts","Art. X Sec. 5 - Vacation Schedules","Art. X Sec. 6 - Vacation Scheduling by Seniority","Art. XI - Holidays","Art. XI Sec. 1 - Holiday Amounts","Art. XI Sec. 6 - Holiday Eligibility","Art. XII - Hours of Work and Overtime","Art. XII Sec. 10 - Overtime Payments","Art. XII Sec. 12 - Rest Periods","Art. XII Sec. 13 - Flexible Hours","Art. XII Sec. 16 - Compensatory Time","Art. XII Sec. 19 - Overtime Scheduling Information to Union","Art. XIII - Insurance, Pension, EAP & Indemnification","Art. XIII Sec. 1 - Health Insurance","Art. XIII - Benefit Recoupment (File Directly at Step 3)","Art. XIV - Temporary Assignment","Art. XV - Upward Mobility Program","Art. XV Sec. 8 - UMP Vacancies (File Directly at Step 3)","Art. XVI - Demotions","Art. XVII - Records and Forms","Art. XVIII - Seniority","Art. XVIII Sec. 1 - Definition","Art. XVIII Sec. 2 - Application","Art. XIX - Filling of Vacancies","Art. XIX Sec. 2 - Posting (County-Wide RC-14/28/62/63)","Art. XIX Sec. 3 - Job Assignment","Art. XIX Sec. 4 - Shift Preference","Art. XIX Sec. 5 - Promotion / Reduction / Parallel Movement","Art. XIX Sec. 7 - Transfers","Art. XX - Layoff","Art. XX Sec. 2 - General Layoff Procedures","Art. XX Sec. 3 - Bumping Rights (County-Based RC-14/28/62/63)","Art. XX Sec. 4 - Recall from Layoff","Art. XXI - Continuous Service","Art. XXII - Geographical Transfer","Art. XXIII - Leaves of Absence","Art. XXIII Sec. 16 - Sick Leave","Art. XXIII Sec. 27 - Parental Leave","Art. XXIII Sec. 28 - Family Medical Leave Act (FMLA)","Art. XXIV - Personnel Files","Art. XXV - Working Conditions, Safety and Health","Art. XXVI - Job Classifications","Art. XXVI Sec. 6 - New Classifications & Reclassification","Art. XXVI Sec. 8 - Salary Grade Placement","Art. XXVII - Evaluations","Art. XXVIII - Employee Development","Art. XXIX - Sub-Contracting","Art. XXXI Sec. 15 - Payroll Errors","Art. XXXII - Wages and Other Pay Provisions","Art. XXXII Sec. 4 - Steps","Art. XXXII Sec. 6 - General Increases","Art. XXXII Sec. 10 - Bi-lingual Pay"],
-      GrievanceType: ["Discipline - Oral Reprimand (Art. IX Sec. 5)","Discipline - Written Reprimand (Art. IX Sec. 6)","Discipline - Suspension 1-29 Days (Art. IX Sec. 6)","Discipline - Suspension 30+ Days (Art. IX Sec. 6)","Discipline - Discharge (Special Grievance MOU)","Discipline - Suspension Pending Discharge (Art. IX Sec. 3)","Discipline - Improper Progressive Discipline (Art. IX Sec. 2)","Cook County PA - Pre-Suspension Procedure Violation (Art. IX Sec. 4)","Cook County PA - Pre-Separation Procedure Violation (Art. IX Sec. 4)","Wages - Improper Step Placement (Art. XXXII Sec. 4)","Wages - Missing General Increase (Art. XXXII Sec. 6)","Wages - Bi-lingual Pay Denied (Art. XXXII Sec. 10)","Wages - Payroll Error (Art. XXXI Sec. 15)","Overtime - Improper Payment (Art. XII Sec. 10)","Overtime - Improper Scheduling / Rotation (Art. XII)","Holiday Pay - Improper / Denied (Art. XI)","Temporary Assignment - Improper / No Pay (Art. XIV)","Benefit Recoupment Dispute (Art. XIII - File at Step 3 Directly)","Health Insurance Dispute (Art. XIII Sec. 1)","Vacation - Denied / Improper Schedule (Art. X)","Vacation - Improper Seniority Order (Art. X Sec. 6)","Sick Leave - Denied (Art. XXIII Sec. 16)","Sick Leave - Abuse Charge Dispute (Art. XXIII Sec. 16)","Affirmative Attendance - Improper Discipline","FMLA - Interference / Denial (Art. XXIII Sec. 28)","Parental Leave - Denied (Art. XXIII Sec. 27)","Bereavement Leave - Denied / Improper (Art. XXIII Sec. 15)","General Leave - Denied (Art. XXIII Sec. 1)","Educational Leave - Denied (Art. XXIII Sec. 3)","Schedule Change - Improper (Art. V Sec. 4)","Rest Period - Denied (Art. XII Sec. 12)","Comp Time - Denied / Improper (Art. XII Sec. 16)","Workload - Unreasonable / Excessive Caseload (Art. XXXI Sec. 1)","Safety & Health Violation (Art. XXV Sec. 1)","Seniority - Improper Calculation (Art. XVIII Sec. 1)","Seniority - Improper Application (Art. XVIII Sec. 2)","Posting - County-Wide Violation (Art. XIX Sec. 2)","Job Assignment - Improper (Art. XIX Sec. 3)","Shift Preference - Denied (Art. XIX Sec. 4)","Promotion - Improper (Art. XIX Sec. 5)","Transfer - Improper Denial (Art. XIX Sec. 7)","Upward Mobility - Denied (Art. XV Sec. 8 - File at Step 3 Directly)","Training / Development - Denied (Art. XXVIII)","Layoff - Improper Procedure (Special Grievance MOU)","Layoff - Improper Bumping Order County-Based (Art. XX Sec. 3)","Layoff - Recall Violation (Art. XX Sec. 4)","Demotion - Improper (Special Grievance MOU)","Geographical Transfer - Improper (Special Grievance MOU)","Reclassification - Improper (Special Grievance MOU)","Salary Grade Placement - New Classification (Art. XXVI Sec. 8)","Personnel File - Improper Content (Art. XXIV)","Personnel File - Access Denied (Art. XXIV Sec. 3)","Performance Evaluation - Improper (Art. XXVII Sec. 2)","Work Rules - Improper / Not Posted (Art. VIII)","Union Rights - Steward Access Denied (Art. VI Sec. 9)","Sub-Contracting Violation (Art. XXIX)","Group Grievance","Union Grievance"],
-      ActivityType: ["Step 1 - Oral Grievance Raised with Supervisor","Step 1 - Supervisor Oral Response Received","Step 1 - No Response / Auto-Advance to Step 2","Step 2 - Written Grievance Filed with Intermediate Admin","Step 2 - Meeting Held with Intermediate Admin","Step 2 - Written Answer Received","Step 2 - No Response / Auto-Advance to Step 3","Step 3 - Grievance Filed with Agency Head","Step 3 - Monthly DFCS Grievance Committee Meeting","Step 3 - Hold Placed (Art. V Sec. 2)","Step 3 - Hold Released","Step 3 - Resolution Signed / Settled","Step 3 - Denied by Agency","Step 4 - Pre-Arb Staff Meeting Filed with CMS","Step 4 - CMS Pre-Arb Meeting Held","Step 4 - Resolution Signed / Settled at Pre-Arb","Arbitration - Moved to Expedited Arb","Arbitration - Moved to Regular Arb","Arbitration - Hearing Held","Arbitration - Award Issued (Union Prevails)","Arbitration - Award Issued (Employer Prevails)","Benefit Recoupment - Filed Directly at Step 3 (Art. XIII)","Upward Mobility - Filed Directly at Step 3 (Art. XV Sec. 8)","Cook County PA - Pre-Suspension Hearing Requested","Cook County PA - Pre-Separation Hearing Requested","Grievance - Withdrawn by Union (Art. V Sec. 3a)","Grievance - Settled","Grievance - Granted","Grievance - Denied","Grievance - Partially Granted","Document - Art. V Sec. 8 Information Request Submitted","Document - Art. V Sec. 8 Information Received","Document - Caseload / Workload Records Obtained","Document - Personnel File Reviewed (Art. XXIV Sec. 3)","Document - Discipline Letter / Transaction Notice Obtained","Document - Witness Statement Taken","Document - Comparator Cases / Employees Identified","Communication - Email / Letter Sent to Management","Communication - In-Person Meeting with Grievant","Communication - Council 31 Staff Consulted","Communication - Local Union President Notified","Deadline - Extension Requested (Art. V Sec. 3b)","Deadline - Extension Granted by Mutual Agreement","Deadline - Extension Denied","Note - General Update / Follow-Up Entry"]
-    }
+    grievances: grievancesRes.rows.map(r => r.data),
+    activity: activityRes.rows.map(r => r.data),
+    archive: archiveRes.rows.map(r => r.data),
+    emailLog: emailLogRes.rows.map(r => r.data),
+    users,
+    sessions,
+    lastEmailRunDate: metaMap.lastEmailRunDate || "",
+    holidays: holidaysRes.rows.map(r => ({ date: r.date, name: r.name })),
+    setup
   };
 }
 
-function migrateData(data) {
-  // Existing deployed data files won't have these fields yet —
-  // backfill them from defaults without touching real grievance data.
-  const defaults = defaultData();
-  let changed = false;
-
-  if (!Array.isArray(data.holidays)) {
-    data.holidays = defaults.holidays;
-    changed = true;
-  }
-  if (!Array.isArray(data.emailLog)) {
-    data.emailLog = [];
-    changed = true;
-  }
-  if (typeof data.lastEmailRunDate !== "string") {
-    data.lastEmailRunDate = "";
-    changed = true;
-  }
-  if (!data.setup) {
-    data.setup = defaults.setup;
-    changed = true;
-  }
-  if (!Array.isArray(data.users)) {
-    data.users = [];
-    changed = true;
-  }
-  if (!Array.isArray(data.sessions)) {
-    data.sessions = [];
-    changed = true;
-  }
-  return { data, changed };
-}
-
-function readRaw() {
-  ensureDataFile();
-  const text = fs.readFileSync(DB_FILE, "utf8");
-  try {
-    const parsed = JSON.parse(text);
-    const { data, changed } = migrateData(parsed);
-    if (changed) {
-      writeRawAtomic(data);
-    }
-    return data;
-  } catch (e) {
-    // Corrupted file fallback — never crash the app, start fresh
-    console.error("DB file corrupted, resetting:", e.message);
-    const fresh = defaultData();
-    fs.writeFileSync(DB_FILE, JSON.stringify(fresh, null, 2));
-    return fresh;
-  }
-}
-
-function writeRawAtomic(data) {
-  // Write to a temp file then rename — rename is atomic on POSIX filesystems,
-  // so a crash mid-write can never leave a half-written file on disk.
-  const tmpFile = DB_FILE + ".tmp";
-  fs.writeFileSync(tmpFile, JSON.stringify(data, null, 2));
-  fs.renameSync(tmpFile, DB_FILE);
-}
-
-// ---------- write queue: serializes all writes within this process ----------
-let queue = Promise.resolve();
-function withLock(fn) {
-  const result = queue.then(() => fn());
-  // swallow errors in the queue chain itself so one failure doesn't wedge it,
-  // but still propagate the error to the caller of withLock
-  queue = result.catch(() => {});
-  return result;
+/**
+ * Low-level "give me the raw shape" accessor. The old file-based
+ * version had readRaw() return the literal on-disk object — this
+ * version is functionally identical to getAll() now that there's
+ * no separate raw-vs-public distinction at the storage layer. Kept
+ * as a separate export because scheduler.js and index.js both call
+ * db.readRaw() directly.
+ */
+async function readRaw() {
+  return getAll();
 }
 
 // ================================================================
-// Public API
+// GRIEVANCES
 // ================================================================
-
-function getAll() {
-  return readRaw();
-}
-
-const TERMINAL_STATUSES = ["Settled", "Denied", "Withdrawn", "Granted", "Partially Granted"];
-const DATE_FIELDS = ["awareness","step1filed","step1resp","step2filed","step2resp","step3filed","step3resp","step4filed"];
 
 async function submitGrievance(record) {
-  return withLock(() => {
-    const data = readRaw();
-    const id = String(record.id || "").trim();
-    if (!id) throw new Error("Grievance ID is required.");
+  const id = String(record.id || "").trim();
+  if (!id) throw new Error("Grievance ID is required.");
 
-    let target = data.grievances.find(g => g.id === id);
-    const isNew = !target;
+  return withTransaction(async (client) => {
+    const existing = await client.query("select data from grievances where id = $1", [id]);
+    const isNew = existing.rows.length === 0;
+    const target = isNew ? { id } : { ...existing.rows[0].data };
 
-    if (!target) {
-      target = { id };
-      data.grievances.push(target);
-    }
-
-    // Static metadata — always overwrite
+    // Static metadata — always overwrite (matches original behavior)
     target.employee = record.employee || "";
     target.jobClass = record.jobClass || "";
     target.bu = record.bu || "";
@@ -204,63 +140,95 @@ async function submitGrievance(record) {
     target.remedy = record.remedy || "";
     target.status = record.status || "Pending";
 
-    // Date fields — only overwrite if the incoming value is non-blank.
-    // This preserves historic step dates exactly like the VBA macro did.
+    // Date fields — only overwrite if incoming value is non-blank,
+    // exactly like the original (preserves historic step dates).
     for (const field of DATE_FIELDS) {
       const incoming = record[field];
       if (incoming) {
         target[field] = incoming;
       }
-      // else: leave whatever was already there (or blank if truly new)
     }
 
     target.createdAt = target.createdAt || record.createdAt || new Date().toISOString();
     target.updatedAt = new Date().toISOString();
     target.createdBy = target.createdBy || record.actingUser || "";
     target.updatedBy = record.actingUser || "";
+    target.id = id;
 
-    writeRawAtomic(data);
+    await client.query(
+      `insert into grievances (id, status, steward, data, updated_at)
+       values ($1, $2, $3, $4::jsonb, now())
+       on conflict (id) do update
+         set status = excluded.status,
+             steward = excluded.steward,
+             data = excluded.data,
+             updated_at = now()`,
+      [id, target.status, target.steward, JSON.stringify(target)]
+    );
+
     return { isNew, record: { ...target } };
   });
 }
 
 async function logActivity(record) {
-  return withLock(() => {
-    const data = readRaw();
-    data.activity.push({
-      id: record.id,
-      gid: record.gid,
-      date: record.date,
-      type: record.type,
-      steward: record.steward,
-      step: record.step,
-      notes: record.notes,
-      followup: record.followup || "No",
-      followupDate: record.followupDate || "",
-      enteredBy: record.actingUser || ""
-    });
-    writeRawAtomic(data);
-    return { ok: true };
-  });
+  const entry = {
+    id: record.id,
+    gid: record.gid,
+    date: record.date,
+    type: record.type,
+    steward: record.steward,
+    step: record.step,
+    notes: record.notes,
+    followup: record.followup || "No",
+    followupDate: record.followupDate || "",
+    enteredBy: record.actingUser || ""
+  };
+
+  await query(
+    "insert into activity (gid, data) values ($1, $2::jsonb)",
+    [record.gid, JSON.stringify(entry)]
+  );
+
+  return { ok: true };
 }
 
 async function archiveClosed() {
-  return withLock(() => {
-    const data = readRaw();
+  return withTransaction(async (client) => {
     const archivedAt = new Date().toISOString().slice(0, 10);
-    const keep = [];
-    let archivedCount = 0;
 
-    for (const rec of data.grievances) {
-      if (TERMINAL_STATUSES.includes(rec.status)) {
-        data.archive.push({ ...rec, archivedAt });
-        archivedCount++;
-      } else {
-        keep.push(rec);
-      }
+    // Use an explicit parameterized IN(...) list rather than = any($1::text[]).
+    // TERMINAL_STATUSES is a small fixed list, so this is no less safe and
+    // avoids relying on array-typed parameter binding across drivers/engines.
+    const placeholders = TERMINAL_STATUSES.map((_, i) => `$${i + 1}`).join(", ");
+
+    const res = await client.query(
+      `select id, status, steward, data from grievances where status in (${placeholders})`,
+      TERMINAL_STATUSES
+    );
+
+    let archivedCount = 0;
+    for (const row of res.rows) {
+      const archivedRecord = { ...row.data, archivedAt };
+      await client.query(
+        `insert into archive (id, status, steward, archived_at, data)
+         values ($1, $2, $3, $4, $5::jsonb)
+         on conflict (id) do update
+           set status = excluded.status,
+               steward = excluded.steward,
+               archived_at = excluded.archived_at,
+               data = excluded.data`,
+        [row.id, row.status, row.steward, archivedAt, JSON.stringify(archivedRecord)]
+      );
+      archivedCount++;
     }
-    data.grievances = keep;
-    writeRawAtomic(data);
+
+    if (res.rows.length) {
+      await client.query(
+        `delete from grievances where status in (${placeholders})`,
+        TERMINAL_STATUSES
+      );
+    }
+
     return { archivedCount };
   });
 }
@@ -269,59 +237,48 @@ async function archiveClosed() {
 // SETUP / DROPDOWN LIST MANAGEMENT
 // ================================================================
 
-/**
- * Replaces the full Steward list and the matching StewardEmail list.
- * The two arrays must be the same length — position i in `stewards`
- * pairs with position i in `emails`, exactly like the Setup tab in
- * the original spreadsheet version.
- */
 async function updateStewards(stewards, emails) {
-  return withLock(() => {
-    if (!Array.isArray(stewards) || !Array.isArray(emails)) {
-      throw new Error("Stewards and emails must both be arrays.");
-    }
-    if (stewards.length !== emails.length) {
-      throw new Error("Steward names and emails must be the same length.");
-    }
-    const cleanStewards = stewards.map(s => String(s || "").trim()).filter(s => s !== "");
-    const cleanEmails = emails.slice(0, cleanStewards.length).map(e => String(e || "").trim());
+  if (!Array.isArray(stewards) || !Array.isArray(emails)) {
+    throw new Error("Stewards and emails must both be arrays.");
+  }
+  if (stewards.length !== emails.length) {
+    throw new Error("Steward names and emails must be the same length.");
+  }
+  const cleanStewards = stewards.map(s => String(s || "").trim()).filter(s => s !== "");
+  const cleanEmails = emails.slice(0, cleanStewards.length).map(e => String(e || "").trim());
 
-    const data = readRaw();
-    if (!data.setup) data.setup = {};
-    data.setup.Steward = cleanStewards;
-    data.setup.StewardEmail = cleanEmails;
-    writeRawAtomic(data);
-    return { ok: true, count: cleanStewards.length };
+  await withTransaction(async (client) => {
+    await client.query(
+      `insert into setup_lists (key, items) values ('Steward', $1::jsonb)
+       on conflict (key) do update set items = excluded.items`,
+      [JSON.stringify(cleanStewards)]
+    );
+    await client.query(
+      `insert into setup_lists (key, items) values ('StewardEmail', $1::jsonb)
+       on conflict (key) do update set items = excluded.items`,
+      [JSON.stringify(cleanEmails)]
+    );
   });
+
+  return { ok: true, count: cleanStewards.length };
 }
 
-/**
- * Generic single-column setup list updater for everything else
- * (Location, Bureau, County, BargainingUnit, JobClass, Shift,
- * Article, GrievanceType, ActivityType, Status). Stewards are
- * handled separately above because they are a paired two-column list.
- */
-const SIMPLE_SETUP_KEYS = [
-  "Status", "Bureau", "Location", "County", "BargainingUnit",
-  "JobClass", "Shift", "Article", "GrievanceType", "ActivityType"
-];
-
 async function updateSetupList(key, items) {
-  return withLock(() => {
-    if (!SIMPLE_SETUP_KEYS.includes(key)) {
-      throw new Error(`Unknown or unsupported setup list: ${key}`);
-    }
-    if (!Array.isArray(items)) {
-      throw new Error("Items must be an array.");
-    }
-    const cleanItems = items.map(s => String(s || "").trim()).filter(s => s !== "");
+  if (!SIMPLE_SETUP_KEYS.includes(key)) {
+    throw new Error(`Unknown or unsupported setup list: ${key}`);
+  }
+  if (!Array.isArray(items)) {
+    throw new Error("Items must be an array.");
+  }
+  const cleanItems = items.map(s => String(s || "").trim()).filter(s => s !== "");
 
-    const data = readRaw();
-    if (!data.setup) data.setup = {};
-    data.setup[key] = cleanItems;
-    writeRawAtomic(data);
-    return { ok: true, count: cleanItems.length };
-  });
+  await query(
+    `insert into setup_lists (key, items) values ($1, $2::jsonb)
+     on conflict (key) do update set items = excluded.items`,
+    [key, JSON.stringify(cleanItems)]
+  );
+
+  return { ok: true, count: cleanItems.length };
 }
 
 // ================================================================
@@ -332,40 +289,41 @@ function isValidISODate(s) {
   return /^\d{4}-\d{2}-\d{2}$/.test(String(s || ""));
 }
 
-/**
- * Replaces the entire holiday list. Expects an array of
- * { date: "YYYY-MM-DD", name: "..." } objects. Sorted by date
- * before saving so the list always displays chronologically.
- */
 async function updateHolidays(holidays) {
-  return withLock(() => {
-    if (!Array.isArray(holidays)) {
-      throw new Error("Holidays must be an array.");
+  if (!Array.isArray(holidays)) {
+    throw new Error("Holidays must be an array.");
+  }
+  const clean = holidays
+    .map(h => ({
+      date: String((h && h.date) || "").trim(),
+      name: String((h && h.name) || "").trim()
+    }))
+    .filter(h => isValidISODate(h.date) && h.name !== "");
+
+  clean.sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
+
+  await withTransaction(async (client) => {
+    await client.query("delete from holidays");
+    for (const h of clean) {
+      await client.query(
+        "insert into holidays (date, name) values ($1, $2)",
+        [h.date, h.name]
+      );
     }
-    const clean = holidays
-      .map(h => ({
-        date: String((h && h.date) || "").trim(),
-        name: String((h && h.name) || "").trim()
-      }))
-      .filter(h => isValidISODate(h.date) && h.name !== "");
-
-    clean.sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
-
-    const data = readRaw();
-    data.holidays = clean;
-    writeRawAtomic(data);
-    return { ok: true, count: clean.length };
   });
+
+  return { ok: true, count: clean.length };
 }
 
 // ================================================================
 // SERVER-SIDE WORKING-DAY / DEADLINE LOGIC
 //
-// This mirrors the logic in public/index.html exactly. It has to
-// be duplicated here (rather than shared) because the browser
-// version runs client-side with no build step, and this version
-// runs in the daily email job with no browser involved at all.
-// Keep both in sync if the deadline rules ever change.
+// Pure functions — identical to the original. No storage
+// dependency, so nothing here needed to change. Kept duplicated
+// from public/index.html for the same reason as before: the
+// browser version has no build step, and the email job runs with
+// no browser involved at all. Keep both in sync if deadline rules
+// ever change.
 // ================================================================
 
 function toDateLocal(s) {
@@ -407,11 +365,8 @@ const TERMINAL_STATUSES_FOR_DEADLINES = ["Settled", "Granted", "Denied", "Withdr
 function deriveDeadlinesServer(rec, holidaySet) {
   const d = {};
 
-  // Step 1 Response Due: 10 WD from Step 1 filed
   d.step1Due = rec.step1filed ? workday(rec.step1filed, 10, holidaySet) : null;
 
-  // Step 2 Filing Deadline: 5 WD from Step 1's answer (actual response if
-  // given, otherwise the due date itself, per the auto-advance rule).
   let step2FilingBasis = null;
   if (rec.step1resp) {
     step2FilingBasis = rec.step1resp;
@@ -420,12 +375,9 @@ function deriveDeadlinesServer(rec, holidaySet) {
   }
   d.step2FilingDue = step2FilingBasis ? workday(step2FilingBasis, 5, holidaySet) : null;
 
-  // Step 2 Answer Due: 10 WD for the meeting, then 5 WD more for the written answer
   d.step2MeetingDue = rec.step2filed ? workday(rec.step2filed, 10, holidaySet) : null;
   d.step2AnswerDue = d.step2MeetingDue ? workday(toISODate(d.step2MeetingDue), 5, holidaySet) : null;
 
-  // Step 3 Filing Deadline: 15 WD from Step 2's answer (actual response if
-  // given, otherwise the computed answer-due date).
   let step3FilingBasis = null;
   if (rec.step2resp) {
     step3FilingBasis = rec.step2resp;
@@ -434,11 +386,8 @@ function deriveDeadlinesServer(rec, holidaySet) {
   }
   d.step3FilingDue = step3FilingBasis ? workday(step3FilingBasis, 15, holidaySet) : null;
 
-  // Step 3 Sign-Off Due: 10 WD from Step 3 filed
   d.step3SignDue = rec.step3filed ? workday(rec.step3filed, 10, holidaySet) : null;
 
-  // Step 4 Filing Deadline: 15 WD from Step 3's sign-off (actual response
-  // if given, otherwise the computed sign-off due date).
   let step4FilingBasis = null;
   if (rec.step3resp) {
     step4FilingBasis = rec.step3resp;
@@ -455,10 +404,6 @@ function isResolvedRec(rec) {
   return TERMINAL_STATUSES_FOR_DEADLINES.includes(rec.status);
 }
 
-/**
- * Returns the single next unresolved deadline for a grievance,
- * along with which milestone it corresponds to (for the email text).
- */
 function nextDeadlineServer(rec, holidaySet) {
   if (isResolvedRec(rec)) return null;
   const d = deriveDeadlinesServer(rec, holidaySet);
@@ -473,18 +418,28 @@ function nextDeadlineServer(rec, holidaySet) {
 
 /**
  * Scans every active grievance and returns the ones with a next
- * deadline landing within `withinDays` days from today (inclusive),
- * grouped by steward. Used by both the manual "Check deadlines now"
- * button and the daily automatic email job.
+ * deadline landing within `withinDays` days from today (inclusive).
+ * Same signature as before. NOTE: still async-compatible at the
+ * call sites (they don't await it in the original either, since it
+ * was synchronous there) — but now it touches the database, so it
+ * must be awaited. Both call sites (index.js, scheduler.js) already
+ * call this and either return its result via a sendJson(await ...)
+ * pattern or consume it directly; see migration notes for the one
+ * line each needed an `await` added.
  */
-function findUpcomingDeadlines(withinDays = 3) {
-  const data = readRaw();
-  const holidaySet = buildHolidaySet(data.holidays);
+async function findUpcomingDeadlines(withinDays = 3) {
+  const [grievancesRes, holidaysRes] = await Promise.all([
+    query("select data from grievances"),
+    query("select date, name from holidays")
+  ]);
+
+  const holidaySet = buildHolidaySet(holidaysRes.rows);
   const today = new Date();
   const todayMid = new Date(today.getFullYear(), today.getMonth(), today.getDate());
 
   const results = [];
-  for (const rec of data.grievances) {
+  for (const row of grievancesRes.rows) {
+    const rec = row.data;
     if (isResolvedRec(rec)) continue;
     const nd = nextDeadlineServer(rec, holidaySet);
     if (!nd) continue;
@@ -508,144 +463,213 @@ function findUpcomingDeadlines(withinDays = 3) {
 // USER ACCOUNT MANAGEMENT
 // ================================================================
 
-const { hashPassword, verifyPassword } = require("./passwords");
-const crypto = require("crypto");
-
 function normalizeUsername(u) {
   return String(u || "").trim().toLowerCase();
 }
 
 /**
- * Returns the full user list with password hashes REMOVED, safe to
- * send to the browser. Never expose the raw `users` array directly.
+ * Cheap existence check used on every request by index.js's
+ * getCurrentUser() to decide whether the app is still in "open
+ * access" mode (no accounts created yet). Avoids pulling the
+ * entire dataset (getAll()) just to check one boolean — the
+ * original file-based version could afford getAll() for this
+ * because it was reading an in-memory/cached object; here that
+ * would mean ~9 queries on every single request.
  */
-function listUsersSafe() {
-  const data = readRaw();
-  return (data.users || []).map(u => ({
-    username: u.username,
-    displayName: u.displayName,
-    createdAt: u.createdAt
+async function hasAnyUsers() {
+  const res = await query("select 1 from users limit 1");
+  return res.rows.length > 0;
+}
+
+async function listUsersSafe() {
+  const res = await query(
+    "select username, display_name, role, created_at from users order by created_at asc"
+  );
+  return res.rows.map(r => ({
+    username: r.username,
+    displayName: r.display_name,
+    role: r.role || "steward",
+    createdAt: r.created_at instanceof Date ? r.created_at.toISOString() : r.created_at
   }));
 }
 
-/**
- * Creates a new user account, or updates the password/display name
- * of an existing one if the username already exists (case-insensitive).
- * Always re-hashes the password — there is no way to "keep the old
- * password" through this function; pass the existing plain password
- * back in if you don't want to change it (the UI handles this by
- * leaving the password field blank meaning "don't change").
- */
-async function upsertUser({ username, displayName, password }) {
-  return withLock(() => {
-    const uname = normalizeUsername(username);
-    if (!uname) throw new Error("Username is required.");
-    if (!displayName || !String(displayName).trim()) throw new Error("Display name is required.");
+const VALID_ROLES = ["admin", "steward"];
 
-    const data = readRaw();
-    data.users = data.users || [];
+async function upsertUser({ username, displayName, password, role }) {
+  const uname = normalizeUsername(username);
+  if (!uname) throw new Error("Username is required.");
+  if (!displayName || !String(displayName).trim()) throw new Error("Display name is required.");
 
-    let user = data.users.find(u => normalizeUsername(u.username) === uname);
-    const isNew = !user;
+  let requestedRole = role && VALID_ROLES.includes(role) ? role : null;
 
-    if (!user) {
+  return withTransaction(async (client) => {
+    const existing = await client.query("select username, password_hash, role from users where username = $1", [uname]);
+    const isNew = existing.rows.length === 0;
+
+    if (isNew) {
       if (!password) throw new Error("A password is required for a new user.");
-      user = { username: uname, displayName: String(displayName).trim(), createdAt: new Date().toISOString() };
-      data.users.push(user);
-    } else {
-      user.displayName = String(displayName).trim();
+      const passwordHash = hashPassword(password);
+
+      // The very first account ever created has no one to grant it admin
+      // access, so it's automatically promoted to admin. Every account
+      // after that defaults to 'steward' unless an admin explicitly
+      // picks 'admin' when creating it.
+      const countRes = await client.query("select count(*)::int as n from users");
+      const isFirstEver = countRes.rows[0].n === 0;
+      const finalRole = isFirstEver ? "admin" : (requestedRole || "steward");
+
+      await client.query(
+        `insert into users (username, display_name, password_hash, role, created_at)
+         values ($1, $2, $3, $4, now())`,
+        [uname, String(displayName).trim(), passwordHash, finalRole]
+      );
+      return { ok: true, isNew, role: finalRole };
+    }
+
+    const finalRole = requestedRole || existing.rows[0].role || "steward";
+
+    // Safety guard: never allow the last remaining admin to be demoted
+    // to steward — that would lock everyone out of user management,
+    // holiday/list editing, etc. with no way back in short of direct
+    // database access.
+    if (existing.rows[0].role === "admin" && finalRole !== "admin") {
+      const adminCountRes = await client.query(
+        "select count(*)::int as n from users where role = 'admin'"
+      );
+      if (adminCountRes.rows[0].n <= 1) {
+        throw new Error(
+          `Can't change "${uname}" to steward — they're the only admin account left. Promote someone else to admin first.`
+        );
+      }
     }
 
     if (password) {
-      user.passwordHash = hashPassword(password);
+      const passwordHash = hashPassword(password);
+      await client.query(
+        `update users set display_name = $2, password_hash = $3, role = $4 where username = $1`,
+        [uname, String(displayName).trim(), passwordHash, finalRole]
+      );
+    } else {
+      await client.query(
+        `update users set display_name = $2, role = $3 where username = $1`,
+        [uname, String(displayName).trim(), finalRole]
+      );
     }
 
-    writeRawAtomic(data);
-    return { ok: true, isNew };
+    return { ok: true, isNew, role: finalRole };
   });
 }
 
-/**
- * Removes a user account. Also invalidates any active sessions
- * belonging to that user so a removed steward is logged out
- * immediately rather than staying logged in until their cookie expires.
- */
 async function deleteUser(username) {
-  return withLock(() => {
-    const uname = normalizeUsername(username);
-    const data = readRaw();
-    data.users = (data.users || []).filter(u => normalizeUsername(u.username) !== uname);
-    data.sessions = (data.sessions || []).filter(s => normalizeUsername(s.username) !== uname);
-    writeRawAtomic(data);
+  const uname = normalizeUsername(username);
+
+  return withTransaction(async (client) => {
+    const target = await client.query("select role from users where username = $1", [uname]);
+    if (target.rows.length && target.rows[0].role === "admin") {
+      const adminCountRes = await client.query("select count(*)::int as n from users where role = 'admin'");
+      if (adminCountRes.rows[0].n <= 1) {
+        throw new Error(`Can't delete "${uname}" — they're the only admin account left. Promote someone else to admin first.`);
+      }
+    }
+    await client.query("delete from users where username = $1", [uname]); // sessions cascade via FK
     return { ok: true };
   });
 }
 
-/**
- * Verifies a username/password pair. Returns the user record
- * (without passwordHash) on success, or null on failure. Does NOT
- * create a session — call createSession separately so login and
- * "am I still logged in" checks share the same session logic.
- */
-function verifyLogin(username, password) {
-  const data = readRaw();
+async function verifyLogin(username, password) {
   const uname = normalizeUsername(username);
-  const user = (data.users || []).find(u => normalizeUsername(u.username) === uname);
-  if (!user) return null;
-  if (!verifyPassword(password, user.passwordHash)) return null;
-  return { username: user.username, displayName: user.displayName };
+  const res = await query("select username, display_name, role, password_hash from users where username = $1", [uname]);
+  if (res.rows.length === 0) return null;
+  const user = res.rows[0];
+  if (!verifyPassword(password, user.password_hash)) return null;
+  return { username: user.username, displayName: user.display_name, role: user.role || "steward" };
 }
 
 const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000; // sessions last 30 days
 
-/**
- * Creates a new session token for a username and persists it.
- * Returns the raw token to set as a cookie.
- */
 async function createSession(username) {
-  return withLock(() => {
-    const data = readRaw();
-    data.sessions = data.sessions || [];
+  const uname = normalizeUsername(username);
+  const token = crypto.randomBytes(32).toString("hex");
+  const expiresAt = new Date(Date.now() + SESSION_TTL_MS);
 
-    const token = crypto.randomBytes(32).toString("hex");
-    const expiresAt = Date.now() + SESSION_TTL_MS;
-    data.sessions.push({ token, username: normalizeUsername(username), expiresAt });
-
-    // Opportunistically clean up expired sessions so this array
-    // doesn't grow forever on a long-running deployment.
-    data.sessions = data.sessions.filter(s => s.expiresAt > Date.now());
-
-    writeRawAtomic(data);
-    return token;
+  await withTransaction(async (client) => {
+    await client.query(
+      "insert into sessions (token, username, expires_at) values ($1, $2, $3)",
+      [token, uname, expiresAt]
+    );
+    // Opportunistic cleanup of expired sessions, same as the original.
+    await client.query("delete from sessions where expires_at < now()");
   });
+
+  return token;
 }
 
-/**
- * Looks up a session token and returns the associated user info,
- * or null if the token is missing, unknown, or expired.
- * This is a read-only lookup — does not need the write lock.
- */
-function getSessionUser(token) {
+async function getSessionUser(token) {
   if (!token) return null;
-  const data = readRaw();
-  const session = (data.sessions || []).find(s => s.token === token);
-  if (!session) return null;
-  if (session.expiresAt < Date.now()) return null;
+  const res = await query(
+    `select u.username, u.display_name, u.role
+       from sessions s
+       join users u on u.username = s.username
+      where s.token = $1 and s.expires_at > now()`,
+    [token]
+  );
+  if (res.rows.length === 0) return null;
+  return { username: res.rows[0].username, displayName: res.rows[0].display_name, role: res.rows[0].role || "steward" };
+}
 
-  const user = (data.users || []).find(u => normalizeUsername(u.username) === session.username);
-  if (!user) return null;
-  return { username: user.username, displayName: user.displayName };
+async function destroySession(token) {
+  await query("delete from sessions where token = $1", [token]);
+  return { ok: true };
+}
+
+// ================================================================
+// withLock — kept as a no-op-compatible shim.
+//
+// The original used withLock() to serialize JSON read/modify/write
+// cycles within a single process. Postgres handles concurrent
+// writes safely on its own, and every multi-statement operation
+// above already uses withTransaction() for atomicity instead. This
+// shim exists only so any code we haven't touched (or future code)
+// that calls db.withLock(fn) keeps working without a crash — it
+// just runs fn() directly.
+// ================================================================
+function withLock(fn) {
+  return Promise.resolve().then(fn);
 }
 
 /**
- * Deletes a single session (used for logout).
+ * Writes a full data object back "raw" — used historically for
+ * direct mutations of the whole blob (e.g. scheduler.js recording
+ * an email run). Re-implemented here to write only the pieces that
+ * actually changed (lastEmailRunDate + emailLog), since those are
+ * the only two fields any caller in this codebase ever mutates via
+ * writeRawAtomic(). See scheduler.js for the one call site.
  */
-async function destroySession(token) {
-  return withLock(() => {
-    const data = readRaw();
-    data.sessions = (data.sessions || []).filter(s => s.token !== token);
-    writeRawAtomic(data);
-    return { ok: true };
+async function writeRawAtomic(data) {
+  await withTransaction(async (client) => {
+    if (typeof data.lastEmailRunDate === "string") {
+      await client.query(
+        `insert into app_meta (key, value) values ('lastEmailRunDate', $1)
+         on conflict (key) do update set value = excluded.value`,
+        [data.lastEmailRunDate]
+      );
+    }
+    if (Array.isArray(data.emailLog) && data.emailLog.length) {
+      // Only the newest entry needs inserting — scheduler.js always
+      // unshifts one new entry onto a copy of the existing log before
+      // calling this, so the newest entry is index 0.
+      const newest = data.emailLog[0];
+      await client.query(
+        "insert into email_log (data) values ($1::jsonb)",
+        [JSON.stringify(newest)]
+      );
+      // Trim to the most recent 60, matching the old in-memory slice(0, 60).
+      await client.query(
+        `delete from email_log where row_id not in (
+           select row_id from email_log order by row_id desc limit 60
+         )`
+      );
+    }
   });
 }
 
@@ -662,6 +686,7 @@ module.exports = {
   writeRawAtomic,
   withLock,
   SIMPLE_SETUP_KEYS,
+  hasAnyUsers,
   listUsersSafe,
   upsertUser,
   deleteUser,

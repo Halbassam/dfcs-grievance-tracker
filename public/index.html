@@ -157,6 +157,10 @@ tbody tr.row-green{background:var(--ok-bg);}
   .tab-btn{text-align:left;width:100%;}
   .menu-toggle{display:block;}
 }
+@media (max-width:640px){
+  .user-row{grid-template-columns:1fr 1fr!important;}
+  .user-row .ur-username,.user-row .ur-displayname{grid-column:span 2;}
+}
 footer.app-foot{text-align:center;color:var(--grey);font-size:11.5px;padding:30px 0 10px;border-top:1px solid var(--green-line);margin-top:40px;}
 </style>
 </head>
@@ -328,7 +332,7 @@ footer.app-foot{text-align:center;color:var(--grey);font-size:11.5px;padding:30p
   <section id="tab-settings" class="hidden">
     <div class="section-head"><div><h2>Settings</h2><div class="sub">User accounts, holiday list, FCRC locations, and deadline email reminders</div></div></div>
 
-    <div class="panel panel-pad" style="margin-bottom:24px;">
+    <div class="panel panel-pad" style="margin-bottom:24px;" id="userAccountsPanel">
       <div style="display:flex;justify-content:space-between;align-items:baseline;flex-wrap:wrap;gap:10px;margin-bottom:14px;">
         <h3 style="font-family:var(--serif);color:var(--green-1);margin:0;font-size:17px;">User accounts</h3>
         <button class="btn btn-secondary" id="manageUsersBtn">Manage users</button>
@@ -489,8 +493,9 @@ footer.app-foot{text-align:center;color:var(--grey);font-size:11.5px;padding:30p
 <script>
 /* ===================================================================
    DFCS GRIEVANCE TRACKER — frontend
-   Talks to the real backend API (server/index.js) which persists
-   to a JSON file on disk. Shared by every steward who opens this URL.
+   Talks to the real backend API (server/index.js), which persists to
+   a shared Postgres database (Supabase). Shared by every steward who
+   opens this URL.
    =================================================================== */
 
 const TERMINAL_STATUSES = ["Settled","Granted","Denied","Withdrawn","Partially Granted"];
@@ -1406,6 +1411,28 @@ function showMainApp(user){
     // Open-access mode (no user accounts created yet)
     $('currentUserBadge').classList.add('hidden');
   }
+  applyRoleVisibility(user);
+}
+
+/**
+ * Shows/hides admin-only controls based on the current user's role.
+ * Grievance data, activity logging, and the dashboard stay fully
+ * shared for everyone — this only touches user-account management
+ * and shared configuration (holidays, dropdown lists, steward roster).
+ *
+ * This is a convenience for non-admins (no point showing a button
+ * that will just 403). It is NOT the real security boundary — that
+ * lives server-side in server/index.js, since hiding a button never
+ * stops someone from calling the API directly.
+ */
+function applyRoleVisibility(user){
+  const admin = !!(user && user.role === 'admin');
+  ['manageUsersBtn','manageHolidaysBtn','manageLocationsBtn','manageStewardsBtn'].forEach(id=>{
+    const el = $(id);
+    if(el) el.style.display = admin ? '' : 'none';
+  });
+  const userPanel = $('userAccountsPanel');
+  if(userPanel) userPanel.style.display = admin ? '' : 'none';
 }
 
 async function attemptLogin(){
@@ -1465,10 +1492,15 @@ async function loadUserList(){
     window._userListCache = [];
   }
 }
-function userRowHtml(idx, username, displayName, isExisting){
-  return `<div class="user-row" data-idx="${idx}" data-existing="${isExisting?'1':'0'}" style="display:grid;grid-template-columns:1fr 1fr 1fr auto;gap:10px;align-items:center;">
+function userRowHtml(idx, username, displayName, isExisting, role, lockRoleAsAdmin){
+  const r = role === 'admin' ? 'admin' : 'steward';
+  return `<div class="user-row" data-idx="${idx}" data-existing="${isExisting?'1':'0'}" style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr auto;gap:10px;align-items:center;">
     <input type="text" class="ur-username" placeholder="username" value="${escapeHtml(username)}" ${isExisting?'readonly style="background:var(--paper-2);"':''}>
     <input type="text" class="ur-displayname" placeholder="Full name" value="${escapeHtml(displayName)}">
+    <select class="ur-role" title="Admins can manage users, holidays, and dropdown lists. Stewards have full access to grievances and activity, but not these settings." ${lockRoleAsAdmin?'disabled':''}>
+      <option value="steward" ${r==='steward'?'selected':''}>Steward</option>
+      <option value="admin" ${r==='admin'?'selected':''}>Admin</option>
+    </select>
     <input type="password" class="ur-password" placeholder="${isExisting?'(unchanged)':'Set password'}" autocomplete="new-password">
     <button type="button" class="btn-tiny ur-remove" title="${isExisting?'Delete this account':'Remove this row'}">&#10005;</button>
   </div>`;
@@ -1506,9 +1538,9 @@ async function renderUserRows(){
   const container = $('userRows');
   const list = window._userListCache && window._userListCache.length ? window._userListCache : [];
   if(!list.length){
-    container.innerHTML = userRowHtml(0, '', '', false);
+    container.innerHTML = userRowHtml(0, '', '', false, 'admin', true); // first-ever account is always admin regardless of selection
   } else {
-    container.innerHTML = list.map((u,i)=>userRowHtml(i, u.username, u.displayName, true)).join('');
+    container.innerHTML = list.map((u,i)=>userRowHtml(i, u.username, u.displayName, true, u.role, false)).join('');
   }
   attachUserRowHandlers();
 }
@@ -1520,7 +1552,7 @@ $('usersCloseBtn').addEventListener('click', ()=>$('usersModalOverlay').classLis
 $('addUserRowBtn').addEventListener('click', ()=>{
   const container = $('userRows');
   const idx = container.querySelectorAll('.user-row').length;
-  container.insertAdjacentHTML('beforeend', userRowHtml(idx, '', '', false));
+  container.insertAdjacentHTML('beforeend', userRowHtml(idx, '', '', false, 'steward', false));
   attachUserRowHandlers();
 });
 $('usersSaveBtn').addEventListener('click', async ()=>{
@@ -1535,6 +1567,8 @@ $('usersSaveBtn').addEventListener('click', async ()=>{
       const username = row.querySelector('.ur-username').value.trim();
       const displayName = row.querySelector('.ur-displayname').value.trim();
       const password = row.querySelector('.ur-password').value;
+      const roleSelect = row.querySelector('.ur-role');
+      const role = roleSelect ? roleSelect.value : 'steward';
       const isExisting = row.dataset.existing === '1';
 
       if(!username && !displayName) continue; // skip fully empty rows
@@ -1542,8 +1576,12 @@ $('usersSaveBtn').addEventListener('click', async ()=>{
       if(!displayName){ errorMsg = 'Every user needs a display name.'; continue; }
       if(!isExisting && !password){ errorMsg = `"${username}" needs a password since it's a new account.`; continue; }
 
-      await apiPost('/api/users', { username, displayName, password: password || undefined });
-      savedCount++;
+      try{
+        await apiPost('/api/users', { username, displayName, role, password: password || undefined });
+        savedCount++;
+      }catch(rowErr){
+        errorMsg = rowErr.message || `Could not save "${username}".`;
+      }
     }
     if(errorMsg && savedCount === 0){
       toast(errorMsg, 'err');
