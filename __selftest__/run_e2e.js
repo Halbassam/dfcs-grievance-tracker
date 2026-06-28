@@ -199,6 +199,19 @@ async function main() {
   assert.strictEqual(adminListsUsers.json.users.length, 2);
   console.log("✓ GET /api/users succeeds for the admin");
 
+  // ---------- Test: the admin CAN edit the newly-exposed dropdown lists ----------
+  // (JobClass, Shift, Bureau, County, BargainingUnit, Article, GrievanceType, Status
+  // all go through this same route — JobClass stands in for all of them here.)
+  const adminEditsJobClass = await request(port, "POST", "/api/setup/list", {
+    key: "JobClass", items: ["Human Services Caseworker (RC-62)", "Office Associate (RC-14)"]
+  }, cookie);
+  assert.strictEqual(adminEditsJobClass.status, 200);
+  console.log("✓ admin can POST /api/setup/list for JobClass (used by the new 'Other dropdown lists' Edit buttons)");
+
+  const dataAfterJobClassEdit = await request(port, "GET", "/api/data", null, cookie);
+  assert.deepStrictEqual(dataAfterJobClassEdit.json.setup.JobClass, ["Human Services Caseworker (RC-62)", "Office Associate (RC-14)"]);
+  console.log("✓ the edited JobClass list round-trips correctly through GET /api/data (what populates the Intake Form dropdown)");
+
   // ---------- Test: authenticated request with the cookie succeeds ----------
   const dataAuthed = await request(port, "GET", "/api/data", null, cookie);
   assert.strictEqual(dataAuthed.status, 200);
