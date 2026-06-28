@@ -1,6 +1,6 @@
 /**
  * ================================================================
- * AFSCME Council 31 — DFCS Grievance Tracker
+ * AFSCME Council 31 — FCRC Grievance Tracker
  * Database layer — Supabase Postgres.
  *
  * This module exports the exact same function names, signatures,

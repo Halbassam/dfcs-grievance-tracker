@@ -1,6 +1,6 @@
 /**
  * ================================================================
- * AFSCME Council 31 — DFCS Grievance Tracker
+ * AFSCME Council 31 — FCRC Grievance Tracker
  * Password hashing — zero npm dependencies, uses Node's built-in
  * crypto.scrypt (a deliberately slow, memory-hard hash designed
  * for passwords — much safer than a plain SHA-256 hash).

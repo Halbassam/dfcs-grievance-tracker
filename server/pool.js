@@ -1,6 +1,6 @@
 /**
  * ================================================================
- * AFSCME Council 31 — DFCS Grievance Tracker
+ * AFSCME Council 31 — FCRC Grievance Tracker
  * Postgres connection pool (Supabase).
  *
  * Reads DATABASE_URL from the environment. On Render, set this to

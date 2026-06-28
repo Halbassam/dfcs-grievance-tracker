@@ -1,6 +1,6 @@
 /**
  * ================================================================
- * AFSCME Council 31 — DFCS Grievance Tracker
+ * AFSCME Council 31 — FCRC Grievance Tracker
  * Daily deadline email scheduler.
  *
  * Render's free tier puts services to sleep after 15 minutes of
@@ -46,9 +46,9 @@ function buildEmailBody(stewardName, items) {
     lines.push("");
   }
   lines.push("Art. V Sec. 3(b): Extensions to any deadline require mutual written agreement.");
-  lines.push("Log in to the DFCS Grievance Tracker for full case details.");
+  lines.push("Log in to the FCRC Grievance Tracker for full case details.");
   lines.push("");
-  lines.push("— AFSCME Council 31 DFCS Grievance Tracker (automated reminder)");
+  lines.push("— AFSCME Council 31 FCRC Grievance Tracker (automated reminder)");
   return lines.join("\n");
 }
 
@@ -90,7 +90,7 @@ async function runDeadlineCheck() {
         user: gmailUser,
         appPassword: gmailAppPassword,
         to: email,
-        subject: `DFCS Grievance Tracker — ${group.items.length} upcoming deadline${group.items.length > 1 ? "s" : ""}`,
+        subject: `FCRC Grievance Tracker — ${group.items.length} upcoming deadline${group.items.length > 1 ? "s" : ""}`,
         text: buildEmailBody(group.stewardName, group.items)
       });
       summary.sent++;

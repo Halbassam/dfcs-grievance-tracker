@@ -1,6 +1,6 @@
 /**
  * ================================================================
- * AFSCME Council 31 — DFCS Grievance Tracker
+ * AFSCME Council 31 — FCRC Grievance Tracker
  * Minimal SMTP client — zero npm dependencies.
  *
  * Implements just enough of the SMTP protocol to authenticate
@@ -14,7 +14,7 @@
  *   2. Turn on 2-Step Verification if it isn't on already
  *      (Gmail requires this before it will issue App Passwords)
  *   3. Go to https://myaccount.google.com/apppasswords
- *   4. Create a new App Password, name it "DFCS Tracker"
+ *   4. Create a new App Password, name it "FCRC Tracker"
  *   5. Copy the 16-character password it gives you
  *   6. Set it as the GMAIL_APP_PASSWORD environment variable on Render
  *

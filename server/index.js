@@ -1,6 +1,6 @@
 /**
  * ================================================================
- * AFSCME Council 31 — DFCS Grievance Tracker
+ * AFSCME Council 31 — FCRC Grievance Tracker
  * Server entry point — pure Node.js, ZERO npm dependencies.
  *
  * Using only Node's built-in http and fs modules means there is
@@ -323,6 +323,6 @@ const server = http.createServer(async (req, res) => {
 });
 
 server.listen(PORT, "0.0.0.0", () => {
-  console.log(`DFCS Grievance Tracker running on port ${PORT}`);
+  console.log(`FCRC Grievance Tracker running on port ${PORT}`);
   scheduler.startScheduler();
 });

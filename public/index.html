@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>DFCS Grievance Tracker — AFSCME Council 31</title>
+<title>FCRC Grievance Tracker — AFSCME Council 31</title>
 <style>
 :root{
   --ink:#10261b;--green-1:#0f3d24;--green-2:#1b5e20;--green-3:#2e7d32;
@@ -170,7 +170,7 @@ footer.app-foot{text-align:center;color:var(--grey);font-size:11.5px;padding:30p
   <div style="max-width:380px;width:100%;background:#fff;border:1px solid var(--green-line);border-radius:8px;box-shadow:0 8px 30px rgba(0,0,0,0.12);padding:32px;">
     <div style="text-align:center;margin-bottom:24px;">
       <div style="width:52px;height:52px;border-radius:50%;background:var(--green-3);display:inline-flex;align-items:center;justify-content:center;font-family:var(--serif);font-weight:700;font-size:22px;color:#fff;margin-bottom:12px;">31</div>
-      <h2 style="font-family:var(--serif);color:var(--green-1);margin:0;font-size:20px;">DFCS Grievance Tracker</h2>
+      <h2 style="font-family:var(--serif);color:var(--green-1);margin:0;font-size:20px;">FCRC Grievance Tracker</h2>
       <p style="color:var(--grey);font-size:12.5px;margin:4px 0 0;">AFSCME Council 31 &middot; Sign in to continue</p>
     </div>
     <div class="field" style="margin-bottom:14px;">
@@ -189,7 +189,7 @@ footer.app-foot{text-align:center;color:var(--grey);font-size:11.5px;padding:30p
 <div class="topbar">
   <div class="brand">
     <div class="brand-mark">31</div>
-    <div class="brand-text"><h1>DFCS Grievance Tracker</h1><p>AFSCME Council 31 &middot; Division of Family &amp; Community Services</p></div>
+    <div class="brand-text"><h1>FCRC Grievance Tracker</h1><p>AFSCME Council 31 &middot; Division of Family &amp; Community Services</p></div>
   </div>
   <button class="menu-toggle" id="menuToggle">&#9776;</button>
   <nav class="tabs" id="tabs">
@@ -221,7 +221,7 @@ footer.app-foot{text-align:center;color:var(--grey);font-size:11.5px;padding:30p
       <form id="intakeForm" autocomplete="off">
         <div class="form-grid">
           <div class="section-divider"><span class="label">Employee &amp; case identification</span><span class="line"></span></div>
-          <div class="field"><label for="f-gid">Grievance ID <span class="req">*</span></label><input type="text" id="f-gid" placeholder="DFCS-2025-001"><div class="field-note" id="gidNote"></div></div>
+          <div class="field"><label for="f-gid">Grievance ID <span class="req">*</span></label><input type="text" id="f-gid" placeholder="FCRC-2025-001"><div class="field-note" id="gidNote"></div></div>
           <div class="field"><label for="f-name">Employee name <span class="req">*</span></label><input type="text" id="f-name" placeholder="Full name"></div>
           <div class="field"><label for="f-job">Job classification</label><select id="f-job"></select></div>
           <div class="field"><label for="f-bu">Bargaining unit</label><select id="f-bu"></select></div>
@@ -356,6 +356,12 @@ footer.app-foot{text-align:center;color:var(--grey);font-size:11.5px;padding:30p
       <p style="font-size:13px;color:var(--grey);margin:0;">The list of offices shown in the FCRC / Work Location dropdown on the Intake Form. Currently <b id="locationCount">0</b> locations.</p>
     </div>
 
+    <div class="panel panel-pad" style="margin-bottom:24px;" id="otherListsPanel">
+      <h3 style="font-family:var(--serif);color:var(--green-1);margin:0 0 6px;font-size:17px;">Other dropdown lists</h3>
+      <p style="font-size:13px;color:var(--grey);margin:6px 0 16px;">These fill the dropdown menus on the Intake Form and elsewhere. Add, rename, or remove entries as your contract or local's needs change.</p>
+      <div style="display:flex;flex-direction:column;gap:10px;" id="otherListsRows"></div>
+    </div>
+
 
     <div class="panel panel-pad">
       <h3 style="font-family:var(--serif);color:var(--green-1);margin:0 0 6px;font-size:17px;">Deadline email reminders</h3>
@@ -367,19 +373,6 @@ footer.app-foot{text-align:center;color:var(--grey);font-size:11.5px;padding:30p
         <button class="btn btn-primary" id="runEmailCheckBtn">Run deadline check now</button>
         <button class="btn btn-ghost" id="viewEmailLogBtn">View recent runs</button>
       </div>
-
-      <details style="font-size:12.5px;color:var(--grey);">
-        <summary style="cursor:pointer;font-weight:600;color:var(--green-2);">How to set up email sending (one-time, on Render)</summary>
-        <div style="margin-top:10px;line-height:1.6;">
-          <p>This uses your Gmail account to send reminder emails. Two environment variables must be set on Render &mdash; Dashboard &rarr; your service &rarr; <b>Environment</b>:</p>
-          <ol style="padding-left:20px;">
-            <li><b>GMAIL_USER</b> &mdash; your Gmail address (e.g. <code>you@gmail.com</code>)</li>
-            <li><b>GMAIL_APP_PASSWORD</b> &mdash; a 16-character App Password from Google, <i>not</i> your normal Gmail password</li>
-          </ol>
-          <p>To create an App Password: turn on 2-Step Verification at <code>myaccount.google.com/security</code>, then create one at <code>myaccount.google.com/apppasswords</code>.</p>
-          <p>Once both variables are saved on Render, the service redeploys automatically and the status above will show "Configured."</p>
-        </div>
-      </details>
     </div>
   </section>
 </main>
@@ -465,6 +458,21 @@ footer.app-foot{text-align:center;color:var(--grey);font-size:11.5px;padding:30p
   </div>
 </div>
 
+<div class="modal-overlay" id="genericListModalOverlay">
+  <div class="modal" style="max-width:640px;">
+    <div class="modal-head"><span id="genericListIcon">&#128203;</span><h3 id="genericListTitle">Manage list</h3></div>
+    <div class="modal-body">
+      <p id="genericListDesc" style="margin-top:0;color:var(--grey);font-size:13px;"></p>
+      <div id="genericListRows" style="display:flex;flex-direction:column;gap:10px;margin-top:14px;max-height:360px;overflow-y:auto;"></div>
+      <button class="btn btn-ghost" id="addGenericListRowBtn" style="margin-top:6px;">+ Add another</button>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost" id="genericListCancelBtn">Cancel</button>
+      <button class="btn btn-primary" id="genericListSaveBtn">Save changes</button>
+    </div>
+  </div>
+</div>
+
 <div class="modal-overlay" id="emailLogModalOverlay">
   <div class="modal" style="max-width:600px;">
     <div class="modal-head"><span>&#128231;</span><h3>Recent deadline email runs</h3></div>
@@ -492,7 +500,7 @@ footer.app-foot{text-align:center;color:var(--grey);font-size:11.5px;padding:30p
 
 <script>
 /* ===================================================================
-   DFCS GRIEVANCE TRACKER — frontend
+   FCRC GRIEVANCE TRACKER — frontend
    Talks to the real backend API (server/index.js), which persists to
    a shared Postgres database (Supabase). Shared by every steward who
    opens this URL.
@@ -1309,6 +1317,110 @@ $('locationsSaveBtn').addEventListener('click', async ()=>{
   }
 });
 
+/* ---------- Settings tab: generic editor for the remaining dropdown lists ----------
+   Bargaining Unit, Job Class, Shift, Bureau, County, Grievance Type, Article, Status
+   all work exactly like the Location list above (a plain array of strings), so one
+   shared modal + row-editor handles all of them instead of duplicating the same
+   markup and JS eight times over. Each entry below maps to a key in the `setup`
+   object on the server and a label/description shown in the UI. */
+const OTHER_LISTS = [
+  { key:'Status', icon:'&#128202;', label:'Status options', desc:'The list of grievance statuses (Pending, Granted, Denied, Settled, etc.) shown throughout the app.' },
+  { key:'Bureau', icon:'&#127970;', label:'Bureau / program unit', desc:'The bureau or program unit options shown on the Intake Form and dashboard.' },
+  { key:'County', icon:'&#128506;', label:'County', desc:'The county options shown on the Intake Form.' },
+  { key:'BargainingUnit', icon:'&#129309;', label:'Bargaining unit', desc:'The RC bargaining unit options shown on the Intake Form.' },
+  { key:'JobClass', icon:'&#128100;', label:'Job classification', desc:'The job classification / title options shown on the Intake Form.' },
+  { key:'Shift', icon:'&#128336;', label:'Shift', desc:'The shift options shown on the Intake Form.' },
+  { key:'Article', icon:'&#128220;', label:'CBA article violated', desc:'The Master Contract article/section options shown on the Intake Form.' },
+  { key:'GrievanceType', icon:'&#128204;', label:'Grievance type', desc:'The grievance type options shown on the Intake Form.' }
+];
+
+function renderOtherListsButtons(){
+  const container = $('otherListsRows');
+  if(!container) return;
+  container.innerHTML = OTHER_LISTS.map(item=>{
+    const count = (SETUP[item.key]||[]).length;
+    return `<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;padding:10px 12px;border:1px solid var(--green-line);border-radius:6px;">
+      <div><span style="margin-right:8px;">${item.icon}</span><b style="font-size:13.5px;">${escapeHtml(item.label)}</b><span style="color:var(--grey);font-size:12.5px;margin-left:8px;">${count} item(s)</span></div>
+      <button type="button" class="btn btn-secondary other-list-edit-btn" data-key="${item.key}" style="padding:6px 14px;font-size:12.5px;">Edit</button>
+    </div>`;
+  }).join('');
+  container.querySelectorAll('.other-list-edit-btn').forEach(btn=>{
+    btn.addEventListener('click', ()=>openGenericListModal(btn.dataset.key));
+  });
+}
+
+function genericListRowHtml(idx, value){
+  return `<div class="generic-list-row" data-idx="${idx}" style="display:grid;grid-template-columns:1fr auto;gap:10px;align-items:center;">
+    <input type="text" class="glr-value" value="${escapeHtml(value)}">
+    <button type="button" class="btn-tiny glr-remove" title="Remove this entry">&#10005;</button>
+  </div>`;
+}
+function attachGenericListRowHandlers(){
+  $('genericListRows').querySelectorAll('.glr-remove').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      const row = btn.closest('.generic-list-row');
+      const allRows = $('genericListRows').querySelectorAll('.generic-list-row');
+      if(allRows.length <= 1){
+        row.querySelector('.glr-value').value = '';
+        return;
+      }
+      row.remove();
+    });
+  });
+}
+
+let CURRENT_GENERIC_LIST_KEY = null;
+
+function openGenericListModal(key){
+  const cfg = OTHER_LISTS.find(o=>o.key===key);
+  if(!cfg) return;
+  CURRENT_GENERIC_LIST_KEY = key;
+  $('genericListIcon').innerHTML = cfg.icon;
+  $('genericListTitle').textContent = `Manage ${cfg.label.toLowerCase()}`;
+  $('genericListDesc').textContent = cfg.desc;
+
+  const container = $('genericListRows');
+  const list = SETUP[key] && SETUP[key].length ? SETUP[key] : [''];
+  container.innerHTML = list.map((val,i)=>genericListRowHtml(i, val)).join('');
+  attachGenericListRowHandlers();
+
+  $('genericListModalOverlay').classList.add('show');
+}
+
+$('genericListCancelBtn').addEventListener('click', ()=>$('genericListModalOverlay').classList.remove('show'));
+$('addGenericListRowBtn').addEventListener('click', ()=>{
+  const container = $('genericListRows');
+  const idx = container.querySelectorAll('.generic-list-row').length;
+  container.insertAdjacentHTML('beforeend', genericListRowHtml(idx, ''));
+  attachGenericListRowHandlers();
+});
+$('genericListSaveBtn').addEventListener('click', async ()=>{
+  if(!CURRENT_GENERIC_LIST_KEY) return;
+  const cfg = OTHER_LISTS.find(o=>o.key===CURRENT_GENERIC_LIST_KEY);
+  const rows = $('genericListRows').querySelectorAll('.generic-list-row');
+  const items = [];
+  rows.forEach(row=>{
+    const val = row.querySelector('.glr-value').value.trim();
+    if(val) items.push(val);
+  });
+  if(items.length === 0){
+    toast(`Add at least one entry before saving.`, 'err');
+    return;
+  }
+  const btn = $('genericListSaveBtn');
+  btn.disabled = true; btn.textContent = 'Saving…';
+  try{
+    await apiPost('/api/setup/list', { key: CURRENT_GENERIC_LIST_KEY, items });
+    toast(`${cfg ? cfg.label : 'List'} updated.`);
+    $('genericListModalOverlay').classList.remove('show');
+    await refresh();
+  }catch(err){
+    toast(err.message || 'Could not save this list.', 'err');
+  }finally{
+    btn.disabled = false; btn.textContent = 'Save changes';
+  }
+});
+
 /* ---------- Settings tab: Email status & manual run ---------- */
 async function refreshEmailStatus(){
   try{
@@ -1324,7 +1436,7 @@ async function refreshEmailStatus(){
       box.style.background = 'var(--amber-bg)';
       box.style.border = '1px solid var(--amber)';
       box.style.color = '#6b4d10';
-      box.innerHTML = `<b>Not configured.</b> Set GMAIL_USER and GMAIL_APP_PASSWORD on Render to enable deadline emails (see instructions below).`;
+      box.innerHTML = `<b>Not configured.</b> Set GMAIL_USER and GMAIL_APP_PASSWORD on Render to enable deadline emails.`;
     }
     window._emailLogCache = data.emailLog || [];
   }catch(err){
@@ -1375,6 +1487,7 @@ function renderSettingsCounts(){
   $('holidayCount').textContent = (STATE.holidays||[]).length;
   $('locationCount').textContent = (SETUP.Location||[]).length;
   $('userCount').textContent = (window._userListCache||[]).length;
+  renderOtherListsButtons();
 }
 
 /* ===================================================================
@@ -1433,6 +1546,8 @@ function applyRoleVisibility(user){
   });
   const userPanel = $('userAccountsPanel');
   if(userPanel) userPanel.style.display = admin ? '' : 'none';
+  const otherListsPanel = $('otherListsPanel');
+  if(otherListsPanel) otherListsPanel.style.display = admin ? '' : 'none';
 }
 
 async function attemptLogin(){
