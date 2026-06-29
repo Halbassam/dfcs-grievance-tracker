@@ -55,12 +55,31 @@ async function main() {
 
   const db = require(path.join(__dirname, "..", "server", "db.js"));
 
-  // ---------- Test 1: getAll on empty DB ----------
+  // ---------- Test 1: getAll right after schema application ----------
+  // grievances/users/email log are genuinely empty on a fresh install,
+  // but setup_lists and holidays are now pre-seeded directly by
+  // 001_init.sql itself (this is the "everything pre-populated"
+  // requirement) -- both are checked below.
   let all = await db.getAll();
   assert.deepStrictEqual(all.grievances, []);
   assert.deepStrictEqual(all.users, []);
   assert.strictEqual(all.lastEmailRunDate, "");
-  console.log("✓ getAll() on empty DB returns correct empty shape");
+  console.log("✓ getAll() shows grievances/users/email log correctly empty right after schema setup");
+
+  // ---------- Test 1b: 001_init.sql pre-populates every dropdown list and the holiday calendar ----------
+  assert.ok(all.setup.Article && all.setup.Article.length >= 70, "Article list should be pre-populated");
+  assert.ok(all.setup.GrievanceType && all.setup.GrievanceType.length >= 50, "GrievanceType list should be pre-populated");
+  assert.ok(all.setup.Status && all.setup.Status.length > 0, "Status list should be pre-populated");
+  assert.ok(all.setup.Bureau && all.setup.Bureau.length > 0, "Bureau list should be pre-populated");
+  assert.ok(all.setup.Location && all.setup.Location.length > 0, "Location list should be pre-populated");
+  assert.ok(all.setup.County && all.setup.County.length > 0, "County list should be pre-populated");
+  assert.ok(all.setup.BargainingUnit && all.setup.BargainingUnit.length > 0, "BargainingUnit list should be pre-populated");
+  assert.ok(all.setup.JobClass && all.setup.JobClass.length > 0, "JobClass list should be pre-populated");
+  assert.ok(all.setup.Shift && all.setup.Shift.length > 0, "Shift list should be pre-populated");
+  assert.ok(all.setup.Steward && all.setup.Steward.length > 0, "Steward roster should be pre-populated");
+  assert.ok(all.setup.StewardEmail && all.setup.StewardEmail.length > 0, "StewardEmail list should be pre-populated");
+  assert.ok(all.holidays && all.holidays.length >= 30, "holiday calendar should be pre-populated");
+  console.log(`✓ 001_init.sql pre-populates every dropdown list (Article: ${all.setup.Article.length}, GrievanceType: ${all.setup.GrievanceType.length}) and ${all.holidays.length} holidays — nothing is empty on first load`);
 
   const noUsersYet = await db.hasAnyUsers();
   assert.strictEqual(noUsersYet, false);
@@ -236,6 +255,47 @@ async function main() {
   assert.strictEqual(g2.record.step1resp, "2026-06-10");
   console.log("✓ submitGrievance preserves prior date fields when not resent (matches original VBA-migration behavior)");
 
+  // ---------- Test 8b: agency/localNo are NOT per-grievance fields anymore ----------
+  // These used to be copied onto each grievance record, but are now a
+  // single org-wide setting (Settings > Local chapter info) used to
+  // auto-fill the printed grievance form for every case. Even if a caller
+  // sends agency/localNo on submitGrievance, they must NOT be copied onto
+  // the stored record -- the Intake Form no longer collects them at all.
+  const g3 = await db.submitGrievance({
+    id: "2026-004",
+    employee: "Deysy Santiago",
+    agency: "DHS", // sent anyway to confirm submitGrievance correctly ignores it
+    localNo: "2858",
+    steward: "Hazem Albassam",
+    status: "Pending",
+    actingUser: "Hazem Albassam"
+  });
+  assert.strictEqual(g3.record.agency, undefined);
+  assert.strictEqual(g3.record.localNo, undefined);
+  console.log("✓ submitGrievance no longer copies agency/localNo onto grievance records (now an org-wide setting instead)");
+
+  // ---------- Test 8c: updateOrgSettings (Settings > Local chapter info) ----------
+  const orgBefore = await db.getAll();
+  assert.strictEqual(orgBefore.orgSettings.agency, "");
+  assert.strictEqual(orgBefore.orgSettings.localNo, "");
+  console.log("✓ orgSettings.agency/localNo are correctly blank before anything is saved");
+
+  const orgResult = await db.updateOrgSettings({ agency: "DHS", localNo: "2858" });
+  assert.strictEqual(orgResult.agency, "DHS");
+  assert.strictEqual(orgResult.localNo, "2858");
+
+  const orgAfter = await db.getAll();
+  assert.strictEqual(orgAfter.orgSettings.agency, "DHS");
+  assert.strictEqual(orgAfter.orgSettings.localNo, "2858");
+  console.log("✓ updateOrgSettings correctly saves and persists agency/localNo as a single org-wide setting");
+
+  // Updating again should overwrite cleanly, not merge or duplicate
+  await db.updateOrgSettings({ agency: "IDHS", localNo: "2858" });
+  const orgAfter2 = await db.getAll();
+  assert.strictEqual(orgAfter2.orgSettings.agency, "IDHS");
+  assert.strictEqual(orgAfter2.orgSettings.localNo, "2858");
+  console.log("✓ updateOrgSettings correctly overwrites the previous value on a second save");
+
   // ---------- Test 9: activity log ----------
   await db.logActivity({ gid: "2026-001", date: "2026-06-02", type: "Step 1 - Oral Grievance Raised with Supervisor", steward: "Hazem Albassam", actingUser: "Hazem Albassam" });
   all = await db.getAll();
@@ -275,7 +335,7 @@ async function main() {
   const archiveResult = await db.archiveClosed();
   assert.strictEqual(archiveResult.archivedCount, 1);
   all = await db.getAll();
-  assert.strictEqual(all.grievances.length, 2); // 2026-001 and 2026-003 still active; 2026-002 archived
+  assert.strictEqual(all.grievances.length, 3); // 2026-001, 2026-003, 2026-004 still active; 2026-002 archived
   assert.strictEqual(all.archive.length, 1);
   assert.strictEqual(all.archive[0].id, "2026-002");
   assert.ok(all.archive[0].archivedAt);

@@ -226,6 +226,29 @@ async function main() {
   assert.strictEqual(submitRes.json.record.createdBy, "Hazem Albassam"); // actingUser correctly injected server-side
   console.log("✓ POST /api/grievance works end-to-end and stamps createdBy from the session");
 
+  // ---------- Test: POST /api/org-settings (Settings > Local chapter info) ----------
+  const orgSettingsRes = await request(port, "POST", "/api/org-settings", { agency: "DHS", localNo: "2858" }, cookie);
+  assert.strictEqual(orgSettingsRes.status, 200);
+  assert.strictEqual(orgSettingsRes.json.agency, "DHS");
+  assert.strictEqual(orgSettingsRes.json.localNo, "2858");
+  console.log("✓ POST /api/org-settings works end-to-end for an admin");
+
+  // Confirm it round-trips through a fresh GET, not just the POST response,
+  // and that it's a single org-wide value (not attached to any grievance).
+  const dataAfterOrgSettings = await request(port, "GET", "/api/data", null, cookie);
+  assert.strictEqual(dataAfterOrgSettings.json.orgSettings.agency, "DHS");
+  assert.strictEqual(dataAfterOrgSettings.json.orgSettings.localNo, "2858");
+  const stored100 = dataAfterOrgSettings.json.grievances.find(g => g.id === "2026-100");
+  assert.strictEqual(stored100.agency, undefined); // confirms it's NOT a per-grievance field anymore
+  console.log("✓ orgSettings round-trips correctly through a fresh GET /api/data as a single org-wide value, not a per-grievance field");
+
+  // ---------- Test: a steward is blocked from POST /api/org-settings (403, not a crash) ----------
+  const stewardTriesOrgSettings = await request(port, "POST", "/api/org-settings", { agency: "Should Not Work", localNo: "0000" }, stewardCookie);
+  assert.strictEqual(stewardTriesOrgSettings.status, 403);
+  const dataAfterStewardAttempt = await request(port, "GET", "/api/data", null, cookie);
+  assert.strictEqual(dataAfterStewardAttempt.json.orgSettings.agency, "DHS"); // unchanged
+  console.log("✓ POST /api/org-settings is blocked for a steward (403), and the value is correctly unchanged");
+
   // ---------- Test: logout invalidates the session ----------
   const logoutRes = await request(port, "POST", "/api/auth/logout", null, cookie);
   assert.strictEqual(logoutRes.status, 200);

@@ -95,7 +95,11 @@ async function getAll() {
     sessions,
     lastEmailRunDate: metaMap.lastEmailRunDate || "",
     holidays: holidaysRes.rows.map(r => ({ date: r.date, name: r.name })),
-    setup
+    setup,
+    orgSettings: {
+      agency: metaMap.orgAgency || "",
+      localNo: metaMap.orgLocalNo || ""
+    }
   };
 }
 
@@ -313,6 +317,32 @@ async function updateHolidays(holidays) {
   });
 
   return { ok: true, count: clean.length };
+}
+
+/**
+ * Updates the local-wide Agency and AFSCME Local No. values used to
+ * auto-fill the printed grievance form. These are single, org-wide
+ * settings (not per-grievance data and not a dropdown list), so they
+ * live in app_meta as plain key/value rows rather than setup_lists.
+ */
+async function updateOrgSettings({ agency, localNo }) {
+  const cleanAgency = String(agency || "").trim();
+  const cleanLocalNo = String(localNo || "").trim();
+
+  await withTransaction(async (client) => {
+    await client.query(
+      `insert into app_meta (key, value) values ('orgAgency', $1)
+       on conflict (key) do update set value = excluded.value`,
+      [cleanAgency]
+    );
+    await client.query(
+      `insert into app_meta (key, value) values ('orgLocalNo', $1)
+       on conflict (key) do update set value = excluded.value`,
+      [cleanLocalNo]
+    );
+  });
+
+  return { ok: true, agency: cleanAgency, localNo: cleanLocalNo };
 }
 
 // ================================================================
@@ -681,6 +711,7 @@ module.exports = {
   updateStewards,
   updateSetupList,
   updateHolidays,
+  updateOrgSettings,
   findUpcomingDeadlines,
   readRaw,
   writeRawAtomic,

@@ -263,8 +263,6 @@ footer.app-foot{text-align:center;color:var(--grey);font-size:11.5px;padding:30p
           <div class="section-divider"><span class="label">Employee &amp; case identification</span><span class="line"></span></div>
           <div class="field"><label for="f-gid">Grievance ID <span class="req">*</span></label><input type="text" id="f-gid" placeholder="FCRC-2025-001"><div class="field-note" id="gidNote"></div></div>
           <div class="field"><label for="f-name">Employee name <span class="req">*</span></label><input type="text" id="f-name" placeholder="Full name"></div>
-          <div class="field"><label for="f-agency">Agency</label><input type="text" id="f-agency" placeholder="e.g. DHS"></div>
-          <div class="field"><label for="f-localno">AFSCME Local No.</label><input type="text" id="f-localno" placeholder="e.g. 2858"></div>
           <div class="field"><label for="f-job">Job classification</label><select id="f-job"></select></div>
           <div class="field"><label for="f-bu">Bargaining unit</label><select id="f-bu"></select></div>
           <div class="field"><label for="f-shift">Shift</label><select id="f-shift"></select></div>
@@ -376,6 +374,16 @@ footer.app-foot{text-align:center;color:var(--grey);font-size:11.5px;padding:30p
   <!-- SETTINGS -->
   <section id="tab-settings" class="hidden">
     <div class="section-head"><div><h2>Settings</h2><div class="sub">User accounts, holiday list, FCRC locations, and deadline email reminders</div></div></div>
+
+    <div class="panel panel-pad" style="margin-bottom:24px;" id="orgSettingsPanel">
+      <h3 style="font-family:var(--serif);color:var(--green-1);margin:0 0 6px;font-size:17px;">Local chapter info</h3>
+      <p style="font-size:13px;color:var(--grey);margin:6px 0 16px;">Used to auto-fill the Agency and AFSCME Local No. boxes on the printed grievance form. The same values are used for every grievance — these aren't entered per case.</p>
+      <div style="display:flex;gap:14px;flex-wrap:wrap;align-items:flex-end;">
+        <div class="field" style="margin:0;"><label for="orgAgencyInput">Agency</label><input type="text" id="orgAgencyInput" placeholder="e.g. DHS"></div>
+        <div class="field" style="margin:0;"><label for="orgLocalNoInput">AFSCME Local No.</label><input type="text" id="orgLocalNoInput" placeholder="e.g. 2858"></div>
+        <button class="btn btn-primary" id="orgSettingsSaveBtn" style="height:38px;">Save</button>
+      </div>
+    </div>
 
     <div class="panel panel-pad" style="margin-bottom:24px;" id="userAccountsPanel">
       <div style="display:flex;justify-content:space-between;align-items:baseline;flex-wrap:wrap;gap:10px;margin-bottom:14px;">
@@ -586,6 +594,7 @@ function uid(){ return 'a'+Math.random().toString(36).slice(2,10)+Date.now().toS
 
 let SETUP = {};
 let STATE = { grievances: [], activity: [], archive: [], holidays: [] };
+let ORG_SETTINGS = { agency: '', localNo: '' };
 
 const $ = id => document.getElementById(id);
 function fillSelect(sel, items, withBlank=true){
@@ -629,6 +638,7 @@ async function refresh(isBackgroundPoll){
     STATE.activity = data.activity || [];
     STATE.archive = data.archive || [];
     STATE.holidays = data.holidays || [];
+    ORG_SETTINGS = data.orgSettings || { agency: '', localNo: '' };
     $('connBanner').innerHTML = '';
 
     // On a silent background poll, don't touch the Intake Form's dropdowns
@@ -644,7 +654,7 @@ async function refresh(isBackgroundPoll){
     }
 
     renderAll();
-    renderSettingsCounts();
+    renderSettingsCounts(isBackgroundPoll);
   }catch(err){
     $('connBanner').innerHTML = `<div class="banner banner-red"><b>Connection problem.</b> ${escapeHtml(err.message)} — the server may be waking up, try again in a few seconds.</div>`;
   }
@@ -774,7 +784,7 @@ async function submitAndClear(){
   const stewardEmail = stewardIdx>=0 ? (SETUP.StewardEmail||[])[stewardIdx] : "";
 
   const record = {
-    id: gid, employee: name, agency: $('f-agency').value, localNo: $('f-localno').value,
+    id: gid, employee: name,
     jobClass: $('f-job').value, bu: $('f-bu').value, shift: $('f-shift').value,
     bureau: $('f-bureau').value, location: $('f-loc').value, county: $('f-county').value,
     steward: $('f-steward').value, stewardEmail, gtype: $('f-gtype').value, article: $('f-article').value,
@@ -806,7 +816,7 @@ async function submitAndClear(){
 }
 
 function clearForm(){
-  ['f-gid','f-name','f-agency','f-localno','f-section','f-remedy'].forEach(id=>$(id).value='');
+  ['f-gid','f-name','f-section','f-remedy'].forEach(id=>$(id).value='');
   ['f-job','f-bu','f-shift','f-bureau','f-loc','f-county','f-gtype','f-article','f-steward','f-status']
     .forEach(id=>$(id).value='');
   ['f-awareness','f-step1filed','f-step1resp','f-step2filed','f-step2resp','f-step3filed','f-step3resp','f-step4filed']
@@ -1145,35 +1155,27 @@ $('detailCloseBtn').addEventListener('click', ()=>$('detailModalOverlay').classL
 /**
  * Builds a faithful, fillable-by-hand replica of the official
  * AFSCME / State of Illinois Contract Grievance form into the
- * hidden #printArea, auto-filled from this grievance's tracker
- * data, then triggers the browser's print dialog (which on most
- * systems also offers "Save as PDF"). Everything else on the page
- * is hidden during printing via the @media print CSS rule, so only
- * this form appears on paper.
+ * hidden #printArea, then triggers the browser's print dialog
+ * (which on most systems also offers "Save as PDF"). Everything
+ * else on the page is hidden during printing via the @media print
+ * CSS rule, so only this form appears on paper.
  *
- * Signature lines are always left blank for hand-signing — this
- * tool fills in only what's already known from the case record; it
- * never fabricates a signature.
+ * Auto-filled fields: employee name, Agency and AFSCME Local No.
+ * (from the Settings > Local chapter info values — the same for
+ * every grievance), job title, RC/bargaining unit, facility, and
+ * the date raised at Step 1.
+ *
+ * Intentionally LEFT BLANK: the Step 2 Statement of Grievance box.
+ * That section is filled in by hand from a previously hand-signed
+ * paper form, not generated by the tracker — this tool never writes
+ * anything into it. All signature lines are also always left blank
+ * for hand-signing; this never fabricates a signature.
  */
 function printGrievance(gid){
   const rec = STATE.grievances.find(g=>g.id===gid) || STATE.archive.find(g=>g.id===gid);
   if(!rec) return;
 
   const dateRaisedStep1 = rec.step1filed || rec.awareness || '';
-  const statementOfGrievance = [
-    cbaRef(rec) ? `Article/Section violated: ${cbaRef(rec)}` : '',
-    rec.gtype ? `Grievance type: ${rec.gtype}` : '',
-    rec.remedy ? `Remedy requested: ${rec.remedy}` : ''
-  ].filter(Boolean).join('\n\n');
-
-  const relatedActivity = STATE.activity.filter(a=>a.gid===gid).slice().sort((a,b)=>(a.date||'').localeCompare(b.date||''));
-  const activityHtml = relatedActivity.length
-    ? relatedActivity.map(a=>`
-        <div class="pr-activity-item">
-          <span class="pr-activity-date">${escapeHtml(a.date||'')}</span> &middot; ${escapeHtml(a.type||'')} &middot; ${escapeHtml(a.steward||'')}
-          ${a.notes ? `<div style="margin-top:3px;">${escapeHtml(a.notes)}</div>` : ''}
-        </div>`).join('')
-    : `<p style="font-size:12px;color:#666;">No activity logged for this grievance yet.</p>`;
 
   $('printArea').innerHTML = `
     <div class="gf-page gf-box">
@@ -1186,8 +1188,8 @@ function printGrievance(gid){
 
       <div class="gf-row">
         <div class="gf-cell" style="flex:1.6;"><span class="gf-label">Employee's Name</span><span class="gf-value">${escapeHtml(rec.employee||'')}</span></div>
-        <div class="gf-cell"><span class="gf-label">Agency</span><span class="gf-value">${escapeHtml(rec.agency||'')}</span></div>
-        <div class="gf-cell"><span class="gf-label">AFSCME Local No.</span><span class="gf-value">${escapeHtml(rec.localNo||'')}</span></div>
+        <div class="gf-cell"><span class="gf-label">Agency</span><span class="gf-value">${escapeHtml(ORG_SETTINGS.agency||'')}</span></div>
+        <div class="gf-cell"><span class="gf-label">AFSCME Local No.</span><span class="gf-value">${escapeHtml(ORG_SETTINGS.localNo||'')}</span></div>
         <div class="gf-cell"><span class="gf-label">Date Raised at Step 1</span><span class="gf-value">${escapeHtml(dateRaisedStep1)}</span></div>
       </div>
       <div class="gf-row">
@@ -1211,10 +1213,10 @@ function printGrievance(gid){
       <div class="gf-section">
         <div class="gf-section-title">STEP 2 &mdash; (To be submitted within 5 work days after supervisor's answer given or due, whichever occurs first.)</div>
         <div class="gf-small">Statement of Grievance (Include facts of the complaint, sections of the Agreement violated &mdash; if applicable, and relief requested):</div>
-        <div class="gf-statement-box">${escapeHtml(statementOfGrievance) || '&nbsp;'}</div>
+        <div class="gf-statement-box">&nbsp;</div>
         <div class="gf-sig-row">
           <div class="gf-sig-line">Employee</div>
-          <div class="gf-sig-line">AFSCME hereby appeals the grievance to Step 2 (Union Representative) &mdash; (Date): ${escapeHtml(rec.step2filed||'')}</div>
+          <div class="gf-sig-line">AFSCME hereby appeals the grievance to Step 2 (Union Representative) &mdash; (Date)</div>
         </div>
       </div>
 
@@ -1233,7 +1235,7 @@ function printGrievance(gid){
         <div class="gf-section-title">STEP 3 &mdash; To be submitted to Agency Head (certified mail &mdash; return receipt recommended) within 15 working days after Step 2 answer was given or due, whichever occurs first. Local must send copy to Council 31 (include fact sheets, information and documentation with Union copy only.)</div>
         <div class="gf-sig-row">
           <div class="gf-sig-line">AFSCME hereby appeals the grievance to STEP 3 (Union Representative)</div>
-          <div class="gf-sig-line">Date: ${escapeHtml(rec.step3filed||'')}</div>
+          <div class="gf-sig-line">Date</div>
         </div>
       </div>
 
@@ -1241,16 +1243,11 @@ function printGrievance(gid){
         <div class="gf-section-title">STEP 4 &mdash; To be submitted to Director of Central Management Services within 15 days after Step 3 sign off.</div>
         <div class="gf-sig-row">
           <div class="gf-sig-line">AFSCME hereby appeals the grievance to STEP 4 (Union Representative)</div>
-          <div class="gf-sig-line">Date: ${escapeHtml(rec.step4filed||'')}</div>
+          <div class="gf-sig-line">Date</div>
         </div>
       </div>
 
     </div>
-
-    <h2 style="margin-top:24px;">Activity history (from FCRC Grievance Tracker &mdash; not part of the official form)</h2>
-    ${activityHtml}
-
-    <div class="pr-footer">Auto-filled from the FCRC Grievance Tracker &middot; AFSCME Council 31 &middot; Printed ${fmt(today())}. Signature lines are intentionally left blank for hand-signing.</div>
   `;
 
   // A brief delay ensures the browser has painted the new content
@@ -1262,8 +1259,6 @@ function printGrievance(gid){
 function loadIntoForm(rec){
   $('f-gid').value = rec.id;
   $('f-name').value = rec.employee||'';
-  $('f-agency').value = rec.agency||'';
-  $('f-localno').value = rec.localNo||'';
   $('f-job').value = rec.jobClass||'';
   $('f-bu').value = rec.bu||'';
   $('f-shift').value = rec.shift||'';
@@ -1436,6 +1431,23 @@ $('holidaysSaveBtn').addEventListener('click', async ()=>{
     toast(err.message || 'Could not save holiday list.', 'err');
   }finally{
     btn.disabled = false; btn.textContent = 'Save changes';
+  }
+});
+
+/* ---------- Settings tab: Local chapter info (Agency / AFSCME Local No.) ---------- */
+$('orgSettingsSaveBtn').addEventListener('click', async ()=>{
+  const agency = $('orgAgencyInput').value.trim();
+  const localNo = $('orgLocalNoInput').value.trim();
+  const btn = $('orgSettingsSaveBtn');
+  btn.disabled = true; btn.textContent = 'Saving…';
+  try{
+    await apiPost('/api/org-settings', { agency, localNo });
+    ORG_SETTINGS = { agency, localNo };
+    toast('Local chapter info updated.');
+  }catch(err){
+    toast(err.message || 'Could not save local chapter info.', 'err');
+  }finally{
+    btn.disabled = false; btn.textContent = 'Save';
   }
 });
 
@@ -1667,11 +1679,25 @@ $('viewEmailLogBtn').addEventListener('click', ()=>{
 $('emailLogCloseBtn').addEventListener('click', ()=>$('emailLogModalOverlay').classList.remove('show'));
 
 /* ---------- Update settings tab counts whenever data refreshes ---------- */
-function renderSettingsCounts(){
+function renderSettingsCounts(isBackgroundPoll){
   $('holidayCount').textContent = (STATE.holidays||[]).length;
   $('locationCount').textContent = (SETUP.Location||[]).length;
   $('userCount').textContent = (window._userListCache||[]).length;
   renderOtherListsButtons();
+
+  // Don't overwrite these two inputs while an admin might be mid-typing
+  // into them during a silent background poll -- only repopulate on a
+  // real/manual refresh, same guard pattern used for the Intake Form's
+  // dropdowns elsewhere in this file.
+  const orgAgencyEl = $('orgAgencyInput');
+  const orgLocalNoEl = $('orgLocalNoInput');
+  if(orgAgencyEl && orgLocalNoEl){
+    const fieldsFocused = document.activeElement === orgAgencyEl || document.activeElement === orgLocalNoEl;
+    if(!isBackgroundPoll || !fieldsFocused){
+      orgAgencyEl.value = ORG_SETTINGS.agency || '';
+      orgLocalNoEl.value = ORG_SETTINGS.localNo || '';
+    }
+  }
 }
 
 /* ===================================================================
@@ -1730,6 +1756,8 @@ function applyRoleVisibility(user){
   });
   const userPanel = $('userAccountsPanel');
   if(userPanel) userPanel.style.display = admin ? '' : 'none';
+  const orgSettingsPanel = $('orgSettingsPanel');
+  if(orgSettingsPanel) orgSettingsPanel.style.display = admin ? '' : 'none';
   const otherListsPanel = $('otherListsPanel');
   if(otherListsPanel) otherListsPanel.style.display = admin ? '' : 'none';
 }

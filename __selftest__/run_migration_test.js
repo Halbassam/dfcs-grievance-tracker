@@ -64,12 +64,31 @@ async function main() {
   console.log("✓ activity log migrated correctly");
 
   const holidays = await verifyPool.query("select * from holidays order by date");
-  assert.strictEqual(holidays.rows.length, 2);
-  console.log("✓ holidays migrated correctly");
+  // 001_init.sql now pre-seeds 38 holidays (2024-2027). The fixture's two
+  // holidays (2026-01-01, 2026-12-25) both already exist in that seeded
+  // calendar, so migrate_from_json.js's ON CONFLICT DO UPDATE just confirms
+  // their names match -- it doesn't add new rows. Total stays at 38, which
+  // correctly demonstrates the migration script doesn't duplicate holidays
+  // that the pre-seeded calendar already provided.
+  assert.strictEqual(holidays.rows.length, 38);
+  const newYears = holidays.rows.find(r => r.date === "2026-01-01");
+  const christmas = holidays.rows.find(r => r.date === "2026-12-25");
+  assert.ok(newYears && newYears.name === "New Year's Day");
+  assert.ok(christmas && christmas.name === "Christmas Day");
+  console.log("✓ holidays migrated correctly (38 total: the pre-seeded calendar, with the fixture's 2 dates confirmed/updated in place rather than duplicated)");
 
   const setupLists = await verifyPool.query("select * from setup_lists order by key");
-  assert.strictEqual(setupLists.rows.length, 3); // Status, Steward, StewardEmail
-  console.log("✓ setup lists migrated correctly");
+  // 001_init.sql pre-seeds 12 lists. The fixture only specifies 3 of them
+  // (Status, Steward, StewardEmail) -- migrate_from_json.js correctly
+  // OVERWRITES just those 3 with the fixture's values (a JSON backup being
+  // explicitly migrated in should win), while leaving the other 9
+  // pre-seeded lists (Article, GrievanceType, etc.) completely untouched.
+  assert.strictEqual(setupLists.rows.length, 12);
+  const statusRow = setupLists.rows.find(r => r.key === "Status");
+  const articleRow = setupLists.rows.find(r => r.key === "Article");
+  assert.deepStrictEqual(statusRow.items, ["Pending", "Granted", "Denied"]); // overwritten by the fixture
+  assert.ok(articleRow.items.length >= 70); // untouched, still the full pre-seeded Article list
+  console.log("✓ setup lists: fixture correctly overwrites Status/Steward/StewardEmail, leaves the other 9 pre-seeded lists untouched");
 
   const emailLog = await verifyPool.query("select * from email_log");
   assert.strictEqual(emailLog.rows.length, 1);

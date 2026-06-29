@@ -271,6 +271,13 @@ const server = http.createServer(async (req, res) => {
       return sendJson(res, 200, result);
     }
 
+    if (pathname === "/api/org-settings" && req.method === "POST") {
+      if (!isAdmin(currentUser)) return sendJson(res, 403, { error: "Only admins can edit the agency / local number." });
+      const body = await readBody(req);
+      const result = await db.updateOrgSettings(body);
+      return sendJson(res, 200, result);
+    }
+
     if (pathname === "/api/email/run-now" && req.method === "POST") {
       const summary = await scheduler.runDeadlineCheck();
       return sendJson(res, 200, summary);
