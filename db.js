@@ -1,0 +1,1953 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FCRC Grievance Tracker — AFSCME Council 31</title>
+<style>
+:root{
+  --ink:#10261b;--green-1:#0f3d24;--green-2:#1b5e20;--green-3:#2e7d32;
+  --green-soft:#e8f5e9;--green-line:#bfe0c4;--paper:#faf9f4;--paper-2:#f1efe6;
+  --amber:#b7791f;--amber-bg:#fdf3da;--red:#9c0006;--red-bg:#fdeceb;--grey:#6b7268;--ok-bg:#e6f4ea;
+  --serif:'Source Serif Pro','Iowan Old Style',Georgia,serif;
+  --sans:'Inter',-apple-system,BlinkMacSystemFont,sans-serif;
+  --mono:'IBM Plex Mono',monospace;--radius:3px;--shadow:0 1px 2px rgba(15,61,36,0.08);
+}
+*{box-sizing:border-box;}
+html,body{margin:0;padding:0;}
+body{font-family:var(--sans);background:var(--paper);color:var(--ink);font-size:15px;line-height:1.5;-webkit-font-smoothing:antialiased;}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important;}}
+
+.topbar{background:var(--green-1);color:#fff;padding:0 24px;display:flex;align-items:center;justify-content:space-between;height:64px;position:sticky;top:0;z-index:100;box-shadow:0 2px 8px rgba(0,0,0,0.15);}
+.brand{display:flex;align-items:center;gap:14px;}
+.brand-mark{width:38px;height:38px;border-radius:50%;background:var(--green-3);display:flex;align-items:center;justify-content:center;font-family:var(--serif);font-weight:700;font-size:17px;color:#fff;flex-shrink:0;border:2px solid rgba(255,255,255,0.25);}
+.brand-text h1{font-family:var(--serif);font-size:17px;margin:0;font-weight:600;}
+.brand-text p{font-size:11px;margin:0;opacity:0.72;}
+.tabs{display:flex;gap:2px;flex-wrap:wrap;}
+.tab-btn{background:transparent;border:none;color:rgba(255,255,255,0.68);font-family:var(--sans);font-size:13.5px;font-weight:500;padding:10px 14px;cursor:pointer;border-radius:var(--radius);white-space:nowrap;display:flex;align-items:center;}
+.tab-btn:hover{background:rgba(255,255,255,0.08);color:#fff;}
+.tab-btn.active{background:rgba(255,255,255,0.14);color:#fff;}
+.count{background:rgba(255,255,255,0.2);border-radius:10px;padding:1px 7px;font-size:11px;margin-left:6px;}
+.count.alert{background:var(--red);color:#fff;}
+.menu-toggle{display:none;background:none;border:none;color:#fff;font-size:22px;cursor:pointer;}
+.conn-dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:6px;}
+
+main{max-width:1280px;margin:0 auto;padding:28px 24px 80px;}
+.section-head{display:flex;align-items:baseline;justify-content:space-between;margin-bottom:22px;flex-wrap:wrap;gap:12px;}
+.section-head h2{font-family:var(--serif);font-size:26px;margin:0;color:var(--green-1);font-weight:600;}
+.section-head .sub{color:var(--grey);font-size:13px;margin-top:3px;}
+
+.btn{font-family:var(--sans);font-size:13.5px;font-weight:600;padding:10px 18px;border-radius:var(--radius);border:1.5px solid transparent;cursor:pointer;display:inline-flex;align-items:center;gap:7px;}
+.btn:active{transform:translateY(1px);}
+.btn-primary{background:var(--green-2);color:#fff;}
+.btn-primary:hover{background:var(--green-1);}
+.btn-secondary{background:#fff;color:var(--green-2);border-color:var(--green-line);}
+.btn-secondary:hover{background:var(--green-soft);}
+.btn-ghost{background:transparent;color:var(--grey);}
+.btn-ghost:hover{background:var(--paper-2);color:var(--ink);}
+.btn:disabled{opacity:0.45;cursor:not-allowed;}
+.btn-lg{padding:13px 26px;font-size:14.5px;}
+.btn-tiny{padding:4px 10px;font-size:11.5px;border:1px solid var(--green-line);background:transparent;color:var(--green-2);border-radius:3px;cursor:pointer;}
+
+.panel{background:#fff;border:1px solid var(--green-line);border-radius:6px;box-shadow:var(--shadow);}
+.panel-pad{padding:24px;}
+
+.form-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:18px 24px;}
+@media (max-width:760px){.form-grid{grid-template-columns:1fr;}}
+.field{display:flex;flex-direction:column;gap:6px;}
+.field.wide{grid-column:1/-1;}
+.field label{font-size:12.5px;font-weight:600;color:var(--green-1);display:flex;align-items:center;gap:6px;}
+.field label .req{color:var(--red);}
+.field label .hint-icon{color:var(--grey);cursor:help;font-size:11px;border:1px solid var(--grey);border-radius:50%;width:14px;height:14px;display:inline-flex;align-items:center;justify-content:center;}
+input[type=text],input[type=date],select,textarea{font-family:var(--sans);font-size:14px;padding:9px 11px;border:1.5px solid #d8d5c8;border-radius:var(--radius);background:#fff;color:var(--ink);width:100%;}
+input:focus,select:focus,textarea:focus{outline:none;border-color:var(--green-3);box-shadow:0 0 0 3px rgba(46,125,50,0.12);}
+textarea{resize:vertical;min-height:64px;}
+.readonly-box{background:var(--green-soft);border:1.5px solid var(--green-line);color:var(--green-1);font-weight:600;font-size:13.5px;padding:9px 11px;border-radius:var(--radius);}
+.field-note{font-size:11.5px;color:var(--grey);margin-top:2px;}
+.section-divider{grid-column:1/-1;display:flex;align-items:center;gap:10px;margin:8px 0 4px;}
+.section-divider .label{font-family:var(--serif);font-size:13px;font-weight:600;color:var(--green-2);white-space:nowrap;}
+.section-divider .line{flex:1;height:1px;background:var(--green-line);}
+.notice-box{grid-column:1/-1;padding:10px 14px;border-radius:var(--radius);font-size:12.5px;display:flex;gap:8px;border-left:3px solid;}
+.notice-amber{background:var(--amber-bg);border-color:var(--amber);color:#6b4d10;}
+.deadline-grid{grid-column:1/-1;display:grid;grid-template-columns:repeat(2,1fr);gap:10px 18px;background:var(--green-soft);border:1px solid var(--green-line);border-radius:6px;padding:16px;margin-top:4px;}
+@media (max-width:760px){.deadline-grid{grid-template-columns:1fr;}}
+.deadline-item{display:flex;flex-direction:column;gap:2px;}
+.deadline-item .dl-label{font-size:11.5px;color:var(--green-2);font-weight:600;}
+.deadline-item .dl-value{font-family:var(--mono);font-size:13.5px;color:var(--green-1);font-weight:600;}
+.status-banner{grid-column:1/-1;padding:12px 16px;border-radius:6px;font-weight:600;font-size:13.5px;border:1.5px solid;}
+.status-open{background:var(--ok-bg);border-color:#9bcaa8;color:var(--green-1);}
+.status-closed{background:var(--red-bg);border-color:#e3a8a5;color:var(--red);}
+.status-wait{background:var(--paper-2);border-color:#d8d5c8;color:var(--grey);}
+.form-footer{grid-column:1/-1;display:flex;justify-content:flex-end;gap:12px;margin-top:8px;padding-top:18px;border-top:1px solid var(--green-line);}
+
+.kpi-row{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:22px;}
+@media (max-width:880px){.kpi-row{grid-template-columns:repeat(2,1fr);}}
+.kpi{background:#fff;border:1px solid var(--green-line);border-radius:6px;padding:16px 18px;box-shadow:var(--shadow);}
+.kpi .num{font-family:var(--serif);font-size:30px;font-weight:700;color:var(--green-1);line-height:1;}
+.kpi .lbl{font-size:12px;color:var(--grey);margin-top:4px;}
+.kpi.red .num{color:var(--red);}
+.kpi.amber .num{color:var(--amber);}
+.legend{display:flex;gap:18px;flex-wrap:wrap;margin-bottom:16px;font-size:12px;color:var(--grey);}
+.legend span{display:inline-flex;align-items:center;gap:6px;}
+.dot{width:9px;height:9px;border-radius:50%;display:inline-block;}
+
+.table-wrap{overflow-x:auto;border:1px solid var(--green-line);border-radius:6px;background:#fff;}
+table{width:100%;border-collapse:collapse;font-size:13px;}
+thead th{background:var(--green-1);color:#fff;text-align:left;padding:10px 12px;font-weight:600;font-size:11.5px;white-space:nowrap;}
+tbody td{padding:10px 12px;border-bottom:1px solid #ece9dd;white-space:nowrap;}
+tbody tr:hover{background:var(--paper-2);}
+tbody tr.row-red{background:var(--red-bg);}
+tbody tr.row-amber{background:var(--amber-bg);}
+tbody tr.row-green{background:var(--ok-bg);}
+.pill{display:inline-block;padding:2px 9px;border-radius:10px;font-size:11px;font-weight:600;}
+.pill-pending{background:#eaf1fb;color:#26395c;}
+.pill-resolved{background:var(--ok-bg);color:var(--green-1);}
+.pill-arb{background:#f3e8fb;color:#5b2a86;}
+.empty-state{text-align:center;padding:60px 24px;color:var(--grey);}
+.empty-state .icon{font-size:36px;margin-bottom:10px;opacity:0.4;}
+.empty-state h3{font-family:var(--serif);color:var(--ink);margin:0 0 6px;}
+.row-link{color:var(--green-2);font-weight:600;cursor:pointer;text-decoration:none;}
+.row-link:hover{text-decoration:underline;}
+
+.activity-item{display:grid;grid-template-columns:90px 1fr auto;gap:16px;padding:14px 4px;border-bottom:1px solid #ece9dd;}
+.activity-item:last-child{border-bottom:none;}
+.activity-date{font-family:var(--mono);font-size:12px;color:var(--grey);}
+.a-type{font-weight:600;font-size:13.5px;color:var(--green-1);}
+.a-gid{font-size:11.5px;color:var(--green-3);font-weight:600;margin-left:6px;}
+.a-notes{font-size:13px;margin-top:3px;}
+.a-meta{font-size:11.5px;color:var(--grey);margin-top:4px;}
+.followup-flag{background:var(--amber-bg);color:var(--amber);font-size:11px;font-weight:700;padding:3px 8px;border-radius:10px;white-space:nowrap;}
+
+.steward-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:16px;margin-bottom:24px;}
+.steward-card{background:#fff;border:1px solid var(--green-line);border-radius:6px;padding:18px;box-shadow:var(--shadow);}
+.steward-card.has-overdue{border-color:#e3a8a5;background:linear-gradient(180deg,var(--red-bg),#fff 60%);}
+.steward-card .s-name{font-family:var(--serif);font-weight:600;font-size:16px;}
+.steward-card .s-stats{display:flex;gap:14px;margin-top:10px;flex-wrap:wrap;}
+.steward-card .s-stat b{font-size:18px;color:var(--green-1);font-family:var(--serif);display:block;}
+.steward-card .s-stat span{font-size:10.5px;color:var(--grey);text-transform:uppercase;}
+.s-alert{margin-top:12px;font-size:11.5px;font-weight:700;padding:5px 10px;border-radius:4px;display:inline-block;}
+.alert-overdue{background:var(--red);color:#fff;}
+.alert-highload{background:var(--amber-bg);color:var(--amber);}
+.alert-ok{background:var(--ok-bg);color:var(--green-2);}
+.breakdown-grid{display:grid;grid-template-columns:1fr 1fr;gap:20px;}
+@media (max-width:880px){.breakdown-grid{grid-template-columns:1fr;}}
+
+.modal-overlay{position:fixed;inset:0;background:rgba(15,38,27,0.55);display:none;align-items:center;justify-content:center;z-index:200;padding:20px;}
+.modal-overlay.show{display:flex;}
+.modal{background:#fff;border-radius:8px;max-width:560px;width:100%;box-shadow:0 20px 50px rgba(0,0,0,0.25);overflow:hidden;}
+.modal-head{background:var(--green-1);color:#fff;padding:18px 22px;display:flex;align-items:center;gap:10px;}
+.modal-head h3{font-family:var(--serif);margin:0;font-size:17px;}
+.modal-body{padding:20px 22px;font-size:14px;line-height:1.6;max-height:60vh;overflow-y:auto;}
+.modal-foot{padding:14px 22px 20px;display:flex;justify-content:flex-end;gap:10px;}
+.modal.modal-amber .modal-head{background:#92620f;}
+
+.toast-stack{position:fixed;bottom:24px;right:24px;z-index:300;display:flex;flex-direction:column;gap:10px;align-items:flex-end;}
+.toast{background:var(--green-1);color:#fff;padding:13px 18px;border-radius:6px;font-size:13.5px;font-weight:500;box-shadow:0 6px 20px rgba(0,0,0,0.25);max-width:340px;}
+.toast.err{background:var(--red);}
+
+.banner{padding:10px 16px;border-radius:6px;font-size:13px;margin-bottom:18px;}
+.banner-red{background:var(--red-bg);border:1px solid #e3a8a5;color:var(--red);}
+.banner-amber{background:var(--amber-bg);border:1px solid var(--amber);color:#6b4d10;}
+.banner a{color:var(--green-2);font-weight:600;cursor:pointer;}
+
+.hidden{display:none!important;}
+@media (max-width:920px){
+  .tabs{display:none;position:absolute;top:64px;left:0;right:0;background:var(--green-1);flex-direction:column;padding:8px;box-shadow:0 8px 16px rgba(0,0,0,0.2);}
+  .tabs.open{display:flex;}
+  .tab-btn{text-align:left;width:100%;}
+  .menu-toggle{display:block;}
+}
+@media (max-width:640px){
+  .user-row{grid-template-columns:1fr 1fr!important;}
+  .user-row .ur-username,.user-row .ur-displayname{grid-column:span 2;}
+}
+footer.app-foot{text-align:center;color:var(--grey);font-size:11.5px;padding:30px 0 10px;border-top:1px solid var(--green-line);margin-top:40px;}
+
+/* ---------- Print view (single grievance) ----------
+   #printArea is invisible on screen and holds nothing until the
+   Print button populates it. On an actual print/PDF-save, everything
+   else on the page is hidden so only this clean, formatted summary
+   appears on paper. */
+.print-only{display:none;}
+@media print{
+  body > *:not(#printArea){display:none!important;}
+  #printArea{display:block!important;font-family:Georgia,'Times New Roman',serif;color:#000;padding:0;max-width:100%;}
+  #printArea h1{font-size:20px;margin:0 0 4px;}
+  #printArea h2{font-size:15px;margin:18px 0 8px;border-bottom:1px solid #333;padding-bottom:4px;}
+  #printArea .pr-sub{font-size:12px;color:#444;margin-bottom:18px;}
+  #printArea .pr-grid{display:grid;grid-template-columns:1fr 1fr;gap:4px 24px;font-size:12.5px;margin-bottom:6px;}
+  #printArea .pr-grid div{padding:2px 0;}
+  #printArea .pr-grid b{display:inline-block;min-width:120px;}
+  #printArea .pr-activity-item{font-size:12px;border-bottom:1px solid #ddd;padding:6px 0;}
+  #printArea .pr-activity-date{font-weight:600;}
+  #printArea .pr-footer{margin-top:24px;font-size:10.5px;color:#666;border-top:1px solid #333;padding-top:6px;}
+
+  /* ---------- Official AFSCME/State of Illinois Contract Grievance form replica ---------- */
+  #printArea .gf-page{font-size:11px;line-height:1.35;}
+  #printArea .gf-box{border:1.5px solid #000;}
+  #printArea .gf-header{display:flex;justify-content:space-between;align-items:center;border-bottom:1.5px solid #000;padding:8px 10px;}
+  #printArea .gf-header-left{font-size:10px;font-weight:bold;text-align:center;}
+  #printArea .gf-header-title{font-size:15px;font-weight:bold;text-align:center;flex:1;}
+  #printArea .gf-header-title .gf-subtitle{font-size:11px;font-weight:normal;}
+  #printArea .gf-header-num{font-size:16px;font-weight:bold;border:1px solid #000;padding:4px 14px;}
+  #printArea .gf-row{display:flex;border-bottom:1px solid #000;}
+  #printArea .gf-cell{flex:1;border-right:1px solid #000;padding:4px 8px;}
+  #printArea .gf-cell:last-child{border-right:none;}
+  #printArea .gf-cell .gf-label{font-size:8.5px;display:block;}
+  #printArea .gf-cell .gf-value{font-size:11.5px;border-bottom:1px solid #000;display:inline-block;min-width:90%;min-height:14px;}
+  #printArea .gf-section{border-bottom:1.5px solid #000;padding:6px 10px;}
+  #printArea .gf-section-title{font-weight:bold;font-size:11px;margin-bottom:6px;}
+  #printArea .gf-sig-row{display:flex;justify-content:space-between;margin-top:18px;font-size:10px;}
+  #printArea .gf-sig-line{border-top:1px solid #000;width:46%;padding-top:2px;text-align:center;}
+  #printArea .gf-statement-box{border:1px solid #000;min-height:90px;padding:6px 8px;font-size:11px;margin:6px 0;white-space:pre-wrap;}
+  #printArea .gf-small{font-size:9px;color:#333;}
+}
+</style>
+</head>
+<body>
+
+<div id="loginScreen" class="hidden" style="position:fixed;inset:0;background:var(--paper);display:flex;align-items:center;justify-content:center;z-index:500;padding:20px;">
+  <div style="max-width:380px;width:100%;background:#fff;border:1px solid var(--green-line);border-radius:8px;box-shadow:0 8px 30px rgba(0,0,0,0.12);padding:32px;">
+    <div style="text-align:center;margin-bottom:24px;">
+      <div style="width:52px;height:52px;border-radius:50%;background:var(--green-3);display:inline-flex;align-items:center;justify-content:center;font-family:var(--serif);font-weight:700;font-size:22px;color:#fff;margin-bottom:12px;">31</div>
+      <h2 style="font-family:var(--serif);color:var(--green-1);margin:0;font-size:20px;">FCRC Grievance Tracker</h2>
+      <p style="color:var(--grey);font-size:12.5px;margin:4px 0 0;">AFSCME Council 31 &middot; Sign in to continue</p>
+    </div>
+    <div class="field" style="margin-bottom:14px;">
+      <label for="loginUsername">Username</label>
+      <input type="text" id="loginUsername" autocomplete="username">
+    </div>
+    <div class="field" style="margin-bottom:18px;">
+      <label for="loginPassword">Password</label>
+      <input type="password" id="loginPassword" autocomplete="current-password">
+    </div>
+    <div id="loginError" style="display:none;background:var(--red-bg);border:1px solid #e3a8a5;color:var(--red);padding:9px 12px;border-radius:4px;font-size:13px;margin-bottom:14px;"></div>
+    <button class="btn btn-primary btn-lg" id="loginSubmitBtn" style="width:100%;justify-content:center;">Sign in</button>
+  </div>
+</div>
+
+<div class="topbar">
+  <div class="brand">
+    <div class="brand-mark">31</div>
+    <div class="brand-text"><h1>FCRC Grievance Tracker</h1><p>AFSCME Council 31 &middot; Division of Family &amp; Community Services</p></div>
+  </div>
+  <button class="menu-toggle" id="menuToggle">&#9776;</button>
+  <nav class="tabs" id="tabs">
+    <button class="tab-btn active" data-tab="intake">Intake Form</button>
+    <button class="tab-btn" data-tab="dashboard">Priority Dashboard <span class="count" id="navOverdueCount">0</span></button>
+    <button class="tab-btn" data-tab="log">Grievance Log</button>
+    <button class="tab-btn" data-tab="activity">Activity Log</button>
+    <button class="tab-btn" data-tab="workload">Steward Workload</button>
+    <button class="tab-btn" data-tab="archive">Archive</button>
+    <button class="tab-btn" data-tab="settings">Settings</button>
+    <span id="currentUserBadge" class="hidden" style="display:flex;align-items:center;gap:10px;padding:10px 14px;color:rgba(255,255,255,0.85);font-size:12.5px;white-space:nowrap;">
+      <span id="currentUserName"></span>
+      <button id="logoutBtn" style="background:rgba(255,255,255,0.12);border:none;color:#fff;padding:5px 10px;border-radius:3px;font-size:11.5px;cursor:pointer;">Log out</button>
+    </span>
+  </nav>
+</div>
+
+
+<main id="mainApp" class="hidden">
+  <div id="connBanner"></div>
+
+  <!-- INTAKE -->
+  <section id="tab-intake">
+    <div class="section-head">
+      <div><h2>Grievance Intake</h2><div class="sub">Master Contract 2023&ndash;2027 &middot; Art. V Grievance Procedure</div></div>
+      <button class="btn btn-ghost" id="clearFormBtn">Clear form</button>
+    </div>
+    <div class="panel panel-pad">
+      <form id="intakeForm" autocomplete="off">
+        <div class="form-grid">
+          <div class="section-divider"><span class="label">Employee &amp; case identification</span><span class="line"></span></div>
+          <div class="field"><label for="f-gid">Grievance ID <span class="req">*</span></label><input type="text" id="f-gid" placeholder="FCRC-2025-001"><div class="field-note" id="gidNote"></div></div>
+          <div class="field"><label for="f-name">Employee name <span class="req">*</span></label><input type="text" id="f-name" placeholder="Full name"></div>
+          <div class="field"><label for="f-agency">Agency</label><input type="text" id="f-agency" placeholder="e.g. DHS"></div>
+          <div class="field"><label for="f-localno">AFSCME Local No.</label><input type="text" id="f-localno" placeholder="e.g. 2858"></div>
+          <div class="field"><label for="f-job">Job classification</label><select id="f-job"></select></div>
+          <div class="field"><label for="f-bu">Bargaining unit</label><select id="f-bu"></select></div>
+          <div class="field"><label for="f-shift">Shift</label><select id="f-shift"></select></div>
+          <div class="field"><label for="f-bureau">DFCS bureau / program unit</label><select id="f-bureau"></select></div>
+          <div class="field"><label for="f-loc">FCRC / work location</label><select id="f-loc"></select></div>
+          <div class="field"><label for="f-county">County</label><select id="f-county"></select></div>
+
+          <div class="section-divider"><span class="label">Contractual authority &mdash; Art. V Sec. 1</span><span class="line"></span></div>
+          <div class="field"><label for="f-gtype">Grievance type</label><select id="f-gtype"></select></div>
+          <div class="field"><label for="f-article">CBA article violated</label><select id="f-article"></select></div>
+          <div class="field wide"><label for="f-section">Specific section / clause reference</label><input type="text" id="f-section" placeholder="e.g. Art. IX Sec. 2 — Progressive discipline not followed"></div>
+          <div class="field wide"><label for="f-remedy">Remedy sought</label><textarea id="f-remedy" placeholder="Be specific."></textarea></div>
+
+          <div class="section-divider"><span class="label">Lifecycle milestones &mdash; Art. V Sec. 2 (working days)</span><span class="line"></span></div>
+          <div class="field"><label for="f-steward">Steward name</label><select id="f-steward"></select></div>
+          <div class="field"><label>Steward email (auto)</label><div class="readonly-box" id="stewardEmailBox">Select a steward</div></div>
+          <div class="field"><label for="f-awareness">Awareness date (Day 0)</label><input type="date" id="f-awareness"></div>
+          <div class="field"><label for="f-step1filed">Step 1 filed date</label><input type="date" id="f-step1filed"></div>
+          <div class="field"><label for="f-step1resp">Step 1 response date</label><input type="date" id="f-step1resp"></div>
+          <div class="field"><label for="f-step2filed">Step 2 filed date</label><input type="date" id="f-step2filed"></div>
+          <div class="field"><label for="f-step2resp">Step 2 response date</label><input type="date" id="f-step2resp"></div>
+          <div class="field"><label for="f-step3filed">Step 3 filed date</label><input type="date" id="f-step3filed"></div>
+          <div class="field"><label for="f-step3resp">Step 3 response date</label><input type="date" id="f-step3resp"></div>
+          <div class="field"><label for="f-step4filed">Step 4 / arb filed date</label><input type="date" id="f-step4filed"></div>
+
+          <div class="notice-box notice-amber">&#9888;&#65039; <span><b>Benefit Recoupment</b> (Art. XIII) and <b>Upward Mobility denials</b> (Art. XV Sec. 8) file directly at Step 3.</span></div>
+
+          <div class="section-divider"><span class="label">Filing deadline monitor</span><span class="line"></span></div>
+          <div class="deadline-grid" id="deadlineGrid">
+            <div class="deadline-item"><span class="dl-label">15-WD filing deadline (Step 1)</span><span class="dl-value" id="dl-1">&mdash;</span></div>
+            <div class="deadline-item"><span class="dl-label">Step 1 response deadline (10 WD)</span><span class="dl-value" id="dl-2">&mdash;</span></div>
+            <div class="deadline-item"><span class="dl-label">Step 2 filing deadline (5 WD)</span><span class="dl-value" id="dl-3">&mdash;</span></div>
+            <div class="deadline-item"><span class="dl-label">Step 2 answer deadline (10+5 WD)</span><span class="dl-value" id="dl-4">&mdash;</span></div>
+            <div class="deadline-item"><span class="dl-label">Step 3 filing deadline (15 WD)</span><span class="dl-value" id="dl-5">&mdash;</span></div>
+            <div class="deadline-item"><span class="dl-label">Step 4 filing deadline (15 WD)</span><span class="dl-value" id="dl-6">&mdash;</span></div>
+          </div>
+          <div class="status-banner status-wait" id="filingStatusBanner">Enter the awareness date to see the filing window status.</div>
+
+          <div class="field"><label for="f-status">Current status / outcome</label><select id="f-status"></select></div>
+          <div></div>
+
+          <div class="form-footer">
+            <button type="button" class="btn btn-secondary" id="clearFormBtn2">Clear</button>
+            <button type="submit" class="btn btn-primary btn-lg" id="submitBtn">Submit &amp; clear</button>
+          </div>
+        </div>
+      </form>
+    </div>
+  </section>
+
+  <!-- DASHBOARD -->
+  <section id="tab-dashboard" class="hidden">
+    <div class="section-head"><div><h2>Priority Case Monitor</h2><div class="sub">Active grievances ranked by next contractual deadline</div></div></div>
+    <div class="kpi-row">
+      <div class="kpi"><div class="num" id="kpiPending">0</div><div class="lbl">Total pending</div></div>
+      <div class="kpi red"><div class="num" id="kpiOverdue">0</div><div class="lbl">Response overdue</div></div>
+      <div class="kpi amber"><div class="num" id="kpiSoon">0</div><div class="lbl">Due within 7 days</div></div>
+      <div class="kpi"><div class="num" id="kpiArb">0</div><div class="lbl">At arbitration</div></div>
+    </div>
+    <div class="legend">
+      <span><i class="dot" style="background:#9c0006"></i>Response overdue</span>
+      <span><i class="dot" style="background:#b7791f"></i>Due within 7 days</span>
+      <span><i class="dot" style="background:#2e7d32"></i>Resolved</span>
+      <span><i class="dot" style="background:#c7c4b7"></i>Active / on track</span>
+    </div>
+    <div class="table-wrap"><table><thead><tr><th>Grievance ID</th><th>Employee</th><th>Type</th><th>CBA reference</th><th>Current step</th><th>Next deadline</th><th>Status</th><th>Days open</th></tr></thead><tbody id="dashboardBody"></tbody></table></div>
+  </section>
+
+  <!-- LOG -->
+  <section id="tab-log" class="hidden">
+    <div class="section-head">
+      <div><h2>Grievance Log</h2><div class="sub">Complete master ledger</div></div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;">
+        <input type="text" id="logSearchInput" placeholder="Search by employee, ID, or steward&hellip;" style="padding:8px 12px;border:1px solid var(--green-line);border-radius:6px;font-family:inherit;font-size:13.5px;min-width:240px;">
+        <button class="btn btn-secondary" id="archiveClosedBtn">Archive closed</button>
+      </div>
+    </div>
+    <div class="table-wrap"><table><thead><tr><th>ID</th><th>Employee</th><th>Job class</th><th>Bureau</th><th>Location</th><th>Steward</th><th>Type</th><th>Status</th><th>Step</th><th>Step 1 filed</th><th>Step 1 due</th><th>Step 2 filed</th><th>Step 3 filed</th><th>Days open</th><th></th></tr></thead><tbody id="logBody"></tbody></table></div>
+  </section>
+
+  <!-- ACTIVITY -->
+  <section id="tab-activity" class="hidden">
+    <div class="section-head">
+      <div><h2>Activity Log</h2><div class="sub">Paper trail &mdash; every action recorded</div></div>
+      <button class="btn btn-primary" id="addActivityBtn">+ Log activity</button>
+    </div>
+    <div class="panel"><div class="panel-pad" id="activityList"></div></div>
+  </section>
+
+  <!-- WORKLOAD -->
+  <section id="tab-workload" class="hidden">
+    <div class="section-head">
+      <div><h2>Steward Workload</h2><div class="sub">Live counts &middot; Art. V Sec. 5 quarterly steward list</div></div>
+      <button class="btn btn-secondary" id="manageStewardsBtn">Manage stewards</button>
+    </div>
+    <div class="steward-grid" id="stewardGrid"></div>
+    <div class="breakdown-grid">
+      <div><h3 style="font-family:var(--serif);color:var(--green-1);font-size:15px;margin-bottom:10px;">By DFCS bureau</h3><div class="table-wrap"><table><thead><tr><th>Bureau</th><th>Active</th><th>Overdue</th></tr></thead><tbody id="bureauBody"></tbody></table></div></div>
+      <div><h3 style="font-family:var(--serif);color:var(--green-1);font-size:15px;margin-bottom:10px;">By FCRC / location</h3><div class="table-wrap"><table><thead><tr><th>Location</th><th>Active</th><th>Overdue</th></tr></thead><tbody id="locationBody"></tbody></table></div></div>
+    </div>
+  </section>
+
+  <!-- ARCHIVE -->
+  <section id="tab-archive" class="hidden">
+    <div class="section-head"><div><h2>Archive</h2><div class="sub">Closed grievances &middot; Art. V Sec. 3(a) record retention</div></div></div>
+    <div class="table-wrap"><table><thead><tr><th>ID</th><th>Employee</th><th>Type</th><th>Status</th><th>Archived on</th></tr></thead><tbody id="archiveBody"></tbody></table></div>
+  </section>
+
+  <!-- SETTINGS -->
+  <section id="tab-settings" class="hidden">
+    <div class="section-head"><div><h2>Settings</h2><div class="sub">User accounts, holiday list, FCRC locations, and deadline email reminders</div></div></div>
+
+    <div class="panel panel-pad" style="margin-bottom:24px;" id="userAccountsPanel">
+      <div style="display:flex;justify-content:space-between;align-items:baseline;flex-wrap:wrap;gap:10px;margin-bottom:14px;">
+        <h3 style="font-family:var(--serif);color:var(--green-1);margin:0;font-size:17px;">User accounts</h3>
+        <button class="btn btn-secondary" id="manageUsersBtn">Manage users</button>
+      </div>
+      <p style="font-size:13px;color:var(--grey);margin:0;">Each steward signs in with their own username and password. Currently <b id="userCount">0</b> account(s) set up.</p>
+    </div>
+
+    <div class="panel panel-pad" style="margin-bottom:24px;">
+      <div style="display:flex;justify-content:space-between;align-items:baseline;flex-wrap:wrap;gap:10px;margin-bottom:14px;">
+        <h3 style="font-family:var(--serif);color:var(--green-1);margin:0;font-size:17px;">Holiday list</h3>
+        <button class="btn btn-secondary" id="manageHolidaysBtn">Edit holidays</button>
+      </div>
+      <p style="font-size:13px;color:var(--grey);margin:0;">These dates are excluded from every working-day deadline calculation (Art. V Sec. 2). Currently <b id="holidayCount">0</b> holidays loaded.</p>
+    </div>
+
+    <div class="panel panel-pad" style="margin-bottom:24px;">
+      <div style="display:flex;justify-content:space-between;align-items:baseline;flex-wrap:wrap;gap:10px;margin-bottom:14px;">
+        <h3 style="font-family:var(--serif);color:var(--green-1);margin:0;font-size:17px;">FCRC / work locations</h3>
+        <button class="btn btn-secondary" id="manageLocationsBtn">Edit locations</button>
+      </div>
+      <p style="font-size:13px;color:var(--grey);margin:0;">The list of offices shown in the FCRC / Work Location dropdown on the Intake Form. Currently <b id="locationCount">0</b> locations.</p>
+    </div>
+
+    <div class="panel panel-pad" style="margin-bottom:24px;" id="otherListsPanel">
+      <h3 style="font-family:var(--serif);color:var(--green-1);margin:0 0 6px;font-size:17px;">Other dropdown lists</h3>
+      <p style="font-size:13px;color:var(--grey);margin:6px 0 16px;">These fill the dropdown menus on the Intake Form and elsewhere. Add, rename, or remove entries as your contract or local's needs change.</p>
+      <div style="display:flex;flex-direction:column;gap:10px;" id="otherListsRows"></div>
+    </div>
+
+
+    <div class="panel panel-pad">
+      <h3 style="font-family:var(--serif);color:var(--green-1);margin:0 0 6px;font-size:17px;">Deadline email reminders</h3>
+      <p style="font-size:13px;color:var(--grey);margin:6px 0 14px;">Every day, the system checks for grievance deadlines coming up within 3 days and emails each affected steward a summary.</p>
+
+      <div id="emailStatusBox" style="padding:12px 16px;border-radius:6px;font-size:13px;margin-bottom:14px;"></div>
+
+      <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:18px;">
+        <button class="btn btn-primary" id="runEmailCheckBtn">Run deadline check now</button>
+        <button class="btn btn-ghost" id="viewEmailLogBtn">View recent runs</button>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer class="app-foot">AFSCME Council 31 &middot; Division of Family &amp; Community Services, IDHS &middot; Master Contract 2023&ndash;2027<br>Developed by Hazem Albassam</footer>
+
+<div class="modal-overlay" id="activityModalOverlay">
+  <div class="modal">
+    <div class="modal-head"><span>&#128221;</span><h3>Log activity</h3></div>
+    <div class="modal-body">
+      <div class="form-grid" style="gap:14px;">
+        <div class="field wide"><label>Grievance ID</label><select id="actGid"></select></div>
+        <div class="field"><label>Date</label><input type="date" id="actDate"></div>
+        <div class="field"><label>Entered by</label><select id="actSteward"></select></div>
+        <div class="field wide"><label>Activity type</label><select id="actType"></select></div>
+        <div class="field wide"><label>Notes</label><textarea id="actNotes"></textarea></div>
+        <div class="field"><label>Follow-up needed?</label><select id="actFollowup"><option value="No">No</option><option value="Yes">Yes</option></select></div>
+        <div class="field"><label>Follow-up date</label><input type="date" id="actFollowupDate"></div>
+      </div>
+    </div>
+    <div class="modal-foot"><button class="btn btn-ghost" id="actCancelBtn">Cancel</button><button class="btn btn-primary" id="actSaveBtn">Save activity</button></div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="archiveModalOverlay">
+  <div class="modal modal-amber">
+    <div class="modal-head"><span>&#128193;</span><h3>Archive closed grievances</h3></div>
+    <div class="modal-body" id="archiveModalBody"></div>
+    <div class="modal-foot"><button class="btn btn-ghost" id="archiveCancelBtn">Cancel</button><button class="btn btn-primary" id="archiveConfirmBtn">Archive now</button></div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="detailModalOverlay">
+  <div class="modal">
+    <div class="modal-head"><span>&#128203;</span><h3 id="detailTitle">Grievance detail</h3></div>
+    <div class="modal-body" id="detailBody"></div>
+    <div class="modal-foot"><button class="btn btn-secondary" id="detailPrintBtn">Print</button><button class="btn btn-secondary" id="detailEditBtn">Edit in form</button><button class="btn btn-ghost" id="detailCloseBtn">Close</button></div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="stewardsModalOverlay">
+  <div class="modal" style="max-width:640px;">
+    <div class="modal-head"><span>&#128101;</span><h3>Manage stewards</h3></div>
+    <div class="modal-body">
+      <p style="margin-top:0;color:var(--grey);font-size:13px;">Add, edit, or remove stewards below. Removing a steward here does <b>not</b> delete any grievances already assigned to them &mdash; it only removes them from the dropdown for future entries.</p>
+      <div id="stewardRows" style="display:flex;flex-direction:column;gap:10px;margin-top:14px;"></div>
+      <button class="btn btn-ghost" id="addStewardRowBtn" style="margin-top:6px;">+ Add another steward</button>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost" id="stewardsCancelBtn">Cancel</button>
+      <button class="btn btn-primary" id="stewardsSaveBtn">Save changes</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="holidaysModalOverlay">
+  <div class="modal" style="max-width:640px;">
+    <div class="modal-head"><span>&#128197;</span><h3>Manage holiday list</h3></div>
+    <div class="modal-body">
+      <p style="margin-top:0;color:var(--grey);font-size:13px;">These dates are skipped in every working-day deadline calculation (Art. V Sec. 2). Add your local's specific holidays or adjust observed dates as needed.</p>
+      <div id="holidayRows" style="display:flex;flex-direction:column;gap:10px;margin-top:14px;max-height:360px;overflow-y:auto;"></div>
+      <button class="btn btn-ghost" id="addHolidayRowBtn" style="margin-top:6px;">+ Add another holiday</button>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost" id="holidaysCancelBtn">Cancel</button>
+      <button class="btn btn-primary" id="holidaysSaveBtn">Save changes</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="locationsModalOverlay">
+  <div class="modal" style="max-width:640px;">
+    <div class="modal-head"><span>&#127968;</span><h3>Manage FCRC / work locations</h3></div>
+    <div class="modal-body">
+      <p style="margin-top:0;color:var(--grey);font-size:13px;">The list of offices stewards can select on the Intake Form. Add, rename, or remove locations as your local's offices change.</p>
+      <div id="locationRows" style="display:flex;flex-direction:column;gap:10px;margin-top:14px;max-height:360px;overflow-y:auto;"></div>
+      <button class="btn btn-ghost" id="addLocationRowBtn" style="margin-top:6px;">+ Add another location</button>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost" id="locationsCancelBtn">Cancel</button>
+      <button class="btn btn-primary" id="locationsSaveBtn">Save changes</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="genericListModalOverlay">
+  <div class="modal" style="max-width:640px;">
+    <div class="modal-head"><span id="genericListIcon">&#128203;</span><h3 id="genericListTitle">Manage list</h3></div>
+    <div class="modal-body">
+      <p id="genericListDesc" style="margin-top:0;color:var(--grey);font-size:13px;"></p>
+      <div id="genericListRows" style="display:flex;flex-direction:column;gap:10px;margin-top:14px;max-height:360px;overflow-y:auto;"></div>
+      <button class="btn btn-ghost" id="addGenericListRowBtn" style="margin-top:6px;">+ Add another</button>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost" id="genericListCancelBtn">Cancel</button>
+      <button class="btn btn-primary" id="genericListSaveBtn">Save changes</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="emailLogModalOverlay">
+  <div class="modal" style="max-width:600px;">
+    <div class="modal-head"><span>&#128231;</span><h3>Recent deadline email runs</h3></div>
+    <div class="modal-body" id="emailLogBody" style="max-height:50vh;overflow-y:auto;"></div>
+    <div class="modal-foot"><button class="btn btn-ghost" id="emailLogCloseBtn">Close</button></div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="usersModalOverlay">
+  <div class="modal" style="max-width:680px;">
+    <div class="modal-head"><span>&#128272;</span><h3>Manage user accounts</h3></div>
+    <div class="modal-body">
+      <p style="margin-top:0;color:var(--grey);font-size:13px;">Each row is one login. Leave the password field blank when editing an existing user to keep their current password unchanged. Usernames cannot be changed once created &mdash; delete and re-add instead.</p>
+      <div id="userRows" style="display:flex;flex-direction:column;gap:12px;margin-top:14px;max-height:380px;overflow-y:auto;"></div>
+      <button class="btn btn-ghost" id="addUserRowBtn" style="margin-top:10px;">+ Add another user</button>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost" id="usersCloseBtn">Close</button>
+      <button class="btn btn-primary" id="usersSaveBtn">Save changes</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast-stack" id="toastStack"></div>
+
+<script>
+/* ===================================================================
+   FCRC GRIEVANCE TRACKER — frontend
+   Talks to the real backend API (server/index.js), which persists to
+   a shared Postgres database (Supabase). Shared by every steward who
+   opens this URL.
+   =================================================================== */
+
+const TERMINAL_STATUSES = ["Settled","Granted","Denied","Withdrawn","Partially Granted"];
+const HOLIDAYS = new Set([
+  "2024-01-01","2024-01-15","2024-02-19","2024-05-27","2024-06-19","2024-07-04","2024-09-02","2024-11-11","2024-11-28","2024-12-25",
+  "2025-01-01","2025-01-20","2025-02-17","2025-05-26","2025-06-19","2025-07-04","2025-09-01","2025-11-11","2025-11-27","2025-12-25",
+  "2026-01-01","2026-01-19","2026-02-16","2026-05-25","2026-06-19","2026-07-03","2026-09-07","2026-11-11","2026-11-26","2026-12-25",
+  "2027-01-01","2027-01-18","2027-05-31","2027-07-05","2027-09-06","2027-11-11","2027-11-25","2027-12-24"
+]);
+
+function toDateLocal(s){ if(!s) return null; const [y,m,d]=s.split('-').map(Number); return new Date(y,m-1,d); }
+function toISO(d){ if(!d) return ""; const y=d.getFullYear(),m=String(d.getMonth()+1).padStart(2,'0'),dd=String(d.getDate()).padStart(2,'0'); return `${y}-${m}-${dd}`; }
+function isHoliday(d){ return HOLIDAYS.has(toISO(d)); }
+function isWeekend(d){ const w=d.getDay(); return w===0||w===6; }
+function workday(startISO, days){
+  let d = toDateLocal(startISO);
+  if(!d) return null;
+  let remaining = Math.abs(days);
+  const step = days >= 0 ? 1 : -1;
+  while(remaining > 0){
+    d = new Date(d.getFullYear(), d.getMonth(), d.getDate()+step);
+    if(!isWeekend(d) && !isHoliday(d)) remaining--;
+  }
+  return d;
+}
+function addCalendarDays(startISO, days){
+  const d = toDateLocal(startISO);
+  if(!d) return null;
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate()+days);
+}
+function fmt(d){ return d ? toISO(d) : ""; }
+function today(){ const t=new Date(); return new Date(t.getFullYear(),t.getMonth(),t.getDate()); }
+function daysBetween(a,b){ return Math.round((b-a)/86400000); }
+function uid(){ return 'a'+Math.random().toString(36).slice(2,10)+Date.now().toString(36); }
+
+let SETUP = {};
+let STATE = { grievances: [], activity: [], archive: [], holidays: [] };
+
+const $ = id => document.getElementById(id);
+function fillSelect(sel, items, withBlank=true){
+  const previousValue = sel.value; // remember what the user had selected
+  sel.innerHTML = (withBlank? '<option value=""></option>' : '') +
+    items.map(v=>`<option value="${escapeHtml(v)}">${escapeHtml(v)}</option>`).join('');
+  // Restore the previous selection if it still exists in the new option list.
+  // This is what stops the background 15-second refresh from silently
+  // resetting every dropdown on the Intake Form while someone is mid-entry.
+  if(previousValue && items.includes(previousValue)){
+    sel.value = previousValue;
+  }
+}
+function escapeHtml(s){ return String(s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function toast(msg, type='ok'){
+  const stack = $('toastStack');
+  const el = document.createElement('div');
+  el.className = 'toast' + (type==='err'?' err':'');
+  el.innerHTML = (type==='err'?'&#9888;&#65039; ':'&#10003; ') + msg;
+  stack.appendChild(el);
+  setTimeout(()=>{ el.style.opacity='0'; el.style.transition='opacity 0.3s'; setTimeout(()=>el.remove(),300); }, 3400);
+}
+
+async function apiGet(){
+  const res = await fetch('/api/data');
+  if(!res.ok) throw new Error('Server returned ' + res.status);
+  return res.json();
+}
+async function apiPost(url, body){
+  const res = await fetch(url, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body) });
+  const json = await res.json();
+  if(!res.ok || json.error) throw new Error(json.error || ('Server returned ' + res.status));
+  return json;
+}
+
+async function refresh(isBackgroundPoll){
+  try{
+    const data = await apiGet();
+    SETUP = data.setup || {};
+    STATE.grievances = data.grievances || [];
+    STATE.activity = data.activity || [];
+    STATE.archive = data.archive || [];
+    STATE.holidays = data.holidays || [];
+    $('connBanner').innerHTML = '';
+
+    // On a silent background poll, don't touch the Intake Form's dropdowns
+    // (or the Activity Log modal's dropdowns) if the steward currently has
+    // unsaved work in progress or a modal open. Rebuilding a <select>'s
+    // option list resets its selected value, which is what caused the
+    // "form clears itself while typing" bug. Manual loads (page open,
+    // after Submit, etc.) always repopulate normally.
+    const formInProgress = !!$('f-gid').value.trim();
+    const modalOpen = document.querySelector('.modal-overlay.show') !== null;
+    if(!isBackgroundPoll || (!formInProgress && !modalOpen)){
+      populateDropdowns();
+    }
+
+    renderAll();
+    renderSettingsCounts();
+  }catch(err){
+    $('connBanner').innerHTML = `<div class="banner banner-red"><b>Connection problem.</b> ${escapeHtml(err.message)} — the server may be waking up, try again in a few seconds.</div>`;
+  }
+}
+
+function populateDropdowns(){
+  fillSelect($('f-job'), SETUP.JobClass||[]);
+  fillSelect($('f-bu'), SETUP.BargainingUnit||[]);
+  fillSelect($('f-shift'), SETUP.Shift||[]);
+  fillSelect($('f-bureau'), SETUP.Bureau||[]);
+  fillSelect($('f-loc'), SETUP.Location||[]);
+  fillSelect($('f-county'), SETUP.County||[]);
+  fillSelect($('f-gtype'), SETUP.GrievanceType||[]);
+  fillSelect($('f-article'), SETUP.Article||[]);
+  fillSelect($('f-steward'), SETUP.Steward||[]);
+  fillSelect($('f-status'), SETUP.Status||[]);
+  fillSelect($('actSteward'), SETUP.Steward||[], false);
+  fillSelect($('actType'), SETUP.ActivityType||[], false);
+}
+
+$('f-steward')?.addEventListener('change', e=>{
+  const idx = (SETUP.Steward||[]).indexOf(e.target.value);
+  $('stewardEmailBox').textContent = idx>=0 ? (SETUP.StewardEmail||[])[idx] : "Select a steward";
+});
+
+function recalcDeadlines(){
+  const awareness = $('f-awareness').value;
+  const s1filed = $('f-step1filed').value;
+  const s1resp = $('f-step1resp').value;
+  const s2filed = $('f-step2filed').value;
+  const s2resp = $('f-step2resp').value;
+  const s3filed = $('f-step3filed').value;
+  const s3resp = $('f-step3resp').value;
+
+  // Step 1 Response Due (10 WD from Step 1 filed) — computed once, reused below
+  const step1Due = s1filed ? workday(s1filed, 10) : null;
+
+  // Step 2 Filing Deadline: 5 WD from Step 1's ANSWER (actual response if
+  // given, otherwise the due date itself — per the auto-advance rule when
+  // management never responds). This was previously (incorrectly) keyed
+  // off the Step 1 FILED date instead of the response/due date.
+  let step2FilingBasis = null;
+  if(s1resp){
+    step2FilingBasis = s1resp;
+  } else if(step1Due){
+    step2FilingBasis = toISO(step1Due);
+  }
+  const step2FilingDue = step2FilingBasis ? workday(step2FilingBasis, 5) : null;
+
+  // Step 2 Answer Due: 10 WD for the meeting, then 5 WD more for the
+  // written answer — unchanged, this part was already correct.
+  const step2MeetingDue = s2filed ? workday(s2filed, 10) : null;
+  const step2AnswerDue = step2MeetingDue ? workday(toISO(step2MeetingDue), 5) : null;
+
+  // Step 3 Filing Deadline: 15 WD from Step 2's ANSWER (actual response
+  // if given, otherwise the computed answer-due date). Same fix pattern
+  // as Step 2 above — this was previously keyed off the Step 2 FILED date.
+  let step3FilingBasis = null;
+  if(s2resp){
+    step3FilingBasis = s2resp;
+  } else if(step2AnswerDue){
+    step3FilingBasis = toISO(step2AnswerDue);
+  }
+  const step3FilingDue = step3FilingBasis ? workday(step3FilingBasis, 15) : null;
+
+  // Step 3 Sign-Off Due: 10 WD from Step 3 filed — needed as the fallback
+  // basis for Step 4's filing deadline below.
+  const step3SignDue = s3filed ? workday(s3filed, 10) : null;
+
+  // Step 4 Filing Deadline: 15 WD from Step 3's SIGN-OFF (actual response
+  // if given, otherwise the computed sign-off due date). Previously this
+  // was incorrectly keyed off the Step 3 FILED date instead.
+  let step4FilingBasis = null;
+  if(s3resp){
+    step4FilingBasis = s3resp;
+  } else if(step3SignDue){
+    step4FilingBasis = toISO(step3SignDue);
+  }
+  const step4FilingDue = step4FilingBasis ? workday(step4FilingBasis, 15) : null;
+
+  setDl('dl-1', awareness ? fmt(workday(awareness,15)) : '—');
+  setDl('dl-2', step1Due ? fmt(step1Due) : '—');
+  setDl('dl-3', step2FilingDue ? fmt(step2FilingDue) : '—');
+  setDl('dl-4', step2AnswerDue ? fmt(step2AnswerDue) : '—');
+  setDl('dl-5', step3FilingDue ? fmt(step3FilingDue) : '—');
+  setDl('dl-6', step4FilingDue ? fmt(step4FilingDue) : '—');
+
+  const banner = $('filingStatusBanner');
+  if(!awareness){
+    banner.className = 'status-banner status-wait';
+    banner.textContent = 'Enter the awareness date to see the filing window status.';
+  } else if(s1filed){
+    banner.className = 'status-banner status-open';
+    banner.textContent = `Step 1 filed on ${s1filed}.`;
+  } else {
+    const dl = workday(awareness,15);
+    if(dl < today()){
+      banner.className = 'status-banner status-closed';
+      banner.textContent = `Filing window closed — Step 1 deadline was ${fmt(dl)}.`;
+    } else {
+      banner.className = 'status-banner status-open';
+      banner.textContent = `Filing window open — Step 1 must be filed by ${fmt(dl)}.`;
+    }
+  }
+}
+function setDl(id, text){ $(id).textContent = text; }
+['f-awareness','f-step1filed','f-step1resp','f-step2filed','f-step2resp','f-step3filed','f-step3resp','f-step4filed']
+  .forEach(id => $(id)?.addEventListener('change', recalcDeadlines));
+
+$('f-gid')?.addEventListener('input', e=>{
+  const v = e.target.value.trim();
+  const existing = STATE.grievances.find(g=>g.id===v);
+  $('gidNote').textContent = existing ? `Existing record — submitting will UPDATE "${v}" (historic dates are preserved).` : '';
+});
+
+$('intakeForm').addEventListener('submit', e=>{ e.preventDefault(); submitAndClear(); });
+
+async function submitAndClear(){
+  const gid = $('f-gid').value.trim();
+  const name = $('f-name').value.trim();
+  if(!gid){ toast('Grievance ID is required.', 'err'); $('f-gid').focus(); return; }
+  if(!name){ toast('Employee name is required.', 'err'); $('f-name').focus(); return; }
+
+  const existing = STATE.grievances.find(g=>g.id===gid);
+  const isNew = !existing;
+  const stewardIdx = (SETUP.Steward||[]).indexOf($('f-steward').value);
+  const stewardEmail = stewardIdx>=0 ? (SETUP.StewardEmail||[])[stewardIdx] : "";
+
+  const record = {
+    id: gid, employee: name, agency: $('f-agency').value, localNo: $('f-localno').value,
+    jobClass: $('f-job').value, bu: $('f-bu').value, shift: $('f-shift').value,
+    bureau: $('f-bureau').value, location: $('f-loc').value, county: $('f-county').value,
+    steward: $('f-steward').value, stewardEmail, gtype: $('f-gtype').value, article: $('f-article').value,
+    section: $('f-section').value, remedy: $('f-remedy').value, status: $('f-status').value || 'Pending',
+    awareness: $('f-awareness').value, step1filed: $('f-step1filed').value, step1resp: $('f-step1resp').value,
+    step2filed: $('f-step2filed').value, step2resp: $('f-step2resp').value,
+    step3filed: $('f-step3filed').value, step3resp: $('f-step3resp').value, step4filed: $('f-step4filed').value
+  };
+
+  const btn = $('submitBtn');
+  btn.disabled = true; btn.textContent = 'Saving…';
+  try{
+    const result = await apiPost('/api/grievance', record);
+    await apiPost('/api/activity', {
+      id: uid(), gid, date: toISO(today()),
+      type: isNew ? "Step 1 - Oral Grievance Raised with Supervisor" : "Note - General Update",
+      steward: record.steward, step: currentStep(result.record),
+      notes: `Submitted via web form. Status: ${record.status}`,
+      followup: "No", followupDate: ""
+    });
+    toast(isNew ? `Grievance ${gid} added.` : `Grievance ${gid} updated.`);
+    clearForm();
+    await refresh();
+  }catch(err){
+    toast(err.message || 'Could not save — check connection.', 'err');
+  }finally{
+    btn.disabled = false; btn.textContent = 'Submit & clear';
+  }
+}
+
+function clearForm(){
+  ['f-gid','f-name','f-agency','f-localno','f-section','f-remedy'].forEach(id=>$(id).value='');
+  ['f-job','f-bu','f-shift','f-bureau','f-loc','f-county','f-gtype','f-article','f-steward','f-status']
+    .forEach(id=>$(id).value='');
+  ['f-awareness','f-step1filed','f-step1resp','f-step2filed','f-step2resp','f-step3filed','f-step3resp','f-step4filed']
+    .forEach(id=>$(id).value='');
+  $('stewardEmailBox').textContent = 'Select a steward';
+  $('gidNote').textContent = '';
+  recalcDeadlines();
+  $('f-gid').focus();
+}
+$('clearFormBtn').addEventListener('click', clearForm);
+$('clearFormBtn2').addEventListener('click', clearForm);
+
+function deriveDeadlines(rec){
+  const d = {};
+
+  // Step 1 Response Due: 10 WD from Step 1 filed
+  d.step1Due = rec.step1filed ? workday(rec.step1filed,10) : null;
+
+  // Step 2 Filing Deadline: 5 WD from Step 1's answer (actual response if
+  // given, otherwise the due date itself, per the auto-advance rule).
+  let step2FilingBasis = null;
+  if(rec.step1resp){
+    step2FilingBasis = rec.step1resp;
+  } else if(d.step1Due){
+    step2FilingBasis = toISO(d.step1Due);
+  }
+  d.step2FilingDue = step2FilingBasis ? workday(step2FilingBasis, 5) : null;
+
+  // Step 2 Answer Due: 10 WD for the meeting, then 5 WD more for the written answer
+  d.step2MeetingDue = rec.step2filed ? workday(rec.step2filed,10) : null;
+  d.step2AnswerDue = d.step2MeetingDue ? workday(toISO(d.step2MeetingDue),5) : null;
+
+  // Step 3 Filing Deadline: 15 WD from Step 2's answer (actual response if
+  // given, otherwise the computed answer-due date).
+  let step3FilingBasis = null;
+  if(rec.step2resp){
+    step3FilingBasis = rec.step2resp;
+  } else if(d.step2AnswerDue){
+    step3FilingBasis = toISO(d.step2AnswerDue);
+  }
+  d.step3FilingDue = step3FilingBasis ? workday(step3FilingBasis, 15) : null;
+
+  // Step 3 Sign-Off Due: 10 WD from Step 3 filed
+  d.step3SignDue = rec.step3filed ? workday(rec.step3filed,10) : null;
+
+  // Step 4 Filing Deadline: 15 WD from Step 3's sign-off (actual response
+  // if given, otherwise the computed sign-off due date).
+  let step4FilingBasis = null;
+  if(rec.step3resp){
+    step4FilingBasis = rec.step3resp;
+  } else if(d.step3SignDue){
+    step4FilingBasis = toISO(d.step3SignDue);
+  }
+  d.step4FilingDue = step4FilingBasis ? workday(step4FilingBasis, 15) : null;
+
+  d.arbHearingDue = rec.step4filed ? addCalendarDays(rec.step4filed,60) : null;
+  d.arbDecisionDue = d.arbHearingDue ? addCalendarDays(toISO(d.arbHearingDue),30) : null;
+  return d;
+}
+function currentStep(rec){
+  if(rec.step4filed) return "Step 4 / Arbitration";
+  if(rec.step3filed) return "Step 3 — Agency Head";
+  if(rec.step2filed) return "Step 2 — Intermediate Admin";
+  if(rec.step1filed) return "Step 1 — Immediate Supervisor";
+  return "Intake";
+}
+function isResolved(rec){ return TERMINAL_STATUSES.includes(rec.status); }
+function isOverdue(rec){
+  if(isResolved(rec)) return false;
+  const d = deriveDeadlines(rec);
+  const t = today();
+  if(d.step1Due && !rec.step1resp && d.step1Due < t) return true;
+  if(d.step2AnswerDue && !rec.step2resp && d.step2AnswerDue < t) return true;
+  if(d.step3SignDue && !rec.step3resp && d.step3SignDue < t) return true;
+  if(d.arbHearingDue && !rec.arbResult && d.arbHearingDue < t) return true;
+  return false;
+}
+function nextDeadline(rec){
+  if(isResolved(rec)) return null;
+  const d = deriveDeadlines(rec);
+  const candidates = [];
+  if(d.step1Due && !rec.step1resp) candidates.push(d.step1Due);
+  if(d.step2AnswerDue && !rec.step2resp) candidates.push(d.step2AnswerDue);
+  if(d.step3SignDue && !rec.step3resp) candidates.push(d.step3SignDue);
+  if(d.arbHearingDue && !rec.arbResult) candidates.push(d.arbHearingDue);
+  if(!candidates.length) return null;
+  return candidates.reduce((a,b)=> a<b?a:b);
+}
+function daysSinceFiled(rec){
+  if(!rec.step1filed) return null;
+  return daysBetween(toDateLocal(rec.step1filed), today());
+}
+function rowClass(rec){
+  if(isOverdue(rec)) return 'row-red';
+  if(isResolved(rec)) return 'row-green';
+  const nd = nextDeadline(rec);
+  if(nd && daysBetween(today(), nd) <= 7 && daysBetween(today(), nd) >= 0) return 'row-amber';
+  return '';
+}
+function cbaRef(rec){
+  if(!rec.article) return '';
+  return rec.section ? `${rec.article} \u00a7 ${rec.section}` : rec.article;
+}
+
+function renderDashboard(){
+  const active = STATE.grievances.filter(g=>!isResolved(g));
+  const overdue = active.filter(isOverdue);
+  const soon = active.filter(g=>{ const nd=nextDeadline(g); if(!nd) return false; const diff=daysBetween(today(),nd); return diff>=0 && diff<=7; });
+  const arb = STATE.grievances.filter(g=>g.status==='Pending Arbitration'||g.status==='Arbitration Scheduled');
+
+  $('kpiPending').textContent = active.length;
+  $('kpiOverdue').textContent = overdue.length;
+  $('kpiSoon').textContent = soon.length;
+  $('kpiArb').textContent = arb.length;
+  $('navOverdueCount').textContent = overdue.length;
+  $('navOverdueCount').classList.toggle('alert', overdue.length>0);
+
+  const sorted = [...active].sort((a,b)=>{
+    const na = nextDeadline(a), nb = nextDeadline(b);
+    if(!na && !nb) return 0; if(!na) return 1; if(!nb) return -1;
+    return na-nb;
+  });
+
+  const body = $('dashboardBody');
+  if(!sorted.length){
+    body.innerHTML = `<tr><td colspan="8"><div class="empty-state"><div class="icon">&#128203;</div><h3>No active grievances</h3><p>Submit a new grievance from the Intake Form to see it here.</p></div></td></tr>`;
+    return;
+  }
+  body.innerHTML = sorted.map(rec=>{
+    const nd = nextDeadline(rec);
+    const days = daysSinceFiled(rec);
+    return `<tr class="${rowClass(rec)}">
+      <td><a class="row-link" data-gid="${escapeHtml(rec.id)}">${escapeHtml(rec.id)}</a></td>
+      <td>${escapeHtml(rec.employee||'')}</td>
+      <td>${escapeHtml(rec.gtype||'')}</td>
+      <td>${escapeHtml(cbaRef(rec))}</td>
+      <td>${escapeHtml(currentStep(rec))}</td>
+      <td>${nd?fmt(nd):'—'}</td>
+      <td><span class="pill ${rec.status==='Pending Arbitration'?'pill-arb':'pill-pending'}">${escapeHtml(rec.status||'Pending')}</span></td>
+      <td>${days!==null?days:'—'}</td>
+    </tr>`;
+  }).join('');
+  body.querySelectorAll('.row-link').forEach(a=>a.addEventListener('click', ()=>openDetail(a.dataset.gid)));
+}
+
+function renderLog(){
+  const body = $('logBody');
+  const searchInput = $('logSearchInput');
+  const query = searchInput ? searchInput.value.trim().toLowerCase() : '';
+
+  const filtered = query
+    ? STATE.grievances.filter(rec => {
+        const id = (rec.id || '').toLowerCase();
+        const employee = (rec.employee || '').toLowerCase();
+        const steward = (rec.steward || '').toLowerCase();
+        return id.includes(query) || employee.includes(query) || steward.includes(query);
+      })
+    : STATE.grievances;
+
+  if(!STATE.grievances.length){
+    body.innerHTML = `<tr><td colspan="15"><div class="empty-state"><div class="icon">&#128193;</div><h3>Log is empty</h3><p>Records appear here after you submit the Intake Form.</p></div></td></tr>`;
+    return;
+  }
+  if(!filtered.length){
+    body.innerHTML = `<tr><td colspan="15"><div class="empty-state"><div class="icon">&#128269;</div><h3>No matches</h3><p>No grievances match "${escapeHtml(searchInput.value.trim())}". Try a different employee name, grievance ID, or steward.</p></div></td></tr>`;
+    return;
+  }
+  body.innerHTML = filtered.slice().reverse().map(rec=>{
+    const d = deriveDeadlines(rec);
+    return `<tr class="${rowClass(rec)}">
+      <td><a class="row-link" data-gid="${escapeHtml(rec.id)}">${escapeHtml(rec.id)}</a></td>
+      <td>${escapeHtml(rec.employee||'')}</td><td>${escapeHtml(rec.jobClass||'')}</td>
+      <td>${escapeHtml(rec.bureau||'')}</td><td>${escapeHtml(rec.location||'')}</td>
+      <td>${escapeHtml(rec.steward||'')}</td><td>${escapeHtml(rec.gtype||'')}</td>
+      <td><span class="pill ${isResolved(rec)?'pill-resolved':'pill-pending'}">${escapeHtml(rec.status||'')}</span></td>
+      <td>${escapeHtml(currentStep(rec))}</td>
+      <td>${rec.step1filed||''}</td><td>${d.step1Due?fmt(d.step1Due):''}</td>
+      <td>${rec.step2filed||''}</td><td>${rec.step3filed||''}</td>
+      <td>${daysSinceFiled(rec)??''}</td>
+      <td><button class="btn-tiny" data-gid="${escapeHtml(rec.id)}">View</button></td>
+    </tr>`;
+  }).join('');
+  body.querySelectorAll('.row-link, button[data-gid]').forEach(el=>el.addEventListener('click', ()=>openDetail(el.dataset.gid)));
+}
+
+$('logSearchInput').addEventListener('input', ()=>renderLog());
+
+function renderActivity(){
+  const list = $('activityList');
+  if(!STATE.activity.length){
+    list.innerHTML = `<div class="empty-state"><div class="icon">&#128221;</div><h3>No activity logged yet</h3><p>Click "+ Log activity" to record meetings, documents, and communications.</p></div>`;
+    return;
+  }
+  list.innerHTML = STATE.activity.slice().reverse().map(a=>{
+    const followBadge = a.followup==='Yes' ? `<span class="followup-flag">Follow up ${a.followupDate||''}</span>` : '';
+    return `<div class="activity-item">
+      <div class="activity-date">${a.date}</div>
+      <div><span class="a-type">${escapeHtml(a.type)}</span><span class="a-gid">${escapeHtml(a.gid)}</span>
+      <div class="a-notes">${escapeHtml(a.notes||'')}</div>
+      <div class="a-meta">${escapeHtml(a.steward||'')} &middot; ${escapeHtml(a.step||'')}</div></div>
+      <div>${followBadge}</div>
+    </div>`;
+  }).join('');
+}
+
+$('addActivityBtn').addEventListener('click', ()=>{
+  fillSelect($('actGid'), STATE.grievances.map(g=>g.id), false);
+  $('actDate').value = toISO(today());
+  $('actNotes').value = '';
+  $('actFollowup').value = 'No';
+  $('actFollowupDate').value = '';
+  $('activityModalOverlay').classList.add('show');
+});
+$('actCancelBtn').addEventListener('click', ()=>$('activityModalOverlay').classList.remove('show'));
+$('actSaveBtn').addEventListener('click', async ()=>{
+  const gid = $('actGid').value;
+  if(!gid){ toast('Select a grievance ID.', 'err'); return; }
+  const rec = STATE.grievances.find(g=>g.id===gid);
+  try{
+    await apiPost('/api/activity', {
+      id: uid(), gid, date: $('actDate').value || toISO(today()),
+      type: $('actType').value, steward: $('actSteward').value,
+      step: rec?currentStep(rec):'', notes: $('actNotes').value,
+      followup: $('actFollowup').value, followupDate: $('actFollowupDate').value
+    });
+    $('activityModalOverlay').classList.remove('show');
+    toast('Activity logged.');
+    await refresh();
+  }catch(err){ toast(err.message, 'err'); }
+});
+
+function renderWorkload(){
+  const grid = $('stewardGrid');
+  const stewards = SETUP.Steward || [];
+  grid.innerHTML = stewards.map(name=>{
+    const mine = STATE.grievances.filter(g=>g.steward===name);
+    const active = mine.filter(g=>!isResolved(g));
+    const overdue = active.filter(isOverdue);
+    const resolved = mine.filter(isResolved);
+    const atStep1 = active.filter(g=>currentStep(g).startsWith('Step 1')).length;
+    const atStep2 = active.filter(g=>currentStep(g).startsWith('Step 2')).length;
+    const atStep3 = active.filter(g=>currentStep(g).startsWith('Step 3')).length;
+    const atArb = mine.filter(g=>g.status==='Pending Arbitration'||g.status==='Arbitration Scheduled').length;
+
+    let alertHtml;
+    if(overdue.length>0) alertHtml = `<span class="s-alert alert-overdue">${overdue.length} overdue</span>`;
+    else if(active.length>10) alertHtml = `<span class="s-alert alert-highload">High load</span>`;
+    else alertHtml = `<span class="s-alert alert-ok">On track</span>`;
+
+    return `<div class="steward-card ${overdue.length>0?'has-overdue':''}">
+      <div class="s-name">${escapeHtml(name)}</div>
+      <div class="s-stats">
+        <div class="s-stat"><b>${active.length}</b><span>Active</span></div>
+        <div class="s-stat"><b>${atStep1}</b><span>Step 1</span></div>
+        <div class="s-stat"><b>${atStep2}</b><span>Step 2</span></div>
+        <div class="s-stat"><b>${atStep3}</b><span>Step 3</span></div>
+        <div class="s-stat"><b>${atArb}</b><span>Arb</span></div>
+        <div class="s-stat"><b>${resolved.length}</b><span>Resolved</span></div>
+      </div>${alertHtml}
+    </div>`;
+  }).join('');
+
+  const bureauBody = $('bureauBody');
+  bureauBody.innerHTML = (SETUP.Bureau||[]).map(b=>{
+    const active = STATE.grievances.filter(g=>g.bureau===b && !isResolved(g));
+    const overdue = active.filter(isOverdue);
+    return `<tr><td>${escapeHtml(b)}</td><td>${active.length}</td><td>${overdue.length}</td></tr>`;
+  }).join('') || `<tr><td colspan="3" style="color:var(--grey);text-align:center;">No data</td></tr>`;
+
+  const locBody = $('locationBody');
+  const activeLocs = (SETUP.Location||[]).filter(loc => STATE.grievances.some(g=>g.location===loc && !isResolved(g)));
+  locBody.innerHTML = activeLocs.map(loc=>{
+    const active = STATE.grievances.filter(g=>g.location===loc && !isResolved(g));
+    const overdue = active.filter(isOverdue);
+    return `<tr><td>${escapeHtml(loc)}</td><td>${active.length}</td><td>${overdue.length}</td></tr>`;
+  }).join('') || `<tr><td colspan="3" style="color:var(--grey);text-align:center;">No data</td></tr>`;
+}
+
+$('archiveClosedBtn').addEventListener('click', ()=>{
+  const eligible = STATE.grievances.filter(isResolved);
+  $('archiveModalBody').innerHTML = eligible.length
+    ? `This will move <b>${eligible.length}</b> grievance(s) marked Settled, Granted, Denied, Withdrawn, or Partially Granted to the Archive tab.`
+    : `No closed grievances to archive right now.`;
+  $('archiveConfirmBtn').disabled = eligible.length===0;
+  $('archiveModalOverlay').classList.add('show');
+});
+$('archiveCancelBtn').addEventListener('click', ()=>$('archiveModalOverlay').classList.remove('show'));
+$('archiveConfirmBtn').addEventListener('click', async ()=>{
+  try{
+    const result = await apiPost('/api/archive', {});
+    $('archiveModalOverlay').classList.remove('show');
+    toast(`${result.archivedCount} grievance(s) archived.`);
+    await refresh();
+  }catch(err){ toast(err.message, 'err'); }
+});
+
+function renderArchive(){
+  const body = $('archiveBody');
+  if(!STATE.archive.length){
+    body.innerHTML = `<tr><td colspan="5"><div class="empty-state"><div class="icon">&#128193;</div><h3>Archive is empty</h3><p>Closed grievances appear here after you run Archive closed.</p></div></td></tr>`;
+    return;
+  }
+  body.innerHTML = STATE.archive.slice().reverse().map(rec=>`<tr>
+    <td>${escapeHtml(rec.id)}</td><td>${escapeHtml(rec.employee||'')}</td>
+    <td>${escapeHtml(rec.gtype||'')}</td><td>${escapeHtml(rec.status||'')}</td>
+    <td>${rec.archivedAt||''}</td>
+  </tr>`).join('');
+}
+
+function openDetail(gid){
+  const rec = STATE.grievances.find(g=>g.id===gid) || STATE.archive.find(g=>g.id===gid);
+  if(!rec) return;
+  $('detailTitle').textContent = `Grievance ${rec.id}`;
+  const d = deriveDeadlines(rec);
+  $('detailBody').innerHTML = `
+    <p><b>Employee:</b> ${escapeHtml(rec.employee||'')} &middot; <b>Job class:</b> ${escapeHtml(rec.jobClass||'')}</p>
+    <p><b>Bureau:</b> ${escapeHtml(rec.bureau||'')} &middot; <b>Location:</b> ${escapeHtml(rec.location||'')} &middot; <b>County:</b> ${escapeHtml(rec.county||'')}</p>
+    <p><b>Steward:</b> ${escapeHtml(rec.steward||'')} (${escapeHtml(rec.stewardEmail||'')})</p>
+    <p><b>Type:</b> ${escapeHtml(rec.gtype||'')}</p>
+    <p><b>CBA reference:</b> ${escapeHtml(cbaRef(rec))}</p>
+    <p><b>Remedy sought:</b> ${escapeHtml(rec.remedy||'—')}</p>
+    <p><b>Status:</b> ${escapeHtml(rec.status||'')} &middot; <b>Current step:</b> ${escapeHtml(currentStep(rec))}</p>
+    <hr style="border:none;border-top:1px solid var(--green-line);margin:14px 0;">
+    <p><b>Awareness:</b> ${rec.awareness||'—'} &middot; <b>15-WD deadline:</b> ${rec.awareness?fmt(workday(rec.awareness,15)):'—'}</p>
+    <p><b>Step 1 filed:</b> ${rec.step1filed||'—'} &middot; <b>due:</b> ${d.step1Due?fmt(d.step1Due):'—'} &middot; <b>response:</b> ${rec.step1resp||'—'}</p>
+    <p><b>Step 2 filed:</b> ${rec.step2filed||'—'} &middot; <b>answer due:</b> ${d.step2AnswerDue?fmt(d.step2AnswerDue):'—'} &middot; <b>response:</b> ${rec.step2resp||'—'}</p>
+    <p><b>Step 3 filed:</b> ${rec.step3filed||'—'} &middot; <b>sign-off due:</b> ${d.step3SignDue?fmt(d.step3SignDue):'—'} &middot; <b>response:</b> ${rec.step3resp||'—'}</p>
+    <p><b>Step 4/Arb filed:</b> ${rec.step4filed||'—'} &middot; <b>hearing due:</b> ${d.arbHearingDue?fmt(d.arbHearingDue):'—'}</p>
+  `;
+  $('detailEditBtn').onclick = ()=>{ loadIntoForm(rec); $('detailModalOverlay').classList.remove('show'); switchTab('intake'); };
+  $('detailPrintBtn').onclick = ()=>printGrievance(rec.id);
+  $('detailModalOverlay').classList.add('show');
+}
+$('detailCloseBtn').addEventListener('click', ()=>$('detailModalOverlay').classList.remove('show'));
+
+/**
+ * Builds a faithful, fillable-by-hand replica of the official
+ * AFSCME / State of Illinois Contract Grievance form into the
+ * hidden #printArea, auto-filled from this grievance's tracker
+ * data, then triggers the browser's print dialog (which on most
+ * systems also offers "Save as PDF"). Everything else on the page
+ * is hidden during printing via the @media print CSS rule, so only
+ * this form appears on paper.
+ *
+ * Signature lines are always left blank for hand-signing — this
+ * tool fills in only what's already known from the case record; it
+ * never fabricates a signature.
+ */
+function printGrievance(gid){
+  const rec = STATE.grievances.find(g=>g.id===gid) || STATE.archive.find(g=>g.id===gid);
+  if(!rec) return;
+
+  const dateRaisedStep1 = rec.step1filed || rec.awareness || '';
+  const statementOfGrievance = [
+    cbaRef(rec) ? `Article/Section violated: ${cbaRef(rec)}` : '',
+    rec.gtype ? `Grievance type: ${rec.gtype}` : '',
+    rec.remedy ? `Remedy requested: ${rec.remedy}` : ''
+  ].filter(Boolean).join('\n\n');
+
+  const relatedActivity = STATE.activity.filter(a=>a.gid===gid).slice().sort((a,b)=>(a.date||'').localeCompare(b.date||''));
+  const activityHtml = relatedActivity.length
+    ? relatedActivity.map(a=>`
+        <div class="pr-activity-item">
+          <span class="pr-activity-date">${escapeHtml(a.date||'')}</span> &middot; ${escapeHtml(a.type||'')} &middot; ${escapeHtml(a.steward||'')}
+          ${a.notes ? `<div style="margin-top:3px;">${escapeHtml(a.notes)}</div>` : ''}
+        </div>`).join('')
+    : `<p style="font-size:12px;color:#666;">No activity logged for this grievance yet.</p>`;
+
+  $('printArea').innerHTML = `
+    <div class="gf-page gf-box">
+
+      <div class="gf-header">
+        <div class="gf-header-left">Council 31<br>AFSCME</div>
+        <div class="gf-header-title">AFSCME / State of Illinois<br><span class="gf-subtitle">CONTRACT GRIEVANCE</span></div>
+        <div class="gf-header-num">${escapeHtml(rec.id||'')}</div>
+      </div>
+
+      <div class="gf-row">
+        <div class="gf-cell" style="flex:1.6;"><span class="gf-label">Employee's Name</span><span class="gf-value">${escapeHtml(rec.employee||'')}</span></div>
+        <div class="gf-cell"><span class="gf-label">Agency</span><span class="gf-value">${escapeHtml(rec.agency||'')}</span></div>
+        <div class="gf-cell"><span class="gf-label">AFSCME Local No.</span><span class="gf-value">${escapeHtml(rec.localNo||'')}</span></div>
+        <div class="gf-cell"><span class="gf-label">Date Raised at Step 1</span><span class="gf-value">${escapeHtml(dateRaisedStep1)}</span></div>
+      </div>
+      <div class="gf-row">
+        <div class="gf-cell" style="flex:1.6;"><span class="gf-label">Job Title</span><span class="gf-value">${escapeHtml(rec.jobClass||'')}</span></div>
+        <div class="gf-cell"><span class="gf-label">RC</span><span class="gf-value">${escapeHtml(rec.bu||'')}</span></div>
+        <div class="gf-cell" style="flex:1.6;"><span class="gf-label">Facility or Office</span><span class="gf-value">${escapeHtml(rec.location||'')}</span></div>
+      </div>
+
+      <div class="gf-section">
+        <div class="gf-section-title">STEP 1 &mdash; Oral Step</div>
+        <div class="gf-sig-row">
+          <div class="gf-sig-line">Signature of immediate supervisor acknowledging discussion of grievance.</div>
+          <div class="gf-sig-line">(Date of Discussion)</div>
+        </div>
+        <div class="gf-sig-row">
+          <div class="gf-sig-line">Signature of employee or union acknowledging discussion of grievance.</div>
+          <div class="gf-sig-line">(Date)</div>
+        </div>
+      </div>
+
+      <div class="gf-section">
+        <div class="gf-section-title">STEP 2 &mdash; (To be submitted within 5 work days after supervisor's answer given or due, whichever occurs first.)</div>
+        <div class="gf-small">Statement of Grievance (Include facts of the complaint, sections of the Agreement violated &mdash; if applicable, and relief requested):</div>
+        <div class="gf-statement-box">${escapeHtml(statementOfGrievance) || '&nbsp;'}</div>
+        <div class="gf-sig-row">
+          <div class="gf-sig-line">Employee</div>
+          <div class="gf-sig-line">AFSCME hereby appeals the grievance to Step 2 (Union Representative) &mdash; (Date): ${escapeHtml(rec.step2filed||'')}</div>
+        </div>
+      </div>
+
+      <div class="gf-section">
+        <div class="gf-small">Date received by Intermediate Administrator or Designee: _________________</div>
+        <div class="gf-small" style="margin-top:8px;">Answer (to be given within 15 working days of receipt &mdash; use attachment if additional space is required). Date settlement meeting held: _________________</div>
+        <div class="gf-statement-box" style="min-height:60px;">&nbsp;</div>
+        <div class="gf-sig-row">
+          <div class="gf-sig-line">Signature (Employer Representative) &mdash; Date</div>
+          <div class="gf-sig-line">Signature (Union Representative) &mdash; Date</div>
+        </div>
+        <div class="gf-small" style="margin-top:6px;">&#9633; Accepted by Union &nbsp;&nbsp;&nbsp; &#9633; Rejected by Union</div>
+      </div>
+
+      <div class="gf-section">
+        <div class="gf-section-title">STEP 3 &mdash; To be submitted to Agency Head (certified mail &mdash; return receipt recommended) within 15 working days after Step 2 answer was given or due, whichever occurs first. Local must send copy to Council 31 (include fact sheets, information and documentation with Union copy only.)</div>
+        <div class="gf-sig-row">
+          <div class="gf-sig-line">AFSCME hereby appeals the grievance to STEP 3 (Union Representative)</div>
+          <div class="gf-sig-line">Date: ${escapeHtml(rec.step3filed||'')}</div>
+        </div>
+      </div>
+
+      <div class="gf-section" style="border-bottom:none;">
+        <div class="gf-section-title">STEP 4 &mdash; To be submitted to Director of Central Management Services within 15 days after Step 3 sign off.</div>
+        <div class="gf-sig-row">
+          <div class="gf-sig-line">AFSCME hereby appeals the grievance to STEP 4 (Union Representative)</div>
+          <div class="gf-sig-line">Date: ${escapeHtml(rec.step4filed||'')}</div>
+        </div>
+      </div>
+
+    </div>
+
+    <h2 style="margin-top:24px;">Activity history (from FCRC Grievance Tracker &mdash; not part of the official form)</h2>
+    ${activityHtml}
+
+    <div class="pr-footer">Auto-filled from the FCRC Grievance Tracker &middot; AFSCME Council 31 &middot; Printed ${fmt(today())}. Signature lines are intentionally left blank for hand-signing.</div>
+  `;
+
+  // A brief delay ensures the browser has painted the new content
+  // into #printArea before the print dialog opens (some browsers
+  // can otherwise grab a snapshot that's a frame too early).
+  setTimeout(()=>window.print(), 50);
+}
+
+function loadIntoForm(rec){
+  $('f-gid').value = rec.id;
+  $('f-name').value = rec.employee||'';
+  $('f-agency').value = rec.agency||'';
+  $('f-localno').value = rec.localNo||'';
+  $('f-job').value = rec.jobClass||'';
+  $('f-bu').value = rec.bu||'';
+  $('f-shift').value = rec.shift||'';
+  $('f-bureau').value = rec.bureau||'';
+  $('f-loc').value = rec.location||'';
+  $('f-county').value = rec.county||'';
+  $('f-gtype').value = rec.gtype||'';
+  $('f-article').value = rec.article||'';
+  $('f-section').value = rec.section||'';
+  $('f-remedy').value = rec.remedy||'';
+  $('f-steward').value = rec.steward||'';
+  $('f-steward').dispatchEvent(new Event('change'));
+  $('f-awareness').value = rec.awareness||'';
+  $('f-step1filed').value = '';
+  $('f-step1resp').value = '';
+  $('f-step2filed').value = '';
+  $('f-step2resp').value = '';
+  $('f-step3filed').value = '';
+  $('f-step3resp').value = '';
+  $('f-step4filed').value = '';
+  $('f-status').value = rec.status||'';
+  $('gidNote').textContent = `Existing record — submitting will UPDATE "${rec.id}" (historic dates are preserved).`;
+  recalcDeadlines();
+}
+
+function switchTab(tab){
+  document.querySelectorAll('section[id^="tab-"]').forEach(s=>s.classList.add('hidden'));
+  $('tab-'+tab).classList.remove('hidden');
+  document.querySelectorAll('.tab-btn').forEach(b=>b.classList.toggle('active', b.dataset.tab===tab));
+  $('tabs').classList.remove('open');
+  window.scrollTo(0,0);
+}
+document.querySelectorAll('.tab-btn').forEach(btn=>{
+  btn.addEventListener('click', ()=>switchTab(btn.dataset.tab));
+});
+$('menuToggle').addEventListener('click', ()=>$('tabs').classList.toggle('open'));
+
+function renderAll(){
+  renderDashboard();
+  renderLog();
+  renderActivity();
+  renderWorkload();
+  renderArchive();
+}
+
+/* ---------- Manage Stewards modal ---------- */
+function renderStewardRows(){
+  const container = $('stewardRows');
+  const names = SETUP.Steward || [];
+  const emails = SETUP.StewardEmail || [];
+  const rows = names.length ? names.map((n,i)=>({name:n, email: emails[i]||''})) : [{name:'',email:''}];
+  container.innerHTML = rows.map((r,i)=>stewardRowHtml(i, r.name, r.email)).join('');
+  attachStewardRowHandlers();
+}
+function stewardRowHtml(idx, name, email){
+  return `<div class="steward-row" data-idx="${idx}" style="display:grid;grid-template-columns:1fr 1fr auto;gap:10px;align-items:center;">
+    <input type="text" class="sr-name" placeholder="Full name" value="${escapeHtml(name)}">
+    <input type="text" class="sr-email" placeholder="email@illinois.gov" value="${escapeHtml(email)}">
+    <button type="button" class="btn-tiny sr-remove" title="Remove this steward">&#10005;</button>
+  </div>`;
+}
+function attachStewardRowHandlers(){
+  $('stewardRows').querySelectorAll('.sr-remove').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      const row = btn.closest('.steward-row');
+      const allRows = $('stewardRows').querySelectorAll('.steward-row');
+      if(allRows.length <= 1){
+        // Keep at least one empty row instead of removing entirely
+        row.querySelector('.sr-name').value = '';
+        row.querySelector('.sr-email').value = '';
+        return;
+      }
+      row.remove();
+    });
+  });
+}
+$('manageStewardsBtn').addEventListener('click', ()=>{
+  renderStewardRows();
+  $('stewardsModalOverlay').classList.add('show');
+});
+$('stewardsCancelBtn').addEventListener('click', ()=>$('stewardsModalOverlay').classList.remove('show'));
+$('addStewardRowBtn').addEventListener('click', ()=>{
+  const container = $('stewardRows');
+  const idx = container.querySelectorAll('.steward-row').length;
+  container.insertAdjacentHTML('beforeend', stewardRowHtml(idx, '', ''));
+  attachStewardRowHandlers();
+});
+$('stewardsSaveBtn').addEventListener('click', async ()=>{
+  const rows = $('stewardRows').querySelectorAll('.steward-row');
+  const stewards = [];
+  const emails = [];
+  rows.forEach(row=>{
+    const name = row.querySelector('.sr-name').value.trim();
+    const email = row.querySelector('.sr-email').value.trim();
+    if(name){ stewards.push(name); emails.push(email); }
+  });
+  if(stewards.length === 0){
+    toast('Add at least one steward before saving.', 'err');
+    return;
+  }
+  const btn = $('stewardsSaveBtn');
+  btn.disabled = true; btn.textContent = 'Saving…';
+  try{
+    await apiPost('/api/setup/stewards', { stewards, emails });
+    toast('Steward list updated.');
+    $('stewardsModalOverlay').classList.remove('show');
+    await refresh();
+  }catch(err){
+    toast(err.message || 'Could not save steward list.', 'err');
+  }finally{
+    btn.disabled = false; btn.textContent = 'Save changes';
+  }
+});
+
+/* ---------- Settings tab: Holiday List management ---------- */
+function holidayRowHtml(idx, date, name){
+  return `<div class="holiday-row" data-idx="${idx}" style="display:grid;grid-template-columns:160px 1fr auto;gap:10px;align-items:center;">
+    <input type="date" class="hr-date" value="${escapeHtml(date)}">
+    <input type="text" class="hr-name" placeholder="Holiday name" value="${escapeHtml(name)}">
+    <button type="button" class="btn-tiny hr-remove" title="Remove this holiday">&#10005;</button>
+  </div>`;
+}
+function attachHolidayRowHandlers(){
+  $('holidayRows').querySelectorAll('.hr-remove').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      const row = btn.closest('.holiday-row');
+      const allRows = $('holidayRows').querySelectorAll('.holiday-row');
+      if(allRows.length <= 1){
+        row.querySelector('.hr-date').value = '';
+        row.querySelector('.hr-name').value = '';
+        return;
+      }
+      row.remove();
+    });
+  });
+}
+function renderHolidayRows(){
+  const container = $('holidayRows');
+  const list = STATE.holidays && STATE.holidays.length ? STATE.holidays : [{date:'',name:''}];
+  container.innerHTML = list.map((h,i)=>holidayRowHtml(i, h.date, h.name)).join('');
+  attachHolidayRowHandlers();
+}
+$('manageHolidaysBtn').addEventListener('click', ()=>{
+  renderHolidayRows();
+  $('holidaysModalOverlay').classList.add('show');
+});
+$('holidaysCancelBtn').addEventListener('click', ()=>$('holidaysModalOverlay').classList.remove('show'));
+$('addHolidayRowBtn').addEventListener('click', ()=>{
+  const container = $('holidayRows');
+  const idx = container.querySelectorAll('.holiday-row').length;
+  container.insertAdjacentHTML('beforeend', holidayRowHtml(idx, '', ''));
+  attachHolidayRowHandlers();
+});
+$('holidaysSaveBtn').addEventListener('click', async ()=>{
+  const rows = $('holidayRows').querySelectorAll('.holiday-row');
+  const holidays = [];
+  rows.forEach(row=>{
+    const date = row.querySelector('.hr-date').value.trim();
+    const name = row.querySelector('.hr-name').value.trim();
+    if(date && name){ holidays.push({date, name}); }
+  });
+  const btn = $('holidaysSaveBtn');
+  btn.disabled = true; btn.textContent = 'Saving…';
+  try{
+    await apiPost('/api/holidays', { holidays });
+    toast('Holiday list updated.');
+    $('holidaysModalOverlay').classList.remove('show');
+    await refresh();
+  }catch(err){
+    toast(err.message || 'Could not save holiday list.', 'err');
+  }finally{
+    btn.disabled = false; btn.textContent = 'Save changes';
+  }
+});
+
+/* ---------- Settings tab: FCRC Location management ---------- */
+function locationRowHtml(idx, name){
+  return `<div class="location-row" data-idx="${idx}" style="display:grid;grid-template-columns:1fr auto;gap:10px;align-items:center;">
+    <input type="text" class="lr-name" placeholder="FCRC / work location name" value="${escapeHtml(name)}">
+    <button type="button" class="btn-tiny lr-remove" title="Remove this location">&#10005;</button>
+  </div>`;
+}
+function attachLocationRowHandlers(){
+  $('locationRows').querySelectorAll('.lr-remove').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      const row = btn.closest('.location-row');
+      const allRows = $('locationRows').querySelectorAll('.location-row');
+      if(allRows.length <= 1){
+        row.querySelector('.lr-name').value = '';
+        return;
+      }
+      row.remove();
+    });
+  });
+}
+function renderLocationRows(){
+  const container = $('locationRows');
+  const list = SETUP.Location && SETUP.Location.length ? SETUP.Location : [''];
+  container.innerHTML = list.map((name,i)=>locationRowHtml(i, name)).join('');
+  attachLocationRowHandlers();
+}
+$('manageLocationsBtn').addEventListener('click', ()=>{
+  renderLocationRows();
+  $('locationsModalOverlay').classList.add('show');
+});
+$('locationsCancelBtn').addEventListener('click', ()=>$('locationsModalOverlay').classList.remove('show'));
+$('addLocationRowBtn').addEventListener('click', ()=>{
+  const container = $('locationRows');
+  const idx = container.querySelectorAll('.location-row').length;
+  container.insertAdjacentHTML('beforeend', locationRowHtml(idx, ''));
+  attachLocationRowHandlers();
+});
+$('locationsSaveBtn').addEventListener('click', async ()=>{
+  const rows = $('locationRows').querySelectorAll('.location-row');
+  const items = [];
+  rows.forEach(row=>{
+    const name = row.querySelector('.lr-name').value.trim();
+    if(name) items.push(name);
+  });
+  if(items.length === 0){
+    toast('Add at least one location before saving.', 'err');
+    return;
+  }
+  const btn = $('locationsSaveBtn');
+  btn.disabled = true; btn.textContent = 'Saving…';
+  try{
+    await apiPost('/api/setup/list', { key: 'Location', items });
+    toast('Location list updated.');
+    $('locationsModalOverlay').classList.remove('show');
+    await refresh();
+  }catch(err){
+    toast(err.message || 'Could not save location list.', 'err');
+  }finally{
+    btn.disabled = false; btn.textContent = 'Save changes';
+  }
+});
+
+/* ---------- Settings tab: generic editor for the remaining dropdown lists ----------
+   Bargaining Unit, Job Class, Shift, Bureau, County, Grievance Type, Article, Status
+   all work exactly like the Location list above (a plain array of strings), so one
+   shared modal + row-editor handles all of them instead of duplicating the same
+   markup and JS eight times over. Each entry below maps to a key in the `setup`
+   object on the server and a label/description shown in the UI. */
+const OTHER_LISTS = [
+  { key:'Status', icon:'&#128202;', label:'Status options', desc:'The list of grievance statuses (Pending, Granted, Denied, Settled, etc.) shown throughout the app.' },
+  { key:'Bureau', icon:'&#127970;', label:'Bureau / program unit', desc:'The bureau or program unit options shown on the Intake Form and dashboard.' },
+  { key:'County', icon:'&#128506;', label:'County', desc:'The county options shown on the Intake Form.' },
+  { key:'BargainingUnit', icon:'&#129309;', label:'Bargaining unit', desc:'The RC bargaining unit options shown on the Intake Form.' },
+  { key:'JobClass', icon:'&#128100;', label:'Job classification', desc:'The job classification / title options shown on the Intake Form.' },
+  { key:'Shift', icon:'&#128336;', label:'Shift', desc:'The shift options shown on the Intake Form.' },
+  { key:'Article', icon:'&#128220;', label:'CBA article violated', desc:'The Master Contract article/section options shown on the Intake Form.' },
+  { key:'GrievanceType', icon:'&#128204;', label:'Grievance type', desc:'The grievance type options shown on the Intake Form.' }
+];
+
+function renderOtherListsButtons(){
+  const container = $('otherListsRows');
+  if(!container) return;
+  container.innerHTML = OTHER_LISTS.map(item=>{
+    const count = (SETUP[item.key]||[]).length;
+    return `<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;padding:10px 12px;border:1px solid var(--green-line);border-radius:6px;">
+      <div><span style="margin-right:8px;">${item.icon}</span><b style="font-size:13.5px;">${escapeHtml(item.label)}</b><span style="color:var(--grey);font-size:12.5px;margin-left:8px;">${count} item(s)</span></div>
+      <button type="button" class="btn btn-secondary other-list-edit-btn" data-key="${item.key}" style="padding:6px 14px;font-size:12.5px;">Edit</button>
+    </div>`;
+  }).join('');
+  container.querySelectorAll('.other-list-edit-btn').forEach(btn=>{
+    btn.addEventListener('click', ()=>openGenericListModal(btn.dataset.key));
+  });
+}
+
+function genericListRowHtml(idx, value){
+  return `<div class="generic-list-row" data-idx="${idx}" style="display:grid;grid-template-columns:1fr auto;gap:10px;align-items:center;">
+    <input type="text" class="glr-value" value="${escapeHtml(value)}">
+    <button type="button" class="btn-tiny glr-remove" title="Remove this entry">&#10005;</button>
+  </div>`;
+}
+function attachGenericListRowHandlers(){
+  $('genericListRows').querySelectorAll('.glr-remove').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      const row = btn.closest('.generic-list-row');
+      const allRows = $('genericListRows').querySelectorAll('.generic-list-row');
+      if(allRows.length <= 1){
+        row.querySelector('.glr-value').value = '';
+        return;
+      }
+      row.remove();
+    });
+  });
+}
+
+let CURRENT_GENERIC_LIST_KEY = null;
+
+function openGenericListModal(key){
+  const cfg = OTHER_LISTS.find(o=>o.key===key);
+  if(!cfg) return;
+  CURRENT_GENERIC_LIST_KEY = key;
+  $('genericListIcon').innerHTML = cfg.icon;
+  $('genericListTitle').textContent = `Manage ${cfg.label.toLowerCase()}`;
+  $('genericListDesc').textContent = cfg.desc;
+
+  const container = $('genericListRows');
+  const list = SETUP[key] && SETUP[key].length ? SETUP[key] : [''];
+  container.innerHTML = list.map((val,i)=>genericListRowHtml(i, val)).join('');
+  attachGenericListRowHandlers();
+
+  $('genericListModalOverlay').classList.add('show');
+}
+
+$('genericListCancelBtn').addEventListener('click', ()=>$('genericListModalOverlay').classList.remove('show'));
+$('addGenericListRowBtn').addEventListener('click', ()=>{
+  const container = $('genericListRows');
+  const idx = container.querySelectorAll('.generic-list-row').length;
+  container.insertAdjacentHTML('beforeend', genericListRowHtml(idx, ''));
+  attachGenericListRowHandlers();
+});
+$('genericListSaveBtn').addEventListener('click', async ()=>{
+  if(!CURRENT_GENERIC_LIST_KEY) return;
+  const cfg = OTHER_LISTS.find(o=>o.key===CURRENT_GENERIC_LIST_KEY);
+  const rows = $('genericListRows').querySelectorAll('.generic-list-row');
+  const items = [];
+  rows.forEach(row=>{
+    const val = row.querySelector('.glr-value').value.trim();
+    if(val) items.push(val);
+  });
+  if(items.length === 0){
+    toast(`Add at least one entry before saving.`, 'err');
+    return;
+  }
+  const btn = $('genericListSaveBtn');
+  btn.disabled = true; btn.textContent = 'Saving…';
+  try{
+    await apiPost('/api/setup/list', { key: CURRENT_GENERIC_LIST_KEY, items });
+    toast(`${cfg ? cfg.label : 'List'} updated.`);
+    $('genericListModalOverlay').classList.remove('show');
+    await refresh();
+  }catch(err){
+    toast(err.message || 'Could not save this list.', 'err');
+  }finally{
+    btn.disabled = false; btn.textContent = 'Save changes';
+  }
+});
+
+/* ---------- Settings tab: Email status & manual run ---------- */
+async function refreshEmailStatus(){
+  try{
+    const res = await fetch('/api/email/status');
+    const data = await res.json();
+    const box = $('emailStatusBox');
+    if(data.emailConfigured){
+      box.style.background = 'var(--ok-bg)';
+      box.style.border = '1px solid #9bcaa8';
+      box.style.color = 'var(--green-1)';
+      box.innerHTML = `<b>&#10003; Configured.</b> Last run: ${data.lastEmailRunDate || 'never yet'}.`;
+    } else {
+      box.style.background = 'var(--amber-bg)';
+      box.style.border = '1px solid var(--amber)';
+      box.style.color = '#6b4d10';
+      box.innerHTML = `<b>Not configured.</b> Set GMAIL_USER and GMAIL_APP_PASSWORD on Render to enable deadline emails.`;
+    }
+    window._emailLogCache = data.emailLog || [];
+  }catch(err){
+    // silent — settings tab isn't critical path
+  }
+}
+$('runEmailCheckBtn').addEventListener('click', async ()=>{
+  const btn = $('runEmailCheckBtn');
+  btn.disabled = true; btn.textContent = 'Running…';
+  try{
+    const res = await fetch('/api/email/run-now', { method:'POST' });
+    const summary = await res.json();
+    if(summary.errors && summary.errors.length){
+      toast(summary.errors[0], 'err');
+    } else {
+      toast(`Sent ${summary.sent} email(s) to ${summary.stewardsNotified.length} steward(s).`);
+    }
+    await refreshEmailStatus();
+  }catch(err){
+    toast('Could not run deadline check.', 'err');
+  }finally{
+    btn.disabled = false; btn.textContent = 'Run deadline check now';
+  }
+});
+$('viewEmailLogBtn').addEventListener('click', ()=>{
+  const log = window._emailLogCache || [];
+  const body = $('emailLogBody');
+  if(!log.length){
+    body.innerHTML = `<div class="empty-state"><div class="icon">&#128231;</div><h3>No runs yet</h3><p>Click "Run deadline check now" or wait for the daily automatic check.</p></div>`;
+  } else {
+    body.innerHTML = log.map(entry=>{
+      const when = new Date(entry.date).toLocaleString();
+      const names = (entry.stewardsNotified||[]).map(s=>`${escapeHtml(s.steward)} (${s.count})`).join(', ') || 'none';
+      const errs = (entry.errors||[]).length ? `<div style="color:var(--red);margin-top:4px;">${entry.errors.map(escapeHtml).join('<br>')}</div>` : '';
+      return `<div style="padding:12px 0;border-bottom:1px solid #ece9dd;">
+        <div style="font-family:var(--mono);font-size:12px;color:var(--grey);">${when}</div>
+        <div style="margin-top:4px;"><b>${entry.sent}</b> email(s) sent &middot; notified: ${names}</div>
+        ${errs}
+      </div>`;
+    }).join('');
+  }
+  $('emailLogModalOverlay').classList.add('show');
+});
+$('emailLogCloseBtn').addEventListener('click', ()=>$('emailLogModalOverlay').classList.remove('show'));
+
+/* ---------- Update settings tab counts whenever data refreshes ---------- */
+function renderSettingsCounts(){
+  $('holidayCount').textContent = (STATE.holidays||[]).length;
+  $('locationCount').textContent = (SETUP.Location||[]).length;
+  $('userCount').textContent = (window._userListCache||[]).length;
+  renderOtherListsButtons();
+}
+
+/* ===================================================================
+   AUTHENTICATION — login screen, session check, logout
+   =================================================================== */
+
+let CURRENT_USER = null;
+
+async function checkSession(){
+  try{
+    const res = await fetch('/api/auth/session');
+    const data = await res.json();
+    return data.user || null;
+  }catch(err){
+    return null;
+  }
+}
+
+function showLoginScreen(){
+  $('loginScreen').classList.remove('hidden');
+  $('mainApp').classList.add('hidden');
+  $('currentUserBadge').classList.add('hidden');
+  $('loginUsername').focus();
+}
+
+function showMainApp(user){
+  CURRENT_USER = user;
+  $('loginScreen').classList.add('hidden');
+  $('mainApp').classList.remove('hidden');
+  if(user && user.username){
+    $('currentUserBadge').classList.remove('hidden');
+    $('currentUserName').textContent = user.displayName || user.username;
+  } else {
+    // Open-access mode (no user accounts created yet)
+    $('currentUserBadge').classList.add('hidden');
+  }
+  applyRoleVisibility(user);
+}
+
+/**
+ * Shows/hides admin-only controls based on the current user's role.
+ * Grievance data, activity logging, and the dashboard stay fully
+ * shared for everyone — this only touches user-account management
+ * and shared configuration (holidays, dropdown lists, steward roster).
+ *
+ * This is a convenience for non-admins (no point showing a button
+ * that will just 403). It is NOT the real security boundary — that
+ * lives server-side in server/index.js, since hiding a button never
+ * stops someone from calling the API directly.
+ */
+function applyRoleVisibility(user){
+  const admin = !!(user && user.role === 'admin');
+  ['manageUsersBtn','manageHolidaysBtn','manageLocationsBtn','manageStewardsBtn'].forEach(id=>{
+    const el = $(id);
+    if(el) el.style.display = admin ? '' : 'none';
+  });
+  const userPanel = $('userAccountsPanel');
+  if(userPanel) userPanel.style.display = admin ? '' : 'none';
+  const otherListsPanel = $('otherListsPanel');
+  if(otherListsPanel) otherListsPanel.style.display = admin ? '' : 'none';
+}
+
+async function attemptLogin(){
+  const username = $('loginUsername').value.trim();
+  const password = $('loginPassword').value;
+  const errBox = $('loginError');
+  errBox.style.display = 'none';
+
+  if(!username || !password){
+    errBox.textContent = 'Enter both a username and password.';
+    errBox.style.display = 'block';
+    return;
+  }
+
+  const btn = $('loginSubmitBtn');
+  btn.disabled = true; btn.textContent = 'Signing in…';
+  try{
+    const res = await fetch('/api/auth/login', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ username, password })
+    });
+    const data = await res.json();
+    if(!res.ok || data.error){
+      errBox.textContent = data.error || 'Could not sign in.';
+      errBox.style.display = 'block';
+      return;
+    }
+    showMainApp(data.user);
+    await bootApp();
+  }catch(err){
+    errBox.textContent = 'Could not reach the server. Try again.';
+    errBox.style.display = 'block';
+  }finally{
+    btn.disabled = false; btn.textContent = 'Sign in';
+  }
+}
+$('loginSubmitBtn').addEventListener('click', attemptLogin);
+$('loginPassword').addEventListener('keydown', e=>{ if(e.key==='Enter') attemptLogin(); });
+$('loginUsername').addEventListener('keydown', e=>{ if(e.key==='Enter') $('loginPassword').focus(); });
+
+$('logoutBtn').addEventListener('click', async ()=>{
+  try{ await fetch('/api/auth/logout', { method:'POST' }); }catch(err){}
+  CURRENT_USER = null;
+  $('loginUsername').value = '';
+  $('loginPassword').value = '';
+  showLoginScreen();
+});
+
+/* ---------- Settings tab: Manage Users ---------- */
+async function loadUserList(){
+  try{
+    const res = await fetch('/api/users');
+    const data = await res.json();
+    window._userListCache = data.users || [];
+  }catch(err){
+    window._userListCache = [];
+  }
+}
+function userRowHtml(idx, username, displayName, isExisting, role, lockRoleAsAdmin){
+  const r = role === 'admin' ? 'admin' : 'steward';
+  return `<div class="user-row" data-idx="${idx}" data-existing="${isExisting?'1':'0'}" style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr auto;gap:10px;align-items:center;">
+    <input type="text" class="ur-username" placeholder="username" value="${escapeHtml(username)}" ${isExisting?'readonly style="background:var(--paper-2);"':''}>
+    <input type="text" class="ur-displayname" placeholder="Full name" value="${escapeHtml(displayName)}">
+    <select class="ur-role" title="Admins can manage users, holidays, and dropdown lists. Stewards have full access to grievances and activity, but not these settings." ${lockRoleAsAdmin?'disabled':''}>
+      <option value="steward" ${r==='steward'?'selected':''}>Steward</option>
+      <option value="admin" ${r==='admin'?'selected':''}>Admin</option>
+    </select>
+    <input type="password" class="ur-password" placeholder="${isExisting?'(unchanged)':'Set password'}" autocomplete="new-password">
+    <button type="button" class="btn-tiny ur-remove" title="${isExisting?'Delete this account':'Remove this row'}">&#10005;</button>
+  </div>`;
+}
+function attachUserRowHandlers(){
+  $('userRows').querySelectorAll('.ur-remove').forEach(btn=>{
+    btn.addEventListener('click', async ()=>{
+      const row = btn.closest('.user-row');
+      const isExisting = row.dataset.existing === '1';
+      const username = row.querySelector('.ur-username').value.trim();
+
+      if(!isExisting){
+        row.remove();
+        return;
+      }
+      if(CURRENT_USER && username.toLowerCase() === CURRENT_USER.username.toLowerCase()){
+        toast("You can't delete the account you're currently logged in as.", 'err');
+        return;
+      }
+      if(!confirm(`Delete the account "${username}"? This cannot be undone.`)) return;
+      try{
+        await apiPost('/api/users/delete', { username });
+        toast('User account deleted.');
+        row.remove();
+        await loadUserList();
+        renderSettingsCounts();
+      }catch(err){
+        toast(err.message || 'Could not delete user.', 'err');
+      }
+    });
+  });
+}
+async function renderUserRows(){
+  await loadUserList();
+  const container = $('userRows');
+  const list = window._userListCache && window._userListCache.length ? window._userListCache : [];
+  if(!list.length){
+    container.innerHTML = userRowHtml(0, '', '', false, 'admin', true); // first-ever account is always admin regardless of selection
+  } else {
+    container.innerHTML = list.map((u,i)=>userRowHtml(i, u.username, u.displayName, true, u.role, false)).join('');
+  }
+  attachUserRowHandlers();
+}
+$('manageUsersBtn').addEventListener('click', async ()=>{
+  await renderUserRows();
+  $('usersModalOverlay').classList.add('show');
+});
+$('usersCloseBtn').addEventListener('click', ()=>$('usersModalOverlay').classList.remove('show'));
+$('addUserRowBtn').addEventListener('click', ()=>{
+  const container = $('userRows');
+  const idx = container.querySelectorAll('.user-row').length;
+  container.insertAdjacentHTML('beforeend', userRowHtml(idx, '', '', false, 'steward', false));
+  attachUserRowHandlers();
+});
+$('usersSaveBtn').addEventListener('click', async ()=>{
+  const rows = $('userRows').querySelectorAll('.user-row');
+  const btn = $('usersSaveBtn');
+  btn.disabled = true; btn.textContent = 'Saving…';
+  let savedCount = 0;
+  let errorMsg = '';
+  const wasOpenAccess = !CURRENT_USER || !CURRENT_USER.username;
+  try{
+    for(const row of rows){
+      const username = row.querySelector('.ur-username').value.trim();
+      const displayName = row.querySelector('.ur-displayname').value.trim();
+      const password = row.querySelector('.ur-password').value;
+      const roleSelect = row.querySelector('.ur-role');
+      const role = roleSelect ? roleSelect.value : 'steward';
+      const isExisting = row.dataset.existing === '1';
+
+      if(!username && !displayName) continue; // skip fully empty rows
+      if(!username){ errorMsg = 'Every user needs a username.'; continue; }
+      if(!displayName){ errorMsg = 'Every user needs a display name.'; continue; }
+      if(!isExisting && !password){ errorMsg = `"${username}" needs a password since it's a new account.`; continue; }
+
+      try{
+        await apiPost('/api/users', { username, displayName, role, password: password || undefined });
+        savedCount++;
+      }catch(rowErr){
+        errorMsg = rowErr.message || `Could not save "${username}".`;
+      }
+    }
+    if(errorMsg && savedCount === 0){
+      toast(errorMsg, 'err');
+    } else if(wasOpenAccess && savedCount > 0){
+      // We just created the FIRST user account ever. The app was running
+      // in open-access mode (no login required), and that free pass is
+      // now gone — every API call from this browser will be rejected
+      // until someone actually signs in. Rather than leave the page in
+      // a broken half-working state, force a clean re-login right now.
+      toast('First user account created. Please sign in to continue.');
+      $('usersModalOverlay').classList.remove('show');
+      CURRENT_USER = null;
+      $('loginUsername').value = '';
+      $('loginPassword').value = '';
+      setTimeout(()=> showLoginScreen(), 900); // brief pause so the toast is visible
+    } else {
+      toast(`${savedCount} user account(s) saved.${errorMsg ? ' (' + errorMsg + ')' : ''}`);
+      $('usersModalOverlay').classList.remove('show');
+      await loadUserList();
+      renderSettingsCounts();
+    }
+  }catch(err){
+    toast(err.message || 'Could not save user accounts.', 'err');
+  }finally{
+    btn.disabled = false; btn.textContent = 'Save changes';
+  }
+});
+
+/* ===================================================================
+   APP BOOTSTRAP — replaces the old unconditional init calls.
+   Checks login state FIRST; only loads the rest of the app's data
+   once we know the user is actually allowed to see it.
+   =================================================================== */
+
+async function bootApp(){
+  recalcDeadlines();
+  await loadUserList();
+  await refresh();
+  await refreshEmailStatus();
+  renderSettingsCounts();
+  $('f-gid').focus();
+}
+
+let pollingStarted = false;
+function startBackgroundPolling(){
+  if(pollingStarted) return;
+  pollingStarted = true;
+  setInterval(()=>refresh(true), 15000); // keep all stewards' views in sync (background poll — preserves in-progress form data)
+  setInterval(()=>refreshEmailStatus(), 60000);
+}
+
+(async function init(){
+  const user = await checkSession();
+  if(user === null){
+    // Either not logged in, or session expired/invalid — show login.
+    // (If no user accounts exist at all yet, checkSession() returns an
+    // "openAccess" user object from the server, not null — see below.)
+    showLoginScreen();
+    return;
+  }
+  showMainApp(user);
+  await bootApp();
+  startBackgroundPolling();
+})();
+</script>
+
+<div id="printArea" class="print-only"></div>
+
+</body>
+</html>
