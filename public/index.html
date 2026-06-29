@@ -162,6 +162,46 @@ tbody tr.row-green{background:var(--ok-bg);}
   .user-row .ur-username,.user-row .ur-displayname{grid-column:span 2;}
 }
 footer.app-foot{text-align:center;color:var(--grey);font-size:11.5px;padding:30px 0 10px;border-top:1px solid var(--green-line);margin-top:40px;}
+
+/* ---------- Print view (single grievance) ----------
+   #printArea is invisible on screen and holds nothing until the
+   Print button populates it. On an actual print/PDF-save, everything
+   else on the page is hidden so only this clean, formatted summary
+   appears on paper. */
+.print-only{display:none;}
+@media print{
+  body > *:not(#printArea){display:none!important;}
+  #printArea{display:block!important;font-family:Georgia,'Times New Roman',serif;color:#000;padding:0;max-width:100%;}
+  #printArea h1{font-size:20px;margin:0 0 4px;}
+  #printArea h2{font-size:15px;margin:18px 0 8px;border-bottom:1px solid #333;padding-bottom:4px;}
+  #printArea .pr-sub{font-size:12px;color:#444;margin-bottom:18px;}
+  #printArea .pr-grid{display:grid;grid-template-columns:1fr 1fr;gap:4px 24px;font-size:12.5px;margin-bottom:6px;}
+  #printArea .pr-grid div{padding:2px 0;}
+  #printArea .pr-grid b{display:inline-block;min-width:120px;}
+  #printArea .pr-activity-item{font-size:12px;border-bottom:1px solid #ddd;padding:6px 0;}
+  #printArea .pr-activity-date{font-weight:600;}
+  #printArea .pr-footer{margin-top:24px;font-size:10.5px;color:#666;border-top:1px solid #333;padding-top:6px;}
+
+  /* ---------- Official AFSCME/State of Illinois Contract Grievance form replica ---------- */
+  #printArea .gf-page{font-size:11px;line-height:1.35;}
+  #printArea .gf-box{border:1.5px solid #000;}
+  #printArea .gf-header{display:flex;justify-content:space-between;align-items:center;border-bottom:1.5px solid #000;padding:8px 10px;}
+  #printArea .gf-header-left{font-size:10px;font-weight:bold;text-align:center;}
+  #printArea .gf-header-title{font-size:15px;font-weight:bold;text-align:center;flex:1;}
+  #printArea .gf-header-title .gf-subtitle{font-size:11px;font-weight:normal;}
+  #printArea .gf-header-num{font-size:16px;font-weight:bold;border:1px solid #000;padding:4px 14px;}
+  #printArea .gf-row{display:flex;border-bottom:1px solid #000;}
+  #printArea .gf-cell{flex:1;border-right:1px solid #000;padding:4px 8px;}
+  #printArea .gf-cell:last-child{border-right:none;}
+  #printArea .gf-cell .gf-label{font-size:8.5px;display:block;}
+  #printArea .gf-cell .gf-value{font-size:11.5px;border-bottom:1px solid #000;display:inline-block;min-width:90%;min-height:14px;}
+  #printArea .gf-section{border-bottom:1.5px solid #000;padding:6px 10px;}
+  #printArea .gf-section-title{font-weight:bold;font-size:11px;margin-bottom:6px;}
+  #printArea .gf-sig-row{display:flex;justify-content:space-between;margin-top:18px;font-size:10px;}
+  #printArea .gf-sig-line{border-top:1px solid #000;width:46%;padding-top:2px;text-align:center;}
+  #printArea .gf-statement-box{border:1px solid #000;min-height:90px;padding:6px 8px;font-size:11px;margin:6px 0;white-space:pre-wrap;}
+  #printArea .gf-small{font-size:9px;color:#333;}
+}
 </style>
 </head>
 <body>
@@ -223,6 +263,8 @@ footer.app-foot{text-align:center;color:var(--grey);font-size:11.5px;padding:30p
           <div class="section-divider"><span class="label">Employee &amp; case identification</span><span class="line"></span></div>
           <div class="field"><label for="f-gid">Grievance ID <span class="req">*</span></label><input type="text" id="f-gid" placeholder="FCRC-2025-001"><div class="field-note" id="gidNote"></div></div>
           <div class="field"><label for="f-name">Employee name <span class="req">*</span></label><input type="text" id="f-name" placeholder="Full name"></div>
+          <div class="field"><label for="f-agency">Agency</label><input type="text" id="f-agency" placeholder="e.g. DHS"></div>
+          <div class="field"><label for="f-localno">AFSCME Local No.</label><input type="text" id="f-localno" placeholder="e.g. 2858"></div>
           <div class="field"><label for="f-job">Job classification</label><select id="f-job"></select></div>
           <div class="field"><label for="f-bu">Bargaining unit</label><select id="f-bu"></select></div>
           <div class="field"><label for="f-shift">Shift</label><select id="f-shift"></select></div>
@@ -295,7 +337,10 @@ footer.app-foot{text-align:center;color:var(--grey);font-size:11.5px;padding:30p
   <section id="tab-log" class="hidden">
     <div class="section-head">
       <div><h2>Grievance Log</h2><div class="sub">Complete master ledger</div></div>
-      <button class="btn btn-secondary" id="archiveClosedBtn">Archive closed</button>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;">
+        <input type="text" id="logSearchInput" placeholder="Search by employee, ID, or steward&hellip;" style="padding:8px 12px;border:1px solid var(--green-line);border-radius:6px;font-family:inherit;font-size:13.5px;min-width:240px;">
+        <button class="btn btn-secondary" id="archiveClosedBtn">Archive closed</button>
+      </div>
     </div>
     <div class="table-wrap"><table><thead><tr><th>ID</th><th>Employee</th><th>Job class</th><th>Bureau</th><th>Location</th><th>Steward</th><th>Type</th><th>Status</th><th>Step</th><th>Step 1 filed</th><th>Step 1 due</th><th>Step 2 filed</th><th>Step 3 filed</th><th>Days open</th><th></th></tr></thead><tbody id="logBody"></tbody></table></div>
   </section>
@@ -409,7 +454,7 @@ footer.app-foot{text-align:center;color:var(--grey);font-size:11.5px;padding:30p
   <div class="modal">
     <div class="modal-head"><span>&#128203;</span><h3 id="detailTitle">Grievance detail</h3></div>
     <div class="modal-body" id="detailBody"></div>
-    <div class="modal-foot"><button class="btn btn-secondary" id="detailEditBtn">Edit in form</button><button class="btn btn-ghost" id="detailCloseBtn">Close</button></div>
+    <div class="modal-foot"><button class="btn btn-secondary" id="detailPrintBtn">Print</button><button class="btn btn-secondary" id="detailEditBtn">Edit in form</button><button class="btn btn-ghost" id="detailCloseBtn">Close</button></div>
   </div>
 </div>
 
@@ -729,7 +774,8 @@ async function submitAndClear(){
   const stewardEmail = stewardIdx>=0 ? (SETUP.StewardEmail||[])[stewardIdx] : "";
 
   const record = {
-    id: gid, employee: name, jobClass: $('f-job').value, bu: $('f-bu').value, shift: $('f-shift').value,
+    id: gid, employee: name, agency: $('f-agency').value, localNo: $('f-localno').value,
+    jobClass: $('f-job').value, bu: $('f-bu').value, shift: $('f-shift').value,
     bureau: $('f-bureau').value, location: $('f-loc').value, county: $('f-county').value,
     steward: $('f-steward').value, stewardEmail, gtype: $('f-gtype').value, article: $('f-article').value,
     section: $('f-section').value, remedy: $('f-remedy').value, status: $('f-status').value || 'Pending',
@@ -760,7 +806,7 @@ async function submitAndClear(){
 }
 
 function clearForm(){
-  ['f-gid','f-name','f-section','f-remedy'].forEach(id=>$(id).value='');
+  ['f-gid','f-name','f-agency','f-localno','f-section','f-remedy'].forEach(id=>$(id).value='');
   ['f-job','f-bu','f-shift','f-bureau','f-loc','f-county','f-gtype','f-article','f-steward','f-status']
     .forEach(id=>$(id).value='');
   ['f-awareness','f-step1filed','f-step1resp','f-step2filed','f-step2resp','f-step3filed','f-step3resp','f-step4filed']
@@ -908,11 +954,27 @@ function renderDashboard(){
 
 function renderLog(){
   const body = $('logBody');
+  const searchInput = $('logSearchInput');
+  const query = searchInput ? searchInput.value.trim().toLowerCase() : '';
+
+  const filtered = query
+    ? STATE.grievances.filter(rec => {
+        const id = (rec.id || '').toLowerCase();
+        const employee = (rec.employee || '').toLowerCase();
+        const steward = (rec.steward || '').toLowerCase();
+        return id.includes(query) || employee.includes(query) || steward.includes(query);
+      })
+    : STATE.grievances;
+
   if(!STATE.grievances.length){
     body.innerHTML = `<tr><td colspan="15"><div class="empty-state"><div class="icon">&#128193;</div><h3>Log is empty</h3><p>Records appear here after you submit the Intake Form.</p></div></td></tr>`;
     return;
   }
-  body.innerHTML = STATE.grievances.slice().reverse().map(rec=>{
+  if(!filtered.length){
+    body.innerHTML = `<tr><td colspan="15"><div class="empty-state"><div class="icon">&#128269;</div><h3>No matches</h3><p>No grievances match "${escapeHtml(searchInput.value.trim())}". Try a different employee name, grievance ID, or steward.</p></div></td></tr>`;
+    return;
+  }
+  body.innerHTML = filtered.slice().reverse().map(rec=>{
     const d = deriveDeadlines(rec);
     return `<tr class="${rowClass(rec)}">
       <td><a class="row-link" data-gid="${escapeHtml(rec.id)}">${escapeHtml(rec.id)}</a></td>
@@ -929,6 +991,8 @@ function renderLog(){
   }).join('');
   body.querySelectorAll('.row-link, button[data-gid]').forEach(el=>el.addEventListener('click', ()=>openDetail(el.dataset.gid)));
 }
+
+$('logSearchInput').addEventListener('input', ()=>renderLog());
 
 function renderActivity(){
   const list = $('activityList');
@@ -1073,13 +1137,133 @@ function openDetail(gid){
     <p><b>Step 4/Arb filed:</b> ${rec.step4filed||'—'} &middot; <b>hearing due:</b> ${d.arbHearingDue?fmt(d.arbHearingDue):'—'}</p>
   `;
   $('detailEditBtn').onclick = ()=>{ loadIntoForm(rec); $('detailModalOverlay').classList.remove('show'); switchTab('intake'); };
+  $('detailPrintBtn').onclick = ()=>printGrievance(rec.id);
   $('detailModalOverlay').classList.add('show');
 }
 $('detailCloseBtn').addEventListener('click', ()=>$('detailModalOverlay').classList.remove('show'));
 
+/**
+ * Builds a faithful, fillable-by-hand replica of the official
+ * AFSCME / State of Illinois Contract Grievance form into the
+ * hidden #printArea, auto-filled from this grievance's tracker
+ * data, then triggers the browser's print dialog (which on most
+ * systems also offers "Save as PDF"). Everything else on the page
+ * is hidden during printing via the @media print CSS rule, so only
+ * this form appears on paper.
+ *
+ * Signature lines are always left blank for hand-signing — this
+ * tool fills in only what's already known from the case record; it
+ * never fabricates a signature.
+ */
+function printGrievance(gid){
+  const rec = STATE.grievances.find(g=>g.id===gid) || STATE.archive.find(g=>g.id===gid);
+  if(!rec) return;
+
+  const dateRaisedStep1 = rec.step1filed || rec.awareness || '';
+  const statementOfGrievance = [
+    cbaRef(rec) ? `Article/Section violated: ${cbaRef(rec)}` : '',
+    rec.gtype ? `Grievance type: ${rec.gtype}` : '',
+    rec.remedy ? `Remedy requested: ${rec.remedy}` : ''
+  ].filter(Boolean).join('\n\n');
+
+  const relatedActivity = STATE.activity.filter(a=>a.gid===gid).slice().sort((a,b)=>(a.date||'').localeCompare(b.date||''));
+  const activityHtml = relatedActivity.length
+    ? relatedActivity.map(a=>`
+        <div class="pr-activity-item">
+          <span class="pr-activity-date">${escapeHtml(a.date||'')}</span> &middot; ${escapeHtml(a.type||'')} &middot; ${escapeHtml(a.steward||'')}
+          ${a.notes ? `<div style="margin-top:3px;">${escapeHtml(a.notes)}</div>` : ''}
+        </div>`).join('')
+    : `<p style="font-size:12px;color:#666;">No activity logged for this grievance yet.</p>`;
+
+  $('printArea').innerHTML = `
+    <div class="gf-page gf-box">
+
+      <div class="gf-header">
+        <div class="gf-header-left">Council 31<br>AFSCME</div>
+        <div class="gf-header-title">AFSCME / State of Illinois<br><span class="gf-subtitle">CONTRACT GRIEVANCE</span></div>
+        <div class="gf-header-num">${escapeHtml(rec.id||'')}</div>
+      </div>
+
+      <div class="gf-row">
+        <div class="gf-cell" style="flex:1.6;"><span class="gf-label">Employee's Name</span><span class="gf-value">${escapeHtml(rec.employee||'')}</span></div>
+        <div class="gf-cell"><span class="gf-label">Agency</span><span class="gf-value">${escapeHtml(rec.agency||'')}</span></div>
+        <div class="gf-cell"><span class="gf-label">AFSCME Local No.</span><span class="gf-value">${escapeHtml(rec.localNo||'')}</span></div>
+        <div class="gf-cell"><span class="gf-label">Date Raised at Step 1</span><span class="gf-value">${escapeHtml(dateRaisedStep1)}</span></div>
+      </div>
+      <div class="gf-row">
+        <div class="gf-cell" style="flex:1.6;"><span class="gf-label">Job Title</span><span class="gf-value">${escapeHtml(rec.jobClass||'')}</span></div>
+        <div class="gf-cell"><span class="gf-label">RC</span><span class="gf-value">${escapeHtml(rec.bu||'')}</span></div>
+        <div class="gf-cell" style="flex:1.6;"><span class="gf-label">Facility or Office</span><span class="gf-value">${escapeHtml(rec.location||'')}</span></div>
+      </div>
+
+      <div class="gf-section">
+        <div class="gf-section-title">STEP 1 &mdash; Oral Step</div>
+        <div class="gf-sig-row">
+          <div class="gf-sig-line">Signature of immediate supervisor acknowledging discussion of grievance.</div>
+          <div class="gf-sig-line">(Date of Discussion)</div>
+        </div>
+        <div class="gf-sig-row">
+          <div class="gf-sig-line">Signature of employee or union acknowledging discussion of grievance.</div>
+          <div class="gf-sig-line">(Date)</div>
+        </div>
+      </div>
+
+      <div class="gf-section">
+        <div class="gf-section-title">STEP 2 &mdash; (To be submitted within 5 work days after supervisor's answer given or due, whichever occurs first.)</div>
+        <div class="gf-small">Statement of Grievance (Include facts of the complaint, sections of the Agreement violated &mdash; if applicable, and relief requested):</div>
+        <div class="gf-statement-box">${escapeHtml(statementOfGrievance) || '&nbsp;'}</div>
+        <div class="gf-sig-row">
+          <div class="gf-sig-line">Employee</div>
+          <div class="gf-sig-line">AFSCME hereby appeals the grievance to Step 2 (Union Representative) &mdash; (Date): ${escapeHtml(rec.step2filed||'')}</div>
+        </div>
+      </div>
+
+      <div class="gf-section">
+        <div class="gf-small">Date received by Intermediate Administrator or Designee: _________________</div>
+        <div class="gf-small" style="margin-top:8px;">Answer (to be given within 15 working days of receipt &mdash; use attachment if additional space is required). Date settlement meeting held: _________________</div>
+        <div class="gf-statement-box" style="min-height:60px;">&nbsp;</div>
+        <div class="gf-sig-row">
+          <div class="gf-sig-line">Signature (Employer Representative) &mdash; Date</div>
+          <div class="gf-sig-line">Signature (Union Representative) &mdash; Date</div>
+        </div>
+        <div class="gf-small" style="margin-top:6px;">&#9633; Accepted by Union &nbsp;&nbsp;&nbsp; &#9633; Rejected by Union</div>
+      </div>
+
+      <div class="gf-section">
+        <div class="gf-section-title">STEP 3 &mdash; To be submitted to Agency Head (certified mail &mdash; return receipt recommended) within 15 working days after Step 2 answer was given or due, whichever occurs first. Local must send copy to Council 31 (include fact sheets, information and documentation with Union copy only.)</div>
+        <div class="gf-sig-row">
+          <div class="gf-sig-line">AFSCME hereby appeals the grievance to STEP 3 (Union Representative)</div>
+          <div class="gf-sig-line">Date: ${escapeHtml(rec.step3filed||'')}</div>
+        </div>
+      </div>
+
+      <div class="gf-section" style="border-bottom:none;">
+        <div class="gf-section-title">STEP 4 &mdash; To be submitted to Director of Central Management Services within 15 days after Step 3 sign off.</div>
+        <div class="gf-sig-row">
+          <div class="gf-sig-line">AFSCME hereby appeals the grievance to STEP 4 (Union Representative)</div>
+          <div class="gf-sig-line">Date: ${escapeHtml(rec.step4filed||'')}</div>
+        </div>
+      </div>
+
+    </div>
+
+    <h2 style="margin-top:24px;">Activity history (from FCRC Grievance Tracker &mdash; not part of the official form)</h2>
+    ${activityHtml}
+
+    <div class="pr-footer">Auto-filled from the FCRC Grievance Tracker &middot; AFSCME Council 31 &middot; Printed ${fmt(today())}. Signature lines are intentionally left blank for hand-signing.</div>
+  `;
+
+  // A brief delay ensures the browser has painted the new content
+  // into #printArea before the print dialog opens (some browsers
+  // can otherwise grab a snapshot that's a frame too early).
+  setTimeout(()=>window.print(), 50);
+}
+
 function loadIntoForm(rec){
   $('f-gid').value = rec.id;
   $('f-name').value = rec.employee||'';
+  $('f-agency').value = rec.agency||'';
+  $('f-localno').value = rec.localNo||'';
   $('f-job').value = rec.jobClass||'';
   $('f-bu').value = rec.bu||'';
   $('f-shift').value = rec.shift||'';
@@ -1762,5 +1946,8 @@ function startBackgroundPolling(){
   startBackgroundPolling();
 })();
 </script>
+
+<div id="printArea" class="print-only"></div>
+
 </body>
 </html>
