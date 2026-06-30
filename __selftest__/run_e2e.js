@@ -249,6 +249,41 @@ async function main() {
   assert.strictEqual(dataAfterStewardAttempt.json.orgSettings.agency, "DHS"); // unchanged
   console.log("✓ POST /api/org-settings is blocked for a steward (403), and the value is correctly unchanged");
 
+  // ---------- Test: POST /api/auth/change-password (available to all logged-in users) ----------
+  // Steward changes their own password with the correct current password.
+  const cpOk = await request(port, "POST", "/api/auth/change-password", {
+    currentPassword: "steward-pw-123",
+    newPassword: "new-steward-pw-456"
+  }, stewardCookie);
+  assert.strictEqual(cpOk.status, 200);
+  console.log("✓ POST /api/auth/change-password succeeds for a steward with the correct current password");
+
+  // Confirm the new password actually works for login.
+  const loginWithNew = await request(port, "POST", "/api/auth/login", { username: "maria", password: "new-steward-pw-456" });
+  assert.strictEqual(loginWithNew.status, 200);
+  console.log("✓ the new password works correctly for login after changing it");
+
+  // Old password should no longer work.
+  const loginWithOld = await request(port, "POST", "/api/auth/login", { username: "maria", password: "steward-pw-123" });
+  assert.strictEqual(loginWithOld.status, 401);
+  console.log("✓ the old password is correctly rejected after a password change");
+
+  // Wrong current password should be rejected.
+  const cpWrongCurrent = await request(port, "POST", "/api/auth/change-password", {
+    currentPassword: "this-is-wrong",
+    newPassword: "anything-new"
+  }, stewardCookie);
+  assert.strictEqual(cpWrongCurrent.status, 401);
+  console.log("✓ change-password correctly rejects a wrong current password");
+
+  // Admin can also change their own password.
+  const cpAdmin = await request(port, "POST", "/api/auth/change-password", {
+    currentPassword: "test-password-123",
+    newPassword: "new-admin-pw-789"
+  }, cookie);
+  assert.strictEqual(cpAdmin.status, 200);
+  console.log("✓ change-password also works for admin accounts");
+
   // ---------- Test: logout invalidates the session ----------
   const logoutRes = await request(port, "POST", "/api/auth/logout", null, cookie);
   assert.strictEqual(logoutRes.status, 200);

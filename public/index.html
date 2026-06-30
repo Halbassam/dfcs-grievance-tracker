@@ -427,6 +427,17 @@ footer.app-foot{text-align:center;color:var(--grey);font-size:11.5px;padding:30p
         <button class="btn btn-ghost" id="viewEmailLogBtn">View recent runs</button>
       </div>
     </div>
+
+    <div class="panel panel-pad" id="changePasswordPanel">
+      <h3 style="font-family:var(--serif);color:var(--green-1);margin:0 0 6px;font-size:17px;">Change my password</h3>
+      <p style="font-size:13px;color:var(--grey);margin:6px 0 14px;">Change the password for your own account. You'll need to enter your current password to confirm.</p>
+      <div style="display:flex;flex-direction:column;gap:10px;max-width:340px;">
+        <div class="field" style="margin:0;"><label for="cpCurrentPw">Current password</label><input type="password" id="cpCurrentPw" autocomplete="current-password"></div>
+        <div class="field" style="margin:0;"><label for="cpNewPw">New password</label><input type="password" id="cpNewPw" autocomplete="new-password"></div>
+        <div class="field" style="margin:0;"><label for="cpConfirmPw">Confirm new password</label><input type="password" id="cpConfirmPw" autocomplete="new-password"></div>
+        <button class="btn btn-primary" id="cpSaveBtn" style="align-self:flex-start;">Change password</button>
+      </div>
+    </div>
   </section>
 </main>
 
@@ -1259,6 +1270,11 @@ function printGrievance(gid){
 function loadIntoForm(rec){
   $('f-gid').value = rec.id;
   $('f-name').value = rec.employee||'';
+
+  // Dropdowns: set the value, then dispatch a change event to trigger
+  // any dependent logic (e.g. steward email display). If the option
+  // doesn't exist yet (SETUP hasn't loaded — rare), the value will
+  // just stay blank; a second call to populateDropdowns will restore it.
   $('f-job').value = rec.jobClass||'';
   $('f-bu').value = rec.bu||'';
   $('f-shift').value = rec.shift||'';
@@ -1269,17 +1285,26 @@ function loadIntoForm(rec){
   $('f-article').value = rec.article||'';
   $('f-section').value = rec.section||'';
   $('f-remedy').value = rec.remedy||'';
+  $('f-status').value = rec.status||'';
+
+  // Steward dropdown needs its change event fired so the email display
+  // updates to match the loaded steward name.
   $('f-steward').value = rec.steward||'';
   $('f-steward').dispatchEvent(new Event('change'));
+
+  // Populate all date fields from the record so the steward can see
+  // what's already saved. The server preserves any date that isn't
+  // changed, so showing the existing dates here is safe — a steward
+  // who doesn't touch a date field won't accidentally reset it.
   $('f-awareness').value = rec.awareness||'';
-  $('f-step1filed').value = '';
-  $('f-step1resp').value = '';
-  $('f-step2filed').value = '';
-  $('f-step2resp').value = '';
-  $('f-step3filed').value = '';
-  $('f-step3resp').value = '';
-  $('f-step4filed').value = '';
-  $('f-status').value = rec.status||'';
+  $('f-step1filed').value = rec.step1filed||'';
+  $('f-step1resp').value = rec.step1resp||'';
+  $('f-step2filed').value = rec.step2filed||'';
+  $('f-step2resp').value = rec.step2resp||'';
+  $('f-step3filed').value = rec.step3filed||'';
+  $('f-step3resp').value = rec.step3resp||'';
+  $('f-step4filed').value = rec.step4filed||'';
+
   $('gidNote').textContent = `Existing record — submitting will UPDATE "${rec.id}" (historic dates are preserved).`;
   recalcDeadlines();
 }
@@ -1617,6 +1642,32 @@ $('genericListSaveBtn').addEventListener('click', async ()=>{
   }
 });
 
+/* ---------- Settings tab: Change my password (all logged-in users) ---------- */
+$('cpSaveBtn').addEventListener('click', async ()=>{
+  const currentPw = $('cpCurrentPw').value;
+  const newPw = $('cpNewPw').value;
+  const confirmPw = $('cpConfirmPw').value;
+
+  if(!currentPw){ toast('Please enter your current password.', 'err'); return; }
+  if(!newPw){ toast('Please enter a new password.', 'err'); return; }
+  if(newPw.length < 6){ toast('New password must be at least 6 characters.', 'err'); return; }
+  if(newPw !== confirmPw){ toast('New passwords do not match — please check your typing.', 'err'); return; }
+
+  const btn = $('cpSaveBtn');
+  btn.disabled = true; btn.textContent = 'Saving…';
+  try{
+    await apiPost('/api/auth/change-password', { currentPassword: currentPw, newPassword: newPw });
+    toast('Password changed successfully.');
+    $('cpCurrentPw').value = '';
+    $('cpNewPw').value = '';
+    $('cpConfirmPw').value = '';
+  }catch(err){
+    toast(err.message || 'Could not change password.', 'err');
+  }finally{
+    btn.disabled = false; btn.textContent = 'Change password';
+  }
+});
+
 /* ---------- Settings tab: Email status & manual run ---------- */
 async function refreshEmailStatus(){
   try{
@@ -1760,6 +1811,9 @@ function applyRoleVisibility(user){
   if(orgSettingsPanel) orgSettingsPanel.style.display = admin ? '' : 'none';
   const otherListsPanel = $('otherListsPanel');
   if(otherListsPanel) otherListsPanel.style.display = admin ? '' : 'none';
+  // Change-password is available to every logged-in user (not open-access mode)
+  const changePasswordPanel = $('changePasswordPanel');
+  if(changePasswordPanel) changePasswordPanel.style.display = (user && user.username) ? '' : 'none';
 }
 
 async function attemptLogin(){

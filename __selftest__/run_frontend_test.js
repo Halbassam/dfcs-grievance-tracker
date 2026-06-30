@@ -33,6 +33,7 @@ async function main() {
       window.__test_dollar = (id) => $(id);
       window.__test_renderLog = () => renderLog();
       window.__test_printGrievance = (gid) => printGrievance(gid);
+      window.__test_loadIntoForm = (rec) => loadIntoForm(rec);
     </script>`
   );
 
@@ -212,7 +213,47 @@ async function main() {
   assert.strictEqual(printWasCalled, true, "window.print() should have been called");
   console.log("✓ window.print() is correctly triggered after the print view is populated");
 
-  console.log("\nAll frontend (search + print) self-tests passed.");
+  // ---------- Test: loadIntoForm correctly populates ALL fields including dates ----------
+  // The original code deliberately blanked all date fields when loading a
+  // record for editing -- this was confusing UX (steward sees blanks, thinks
+  // nothing was saved). The fix populates every date field from the record.
+  const testRec = {
+    id: "2026-001",
+    employee: "Jane Doe",
+    jobClass: "Human Services Caseworker (RC-62)",
+    bu: "RC-62 (Professional)",
+    shift: "Day (1st Shift)",
+    bureau: "Bureau of Family & Community Programs",
+    location: "Roseland (1S)",
+    county: "Cook R1S",
+    steward: "Hazem Albassam",
+    gtype: "Workload - Unreasonable / Excessive Caseload (Art. XXXI Sec. 1)",
+    article: "Art. XXXI Sec. 1",
+    section: "1",
+    remedy: "Adjust caseload",
+    status: "Pending",
+    awareness: "2026-05-25",
+    step1filed: "2026-06-01",
+    step1resp: "2026-06-10",
+    step2filed: "2026-06-15",
+    step2resp: "",
+    step3filed: "",
+    step3resp: "",
+    step4filed: ""
+  };
+  w.__test_loadIntoForm(testRec);
+
+  assert.strictEqual(w.__test_dollar('f-gid').value, "2026-001");
+  assert.strictEqual(w.__test_dollar('f-name').value, "Jane Doe");
+  assert.strictEqual(w.__test_dollar('f-awareness').value, "2026-05-25");
+  assert.strictEqual(w.__test_dollar('f-step1filed').value, "2026-06-01", "step1filed must be populated (was blank before the fix)");
+  assert.strictEqual(w.__test_dollar('f-step1resp').value, "2026-06-10", "step1resp must be populated (was blank before the fix)");
+  assert.strictEqual(w.__test_dollar('f-step2filed').value, "2026-06-15", "step2filed must be populated (was blank before the fix)");
+  assert.strictEqual(w.__test_dollar('f-section').value, "1");
+  assert.strictEqual(w.__test_dollar('f-remedy').value, "Adjust caseload");
+  console.log("✓ loadIntoForm() correctly populates ALL fields including step dates (fixes the blank-date-fields bug)");
+
+  console.log("\nAll frontend (search + print + form-load) self-tests passed.");
   window.close();
 }
 

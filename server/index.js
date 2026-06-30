@@ -319,6 +319,31 @@ const server = http.createServer(async (req, res) => {
       return sendJson(res, 200, result);
     }
 
+    // Change own password — any logged-in user can change their OWN
+    // password only; no one can use this route to change someone else's.
+    // Admins changing other users' passwords still go through /api/users.
+    if (pathname === "/api/auth/change-password" && req.method === "POST") {
+      const body = await readBody(req);
+      const { currentPassword, newPassword } = body;
+      if (!currentPassword || !newPassword) {
+        return sendJson(res, 400, { error: "Both the current and new passwords are required." });
+      }
+      if (String(newPassword).length < 6) {
+        return sendJson(res, 400, { error: "New password must be at least 6 characters." });
+      }
+      // Verify the current password is correct before allowing the change.
+      const verified = await db.verifyLogin(currentUser.username, currentPassword);
+      if (!verified) {
+        return sendJson(res, 401, { error: "Current password is incorrect." });
+      }
+      await db.upsertUser({
+        username: currentUser.username,
+        displayName: currentUser.displayName,
+        password: newPassword
+      });
+      return sendJson(res, 200, { ok: true });
+    }
+
     if (pathname.startsWith("/api/")) {
       return sendJson(res, 404, { error: "Unknown API route" });
     }

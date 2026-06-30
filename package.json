@@ -1,6 +1,6 @@
 {
   "name": "fcrc-grievance-tracker",
-  "version": "3.1.0",
+  "version": "3.2.0",
   "description": "AFSCME Council 31 FCRC Grievance Tracking System",
   "main": "server/index.js",
   "scripts": {
