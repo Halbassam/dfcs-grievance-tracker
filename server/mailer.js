@@ -180,12 +180,22 @@ function sendMail({ user, appPassword, to, subject, text, host, port, useTLS }) 
       }
     });
 
-    socket.once("error", (err) => reject(err));
+    socket.once("error", (err) => {
+      // Node network errors (ECONNREFUSED, ETIMEDOUT, blocked outbound
+      // ports, etc.) sometimes arrive with .code set but .message empty
+      // depending on environment. Normalize so callers never see "".
+      if (err && !err.message) {
+        err.message = err.code
+          ? `Connection error (${err.code}) connecting to ${targetHost}:${targetPort}`
+          : `Unknown connection error connecting to ${targetHost}:${targetPort}`;
+      }
+      reject(err);
+    });
 
     // Safety timeout — never hang forever on a stalled connection
     socket.setTimeout(20000, () => {
       socket.destroy();
-      reject(new Error("SMTP connection timed out"));
+      reject(new Error(`SMTP connection to ${targetHost}:${targetPort} timed out after 20s (possible outbound network block on this hosting platform)`));
     });
   });
 }

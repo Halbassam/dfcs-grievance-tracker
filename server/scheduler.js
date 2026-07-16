@@ -88,7 +88,16 @@ async function runDeadlineCheck() {
       summary.sent++;
       summary.stewardsNotified.push({ steward: group.stewardName, email, count: group.items.length });
     } catch (err) {
-      summary.errors.push(`Failed to email ${email}: ${err.message}`);
+      // Some low-level network errors (blocked/refused outbound
+      // connections, timeouts before a socket even connects) can
+      // surface with an empty .message. Include .code and .name too
+      // so a genuinely blank message doesn't leave us with nothing
+      // to diagnose from.
+      const detail = err && (err.message || err.code || err.name)
+        ? [err.message, err.code, err.name].filter(Boolean).join(" | ")
+        : String(err);
+      summary.errors.push(`Failed to email ${email}: ${detail}`);
+      console.error(`[scheduler] Failed to email ${email}:`, err);
     }
   }
 
