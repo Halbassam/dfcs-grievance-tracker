@@ -1507,7 +1507,7 @@ async function refreshEmailStatus(){
       box.style.background = 'var(--amber-bg)';
       box.style.border = '1px solid var(--amber)';
       box.style.color = '#6b4d10';
-      box.innerHTML = `<b>Not configured.</b> Set GMAIL_USER and GMAIL_APP_PASSWORD on Render to enable deadline emails.`;
+      box.innerHTML = `<b>Not configured.</b> Set RESEND_API_KEY on Render to enable deadline emails.`;
     }
     window._emailLogCache = data.emailLog || [];
   }catch(err){

@@ -55,12 +55,12 @@ function buildEmailBody(stewardName, items) {
 }
 
 async function runDeadlineCheck() {
-  const gmailUser = process.env.GMAIL_USER || "";
-  const gmailAppPassword = process.env.GMAIL_APP_PASSWORD || "";
+  const apiKey = process.env.RESEND_API_KEY || "";
+  const fromEmail = process.env.RESEND_FROM_EMAIL || ""; // optional, falls back to Resend's shared address
   const summary = { sent: 0, skippedNoEmail: 0, errors: [], stewardsNotified: [] };
 
-  if (!gmailUser || !gmailAppPassword) {
-    summary.errors.push("GMAIL_USER or GMAIL_APP_PASSWORD not set — no emails sent.");
+  if (!apiKey) {
+    summary.errors.push("RESEND_API_KEY not set — no emails sent. See server/mailer.js for setup steps.");
     return summary;
   }
 
@@ -81,7 +81,7 @@ async function runDeadlineCheck() {
       : `FCRC Grievance Tracker — ${group.items.length} upcoming deadline${group.items.length > 1 ? "s" : ""}`;
     try {
       await sendMail({
-        user: gmailUser, appPassword: gmailAppPassword, to: email,
+        apiKey, from: fromEmail || undefined, to: email,
         subject,
         text: buildEmailBody(group.stewardName, group.items)
       });

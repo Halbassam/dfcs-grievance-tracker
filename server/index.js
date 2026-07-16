@@ -215,7 +215,7 @@ const server = http.createServer(async (req, res) => {
     // Email
     if (pathname === "/api/email/status" && req.method === "GET") {
       const data = await db.getAll();
-      const emailConfigured = !!(process.env.GMAIL_USER && process.env.GMAIL_APP_PASSWORD);
+      const emailConfigured = !!process.env.RESEND_API_KEY;
       return sendJson(res, 200, {
         emailConfigured,
         lastEmailRunDate: data.lastEmailRunDate || "",
