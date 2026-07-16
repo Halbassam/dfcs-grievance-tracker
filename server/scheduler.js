@@ -18,17 +18,35 @@ function todayISO() {
 }
 
 function buildEmailBody(stewardName, items) {
+  const overdue = items.filter(i => i.daysAway < 0).sort((a, b) => a.daysAway - b.daysAway);
+  const upcoming = items.filter(i => i.daysAway >= 0).sort((a, b) => a.daysAway - b.daysAway);
+
   const lines = [];
   lines.push(`Dear ${stewardName},`);
   lines.push("");
-  lines.push(`The following grievance deadline(s) are coming up within the next ${REMINDER_WINDOW_DAYS} days:`);
-  lines.push("");
-  for (const item of items) {
-    const dueText = item.daysAway === 0 ? "DUE TODAY" : item.daysAway === 1 ? "due tomorrow" : `due in ${item.daysAway} days`;
-    lines.push(`  - Grievance ${item.id} (${item.employee})`);
-    lines.push(`    ${item.deadlineLabel} ${dueText} — ${item.deadlineDate}`);
+
+  if (overdue.length) {
+    lines.push(`\u26A0 ${overdue.length} grievance deadline(s) are PAST DUE:`);
     lines.push("");
+    for (const item of overdue) {
+      const daysLate = Math.abs(item.daysAway);
+      lines.push(`  - Grievance ${item.id} (${item.employee})`);
+      lines.push(`    OVERDUE: ${item.deadlineLabel} was due ${item.deadlineDate} — ${daysLate} day${daysLate === 1 ? "" : "s"} ago`);
+      lines.push("");
+    }
   }
+
+  if (upcoming.length) {
+    lines.push(`The following grievance deadline(s) are coming up within the next ${REMINDER_WINDOW_DAYS} days:`);
+    lines.push("");
+    for (const item of upcoming) {
+      const dueText = item.daysAway === 0 ? "DUE TODAY" : item.daysAway === 1 ? "due tomorrow" : `due in ${item.daysAway} days`;
+      lines.push(`  - Grievance ${item.id} (${item.employee})`);
+      lines.push(`    ${item.deadlineLabel} ${dueText} — ${item.deadlineDate}`);
+      lines.push("");
+    }
+  }
+
   lines.push("Art. V Sec. 3(b): Extensions to any deadline require mutual written agreement.");
   lines.push("Log in to the FCRC Grievance Tracker for full case details.");
   lines.push("");
@@ -57,10 +75,14 @@ async function runDeadlineCheck() {
   }
 
   for (const [email, group] of byEmail.entries()) {
+    const overdueCount = group.items.filter(i => i.daysAway < 0).length;
+    const subject = overdueCount
+      ? `\u26A0 FCRC Grievance Tracker — ${overdueCount} OVERDUE deadline${overdueCount > 1 ? "s" : ""}`
+      : `FCRC Grievance Tracker — ${group.items.length} upcoming deadline${group.items.length > 1 ? "s" : ""}`;
     try {
       await sendMail({
         user: gmailUser, appPassword: gmailAppPassword, to: email,
-        subject: `FCRC Grievance Tracker — ${group.items.length} upcoming deadline${group.items.length > 1 ? "s" : ""}`,
+        subject,
         text: buildEmailBody(group.stewardName, group.items)
       });
       summary.sent++;

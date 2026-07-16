@@ -97,8 +97,11 @@ thead th{background:var(--green-1);color:#fff;text-align:left;padding:10px 12px;
 tbody td{padding:10px 12px;border-bottom:1px solid #ece9dd;white-space:nowrap;}
 tbody tr:hover{background:var(--paper-2);}
 tbody tr.row-red{background:var(--red-bg);}
-tbody tr.row-amber{background:var(--amber-bg);}
+tbody tr.row-amber{background:#fff3b0;}
 tbody tr.row-green{background:var(--ok-bg);}
+tbody tr.row-blue{background:#1a4fa0;color:#fff;}
+tbody tr.row-blue td{color:#fff;}
+tbody tr.row-blue a.row-link{color:#fff;text-decoration:underline;}
 .pill{display:inline-block;padding:2px 9px;border-radius:10px;font-size:11px;font-weight:600;}
 .pill-pending{background:#eaf1fb;color:#26395c;}
 .pill-resolved{background:var(--ok-bg);color:var(--green-1);}
@@ -882,27 +885,28 @@ function currentStep(rec){
 function isResolved(rec){ return TERMINAL_STATUSES.includes(rec.status); }
 function isOverdue(rec){
   if(isResolved(rec)) return false;
+  // Once Step 3 is filed, this system no longer tracks its deadlines —
+  // it gets its own distinct "at Step 3" styling instead of red/overdue.
+  if(rec.step3filed) return false;
   const d = deriveDeadlines(rec);
   const t = today();
   if(d.step1Due && !rec.step1resp && d.step1Due < t) return true;
   if(d.step2AnswerDue && !rec.step2resp && d.step2AnswerDue < t) return true;
-  if(d.step3SignDue && !rec.step3resp && d.step3SignDue < t) return true;
-  if(d.arbHearingDue && !rec.arbResult && d.arbHearingDue < t) return true;
   return false;
 }
 function nextDeadline(rec){
   if(isResolved(rec)) return null;
+  // Once Step 3 has been filed, no further deadline is tracked here —
+  // Council 31 staff take over from Step 3 sign-off onward.
+  if(rec.step3filed) return null;
   const d = deriveDeadlines(rec);
   const candidates = [];
   // Management response deadlines
   if(d.step1Due && !rec.step1resp) candidates.push(d.step1Due);
   if(d.step2AnswerDue && !rec.step2resp) candidates.push(d.step2AnswerDue);
-  if(d.step3SignDue && !rec.step3resp) candidates.push(d.step3SignDue);
   // Union filing deadlines (missing these waives the grievance)
   if(d.step2FilingDue && !rec.step2filed) candidates.push(d.step2FilingDue);
   if(d.step3FilingDue && !rec.step3filed) candidates.push(d.step3FilingDue);
-  // No Step 4 candidate — Council 31 staff rep tracks that deadline.
-  if(d.arbHearingDue && !rec.arbResult) candidates.push(d.arbHearingDue);
   if(!candidates.length) return null;
   return candidates.reduce((a,b)=> a<b?a:b);
 }
@@ -911,8 +915,9 @@ function daysSinceFiled(rec){
   return daysBetween(toDateLocal(rec.step1filed), today());
 }
 function rowClass(rec){
-  if(isOverdue(rec)) return 'row-red';
   if(isResolved(rec)) return 'row-green';
+  if(rec.step3filed) return 'row-blue';
+  if(isOverdue(rec)) return 'row-red';
   const nd = nextDeadline(rec);
   if(nd && daysBetween(today(), nd) <= 7 && daysBetween(today(), nd) >= 0) return 'row-amber';
   return '';

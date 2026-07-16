@@ -290,19 +290,25 @@ function isResolvedRec(rec) { return TERMINAL_FOR_DEADLINES.includes(rec.status)
 
 function nextDeadlineServer(rec, holidaySet) {
   if (isResolvedRec(rec)) return null;
+  // Once Step 3 has been filed, no further alerts are generated —
+  // Council 31 staff track everything from Step 3 sign-off onward.
+  if (rec.step3filed) return null;
   const d = deriveDeadlinesServer(rec, holidaySet);
   const candidates = [];
   if (d.step1Due       && !rec.step1resp)  candidates.push({ date: d.step1Due,       label: "Step 1 response due" });
   if (d.step2AnswerDue && !rec.step2resp)  candidates.push({ date: d.step2AnswerDue, label: "Step 2 answer due" });
-  if (d.step3SignDue   && !rec.step3resp)  candidates.push({ date: d.step3SignDue,    label: "Step 3 sign-off due" });
   if (d.step2FilingDue && !rec.step2filed) candidates.push({ date: d.step2FilingDue, label: "Step 2 filing deadline" });
   if (d.step3FilingDue && !rec.step3filed) candidates.push({ date: d.step3FilingDue, label: "Step 3 filing deadline" });
-  // No Step 4 reminder — Council 31 staff rep tracks that.
-  if (d.arbHearingDue  && !rec.arbResult)  candidates.push({ date: d.arbHearingDue,  label: "Arbitration hearing" });
   if (!candidates.length) return null;
   return candidates.reduce((a, b) => (a.date < b.date ? a : b));
 }
 
+/**
+ * Finds every non-resolved grievance whose next deadline is either
+ * already overdue (any number of days in the past) or coming up
+ * within `withinDays` days. Overdue items have a negative daysAway
+ * so callers (the email scheduler) can flag them distinctly.
+ */
 async function findUpcomingDeadlines(withinDays = 3) {
   const [grievancesRes, holidaysRes] = await Promise.all([
     query("select data from grievances"),
@@ -318,7 +324,9 @@ async function findUpcomingDeadlines(withinDays = 3) {
     const nd = nextDeadlineServer(rec, holidaySet);
     if (!nd) continue;
     const diffDays = Math.round((nd.date - todayMid) / 86400000);
-    if (diffDays >= 0 && diffDays <= withinDays) {
+    // No lower bound — a deadline missed 80 days ago must still surface.
+    // Upper bound still limits how far into the future we look.
+    if (diffDays <= withinDays) {
       results.push({
         id: rec.id, employee: rec.employee, steward: rec.steward,
         stewardEmail: rec.stewardEmail, deadlineLabel: nd.label,
