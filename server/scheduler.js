@@ -1,43 +1,27 @@
 /**
- * ================================================================
  * AFSCME Council 31 — FCRC Grievance Tracker
  * Daily deadline email scheduler.
- *
- * Render's free tier puts services to sleep after 15 minutes of
- * no traffic, so a traditional cron job that fires "every day at
- * 8am" can't be relied on — the process might be asleep at 8am.
- *
- * Instead, this checks once a minute (cheap, no real cost) whether
- * today's date is different from the last day an email run
- * happened. The first time the app is awake on a new day, it runs
- * the check. This means the exact time of day it runs can drift
- * depending on when stewards happen to open the site, but it
- * guarantees it runs once per day that the app is used at all.
- *
- * If you want a guaranteed fixed time every single day regardless
- * of traffic, that requires Render's paid tier (no sleep) or an
- * external uptime-ping service to keep it awake — not necessary
- * for most locals, but mentioned here for completeness.
- * ================================================================
+ * Sends reminder emails to stewards for grievances with deadlines
+ * coming up within REMINDER_WINDOW_DAYS days.
+ * No reminders are sent after Step 3 — Council 31 staff track Step 4.
  */
 
 const db = require("./db");
 const { sendMail } = require("./mailer");
 
-const CHECK_INTERVAL_MS = 60 * 1000; // check once a minute
-const REMINDER_WINDOW_DAYS = 3; // email about anything due within 3 days
+const REMINDER_WINDOW_DAYS = 3;
+const CHECK_INTERVAL_MS = 60 * 60 * 1000; // check every hour
 
 function todayISO() {
-  const d = new Date();
-  const y = d.getFullYear(), m = String(d.getMonth() + 1).padStart(2, "0"), dd = String(d.getDate()).padStart(2, "0");
-  return `${y}-${m}-${dd}`;
+  const t = new Date();
+  return `${t.getFullYear()}-${String(t.getMonth()+1).padStart(2,"0")}-${String(t.getDate()).padStart(2,"0")}`;
 }
 
 function buildEmailBody(stewardName, items) {
   const lines = [];
-  lines.push(`Hello ${stewardName},`);
+  lines.push(`Dear ${stewardName},`);
   lines.push("");
-  lines.push("The following grievance deadline(s) are coming up within the next " + REMINDER_WINDOW_DAYS + " days:");
+  lines.push(`The following grievance deadline(s) are coming up within the next ${REMINDER_WINDOW_DAYS} days:`);
   lines.push("");
   for (const item of items) {
     const dueText = item.daysAway === 0 ? "DUE TODAY" : item.daysAway === 1 ? "due tomorrow" : `due in ${item.daysAway} days`;
@@ -52,44 +36,30 @@ function buildEmailBody(stewardName, items) {
   return lines.join("\n");
 }
 
-/**
- * Runs the deadline check and emails every steward who has at
- * least one upcoming deadline. Returns a summary of what happened
- * (used by both the daily auto-run and the manual "run now" button).
- */
 async function runDeadlineCheck() {
   const gmailUser = process.env.GMAIL_USER || "";
   const gmailAppPassword = process.env.GMAIL_APP_PASSWORD || "";
-
   const summary = { sent: 0, skippedNoEmail: 0, errors: [], stewardsNotified: [] };
 
   if (!gmailUser || !gmailAppPassword) {
-    summary.errors.push("GMAIL_USER or GMAIL_APP_PASSWORD environment variable is not set — no emails were sent.");
+    summary.errors.push("GMAIL_USER or GMAIL_APP_PASSWORD not set — no emails sent.");
     return summary;
   }
 
   const upcoming = await db.findUpcomingDeadlines(REMINDER_WINDOW_DAYS);
 
-  // Group by steward email so each steward gets ONE email listing all their cases
   const byEmail = new Map();
   for (const item of upcoming) {
     const email = (item.stewardEmail || "").trim();
-    if (!email) {
-      summary.skippedNoEmail++;
-      continue;
-    }
-    if (!byEmail.has(email)) {
-      byEmail.set(email, { stewardName: item.steward || "Steward", items: [] });
-    }
+    if (!email) { summary.skippedNoEmail++; continue; }
+    if (!byEmail.has(email)) byEmail.set(email, { stewardName: item.steward || "Steward", items: [] });
     byEmail.get(email).items.push(item);
   }
 
   for (const [email, group] of byEmail.entries()) {
     try {
       await sendMail({
-        user: gmailUser,
-        appPassword: gmailAppPassword,
-        to: email,
+        user: gmailUser, appPassword: gmailAppPassword, to: email,
         subject: `FCRC Grievance Tracker — ${group.items.length} upcoming deadline${group.items.length > 1 ? "s" : ""}`,
         text: buildEmailBody(group.stewardName, group.items)
       });
@@ -100,16 +70,17 @@ async function runDeadlineCheck() {
     }
   }
 
-  // Record this run so it shows up in the email log / can be inspected
-  // later, and so the daily scheduler knows it already ran today.
   await db.withLock(async () => {
-    const fresh = { lastEmailRunDate: todayISO(), emailLog: [{
-      date: new Date().toISOString(),
-      sent: summary.sent,
-      skippedNoEmail: summary.skippedNoEmail,
-      errors: summary.errors,
-      stewardsNotified: summary.stewardsNotified
-    }] };
+    const fresh = {
+      lastEmailRunDate: todayISO(),
+      emailLog: [{
+        date: new Date().toISOString(),
+        sent: summary.sent,
+        skippedNoEmail: summary.skippedNoEmail,
+        errors: summary.errors,
+        stewardsNotified: summary.stewardsNotified
+      }]
+    };
     await db.writeRawAtomic(fresh);
     return null;
   });
@@ -117,17 +88,12 @@ async function runDeadlineCheck() {
   return summary;
 }
 
-/**
- * Starts the once-a-minute check. Call this once when the server
- * boots. It is safe to call multiple times only once per process.
- */
 function startScheduler() {
   setInterval(async () => {
     try {
       const data = await db.readRaw();
       const today = todayISO();
-      if (data.lastEmailRunDate === today) return; // already ran today
-
+      if (data.lastEmailRunDate === today) return;
       console.log(`[scheduler] Running daily deadline check for ${today}...`);
       const summary = await runDeadlineCheck();
       console.log(`[scheduler] Done. Sent ${summary.sent} email(s), ${summary.errors.length} error(s).`);
@@ -135,8 +101,7 @@ function startScheduler() {
       console.error("[scheduler] Unexpected error during daily check:", err);
     }
   }, CHECK_INTERVAL_MS);
-
   console.log("[scheduler] Daily deadline email scheduler started.");
 }
 
-module.exports = { startScheduler, runDeadlineCheck };
+module.exports = { runDeadlineCheck, startScheduler };
