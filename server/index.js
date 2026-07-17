@@ -215,7 +215,7 @@ const server = http.createServer(async (req, res) => {
     // Email
     if (pathname === "/api/email/status" && req.method === "GET") {
       const data = await db.getAll();
-      const emailConfigured = !!process.env.RESEND_API_KEY;
+      const emailConfigured = !!(process.env.BREVO_API_KEY && process.env.BREVO_SENDER_EMAIL);
       return sendJson(res, 200, {
         emailConfigured,
         lastEmailRunDate: data.lastEmailRunDate || "",

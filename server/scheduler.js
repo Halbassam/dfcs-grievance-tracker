@@ -55,12 +55,12 @@ function buildEmailBody(stewardName, items) {
 }
 
 async function runDeadlineCheck() {
-  const apiKey = process.env.RESEND_API_KEY || "";
-  const fromEmail = process.env.RESEND_FROM_EMAIL || ""; // optional, falls back to Resend's shared address
+  const apiKey = process.env.BREVO_API_KEY || "";
+  const senderEmail = process.env.BREVO_SENDER_EMAIL || "";
   const summary = { sent: 0, skippedNoEmail: 0, errors: [], stewardsNotified: [] };
 
-  if (!apiKey) {
-    summary.errors.push("RESEND_API_KEY not set — no emails sent. See server/mailer.js for setup steps.");
+  if (!apiKey || !senderEmail) {
+    summary.errors.push("BREVO_API_KEY or BREVO_SENDER_EMAIL not set — no emails sent. See server/mailer.js for setup steps.");
     return summary;
   }
 
@@ -81,7 +81,7 @@ async function runDeadlineCheck() {
       : `FCRC Grievance Tracker — ${group.items.length} upcoming deadline${group.items.length > 1 ? "s" : ""}`;
     try {
       await sendMail({
-        apiKey, from: fromEmail || undefined, to: email,
+        apiKey, senderEmail, to: email,
         subject,
         text: buildEmailBody(group.stewardName, group.items)
       });
