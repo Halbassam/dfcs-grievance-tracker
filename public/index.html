@@ -210,6 +210,10 @@ footer.app-foot{text-align:center;color:var(--grey);font-size:11.5px;padding:30p
     </div>
     <div id="loginError" style="display:none;background:var(--red-bg);border:1px solid #e3a8a5;color:var(--red);padding:9px 12px;border-radius:4px;font-size:13px;margin-bottom:14px;"></div>
     <button class="btn btn-primary btn-lg" id="loginSubmitBtn" style="width:100%;justify-content:center;">Sign in</button>
+    <div style="text-align:center;margin-top:20px;padding-top:16px;border-top:1px solid var(--green-line);">
+      <div style="font-weight:700;font-size:1.1em;color:var(--green-1);">Developed by Hazem Albassam</div>
+      <div style="font-size:11.5px;color:var(--grey);margin-top:2px;">&copy; 2026 Hazem Albassam. All rights reserved.</div>
+    </div>
   </div>
 </div>
 
@@ -250,6 +254,7 @@ footer.app-foot{text-align:center;color:var(--grey);font-size:11.5px;padding:30p
           <div class="section-divider"><span class="label">Employee &amp; case identification</span><span class="line"></span></div>
           <div class="field"><label for="f-gid">Grievance ID <span class="req">*</span></label><input type="text" id="f-gid" placeholder="FCRC-2025-001"><div class="field-note" id="gidNote"></div></div>
           <div class="field"><label for="f-name">Employee name <span class="req">*</span></label><input type="text" id="f-name" placeholder="Full name"></div>
+          <div class="field"><label for="f-grievant-email">Grievant email <span style="font-weight:400;color:var(--grey);">(optional &mdash; for progress updates)</span></label><input type="text" id="f-grievant-email" placeholder="employee@illinois.gov (or several, comma-separated, for group grievances)"></div>
           <div class="field"><label for="f-job">Job classification</label><select id="f-job"></select></div>
           <div class="field"><label for="f-bu">Bargaining unit</label><select id="f-bu"></select></div>
 
@@ -429,7 +434,7 @@ footer.app-foot{text-align:center;color:var(--grey);font-size:11.5px;padding:30p
   </section>
 </main>
 
-<footer class="app-foot">AFSCME Council 31 &middot; Division of Family &amp; Community Services, IDHS &middot; Master Contract 2023&ndash;2027<br>Developed by Hazem Albassam</footer>
+<footer class="app-foot">AFSCME Council 31 &middot; Division of Family &amp; Community Services, IDHS &middot; Master Contract 2023&ndash;2027<br><span style="font-weight:700;font-size:1.15em;">Developed by Hazem Albassam</span><br>&copy; 2026 Hazem Albassam. All rights reserved.</footer>
 
 <div class="modal-overlay" id="activityModalOverlay">
   <div class="modal">
@@ -785,7 +790,7 @@ async function submitAndClear(){
   const stewardEmail = stewardIdx>=0 ? (SETUP.StewardEmail||[])[stewardIdx] : "";
 
   const record = {
-    id: gid, employee: name, jobClass: $('f-job').value, bu: $('f-bu').value,
+    id: gid, employee: name, grievantEmail: $('f-grievant-email').value.trim(), jobClass: $('f-job').value, bu: $('f-bu').value,
     steward: $('f-steward').value, stewardEmail, gtype: $('f-gtype').value, article: $('f-article').value,
     section: $('f-section').value, remedy: $('f-remedy').value, status: $('f-status').value || 'Pending',
     awareness: $('f-awareness').value, step1filed: $('f-step1filed').value, step1resp: $('f-step1resp').value,
@@ -815,7 +820,7 @@ async function submitAndClear(){
 }
 
 function clearForm(){
-  ['f-gid','f-name','f-section','f-remedy'].forEach(id=>$(id).value='');
+  ['f-gid','f-name','f-grievant-email','f-section','f-remedy'].forEach(id=>$(id).value='');
   ['f-job','f-bu','f-gtype','f-article','f-steward','f-status']
     .forEach(id=>$(id).value='');
   ['f-awareness','f-step1filed','f-step1resp','f-step2filed','f-step2resp','f-step3filed','f-step3resp','f-step4filed']
@@ -1256,6 +1261,7 @@ $('detailCloseBtn').addEventListener('click', ()=>$('detailModalOverlay').classL
 function loadIntoForm(rec){
   $('f-gid').value = rec.id;
   $('f-name').value = rec.employee||'';
+  $('f-grievant-email').value = rec.grievantEmail||'';
   $('f-job').value = rec.jobClass||'';
   $('f-bu').value = rec.bu||'';
   $('f-gtype').value = rec.gtype||'';
@@ -1539,6 +1545,31 @@ $('viewEmailLogBtn').addEventListener('click', ()=>{
     body.innerHTML = `<div class="empty-state"><div class="icon">&#128231;</div><h3>No runs yet</h3><p>Click "Run deadline check now" or wait for the daily automatic check.</p></div>`;
   } else {
     body.innerHTML = log.map(entry=>{
+      // Two different shapes can appear in this log:
+      //  1. The once-per-day steward digest RUN summary (has .date, .sent, .stewardsNotified)
+      //  2. Individual send-attempt entries (grievant updates + per-steward
+      //     digest sends), which have .kind, .to, .ok, .loggedAt instead.
+      if(entry.kind){
+        const when = entry.loggedAt ? new Date(entry.loggedAt).toLocaleString() : '';
+        const statusIcon = entry.ok ? '&#10003;' : '&#10007;';
+        const statusColor = entry.ok ? 'var(--green-1)' : 'var(--red)';
+        let desc = '';
+        if(entry.kind === 'grievant-update'){
+          const stepLabel = {step1:'Step 1', step2:'Step 2', step3:'Step 3'}[entry.step] || entry.step;
+          desc = `Grievant update &middot; Case ${escapeHtml(entry.gid||'')} &middot; ${stepLabel} &middot; to ${escapeHtml(entry.to||'')}`;
+        } else if(entry.kind === 'steward-deadline-digest'){
+          desc = `Steward digest &middot; ${escapeHtml(entry.steward||'')} &middot; to ${escapeHtml(entry.to||'')} &middot; ${entry.count||0} deadline(s)${entry.overdueCount ? ` (${entry.overdueCount} overdue)` : ''}`;
+        } else {
+          desc = escapeHtml(entry.kind);
+        }
+        const errLine = !entry.ok && entry.error ? `<div style="color:var(--red);margin-top:4px;font-size:12px;">${escapeHtml(entry.error)}</div>` : '';
+        return `<div style="padding:10px 0;border-bottom:1px solid #ece9dd;">
+          <div style="font-family:var(--mono);font-size:12px;color:var(--grey);">${when}</div>
+          <div style="margin-top:4px;"><span style="color:${statusColor};">${statusIcon}</span> ${desc}</div>
+          ${errLine}
+        </div>`;
+      }
+      // Legacy/summary shape (once-per-day run totals)
       const when = new Date(entry.date).toLocaleString();
       const names = (entry.stewardsNotified||[]).map(s=>`${escapeHtml(s.steward)} (${s.count})`).join(', ') || 'none';
       const errs = (entry.errors||[]).length ? `<div style="color:var(--red);margin-top:4px;">${entry.errors.map(escapeHtml).join('<br>')}</div>` : '';
