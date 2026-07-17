@@ -1,142 +1,37 @@
 /**
  * ================================================================
- * AFSCME Council 31 — FCRC Grievance Tracker
- * Daily deadline email scheduler.
+ * AFSCME Council 31 — DFCS Grievance Tracker
+ * Password hashing — zero npm dependencies, uses Node's built-in
+ * crypto.scrypt (a deliberately slow, memory-hard hash designed
+ * for passwords — much safer than a plain SHA-256 hash).
  *
- * Render's free tier puts services to sleep after 15 minutes of
- * no traffic, so a traditional cron job that fires "every day at
- * 8am" can't be relied on — the process might be asleep at 8am.
- *
- * Instead, this checks once a minute (cheap, no real cost) whether
- * today's date is different from the last day an email run
- * happened. The first time the app is awake on a new day, it runs
- * the check. This means the exact time of day it runs can drift
- * depending on when stewards happen to open the site, but it
- * guarantees it runs once per day that the app is used at all.
- *
- * If you want a guaranteed fixed time every single day regardless
- * of traffic, that requires Render's paid tier (no sleep) or an
- * external uptime-ping service to keep it awake — not necessary
- * for most locals, but mentioned here for completeness.
+ * Stored format: "scrypt:<salt-hex>:<hash-hex>"
+ * The salt is randomly generated per-password, so two stewards
+ * with the same password never produce the same stored hash.
  * ================================================================
  */
 
-const db = require("./db");
-const { sendMail } = require("./mailer");
+const crypto = require("crypto");
 
-const CHECK_INTERVAL_MS = 60 * 1000; // check once a minute
-const REMINDER_WINDOW_DAYS = 3; // email about anything due within 3 days
+const KEY_LENGTH = 64;
 
-function todayISO() {
-  const d = new Date();
-  const y = d.getFullYear(), m = String(d.getMonth() + 1).padStart(2, "0"), dd = String(d.getDate()).padStart(2, "0");
-  return `${y}-${m}-${dd}`;
+function hashPassword(plainPassword) {
+  const salt = crypto.randomBytes(16).toString("hex");
+  const hash = crypto.scryptSync(plainPassword, salt, KEY_LENGTH).toString("hex");
+  return `scrypt:${salt}:${hash}`;
 }
 
-function buildEmailBody(stewardName, items) {
-  const lines = [];
-  lines.push(`Hello ${stewardName},`);
-  lines.push("");
-  lines.push("The following grievance deadline(s) are coming up within the next " + REMINDER_WINDOW_DAYS + " days:");
-  lines.push("");
-  for (const item of items) {
-    const dueText = item.daysAway === 0 ? "DUE TODAY" : item.daysAway === 1 ? "due tomorrow" : `due in ${item.daysAway} days`;
-    lines.push(`  - Grievance ${item.id} (${item.employee})`);
-    lines.push(`    ${item.deadlineLabel} ${dueText} — ${item.deadlineDate}`);
-    lines.push("");
-  }
-  lines.push("Art. V Sec. 3(b): Extensions to any deadline require mutual written agreement.");
-  lines.push("Log in to the FCRC Grievance Tracker for full case details.");
-  lines.push("");
-  lines.push("— AFSCME Council 31 FCRC Grievance Tracker (automated reminder)");
-  return lines.join("\n");
+function verifyPassword(plainPassword, storedHash) {
+  if (!storedHash || typeof storedHash !== "string") return false;
+  const parts = storedHash.split(":");
+  if (parts.length !== 3 || parts[0] !== "scrypt") return false;
+
+  const [, salt, originalHashHex] = parts;
+  const originalHash = Buffer.from(originalHashHex, "hex");
+  const attemptHash = crypto.scryptSync(plainPassword, salt, KEY_LENGTH);
+
+  if (attemptHash.length !== originalHash.length) return false;
+  return crypto.timingSafeEqual(attemptHash, originalHash);
 }
 
-/**
- * Runs the deadline check and emails every steward who has at
- * least one upcoming deadline. Returns a summary of what happened
- * (used by both the daily auto-run and the manual "run now" button).
- */
-async function runDeadlineCheck() {
-  const gmailUser = process.env.GMAIL_USER || "";
-  const gmailAppPassword = process.env.GMAIL_APP_PASSWORD || "";
-
-  const summary = { sent: 0, skippedNoEmail: 0, errors: [], stewardsNotified: [] };
-
-  if (!gmailUser || !gmailAppPassword) {
-    summary.errors.push("GMAIL_USER or GMAIL_APP_PASSWORD environment variable is not set — no emails were sent.");
-    return summary;
-  }
-
-  const upcoming = await db.findUpcomingDeadlines(REMINDER_WINDOW_DAYS);
-
-  // Group by steward email so each steward gets ONE email listing all their cases
-  const byEmail = new Map();
-  for (const item of upcoming) {
-    const email = (item.stewardEmail || "").trim();
-    if (!email) {
-      summary.skippedNoEmail++;
-      continue;
-    }
-    if (!byEmail.has(email)) {
-      byEmail.set(email, { stewardName: item.steward || "Steward", items: [] });
-    }
-    byEmail.get(email).items.push(item);
-  }
-
-  for (const [email, group] of byEmail.entries()) {
-    try {
-      await sendMail({
-        user: gmailUser,
-        appPassword: gmailAppPassword,
-        to: email,
-        subject: `FCRC Grievance Tracker — ${group.items.length} upcoming deadline${group.items.length > 1 ? "s" : ""}`,
-        text: buildEmailBody(group.stewardName, group.items)
-      });
-      summary.sent++;
-      summary.stewardsNotified.push({ steward: group.stewardName, email, count: group.items.length });
-    } catch (err) {
-      summary.errors.push(`Failed to email ${email}: ${err.message}`);
-    }
-  }
-
-  // Record this run so it shows up in the email log / can be inspected
-  // later, and so the daily scheduler knows it already ran today.
-  await db.withLock(async () => {
-    const fresh = { lastEmailRunDate: todayISO(), emailLog: [{
-      date: new Date().toISOString(),
-      sent: summary.sent,
-      skippedNoEmail: summary.skippedNoEmail,
-      errors: summary.errors,
-      stewardsNotified: summary.stewardsNotified
-    }] };
-    await db.writeRawAtomic(fresh);
-    return null;
-  });
-
-  return summary;
-}
-
-/**
- * Starts the once-a-minute check. Call this once when the server
- * boots. It is safe to call multiple times only once per process.
- */
-function startScheduler() {
-  setInterval(async () => {
-    try {
-      const data = await db.readRaw();
-      const today = todayISO();
-      if (data.lastEmailRunDate === today) return; // already ran today
-
-      console.log(`[scheduler] Running daily deadline check for ${today}...`);
-      const summary = await runDeadlineCheck();
-      console.log(`[scheduler] Done. Sent ${summary.sent} email(s), ${summary.errors.length} error(s).`);
-    } catch (err) {
-      console.error("[scheduler] Unexpected error during daily check:", err);
-    }
-  }, CHECK_INTERVAL_MS);
-
-  console.log("[scheduler] Daily deadline email scheduler started.");
-}
-
-module.exports = { startScheduler, runDeadlineCheck };
+module.exports = { hashPassword, verifyPassword };
