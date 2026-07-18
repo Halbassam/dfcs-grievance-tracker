@@ -72,7 +72,8 @@ async function getAll() {
       bureau:   metaMap.orgBureau   || "",
       location: metaMap.orgLocation || "",
       county:   metaMap.orgCounty   || "",
-      shift:    metaMap.orgShift    || ""
+      shift:    metaMap.orgShift    || "",
+      managementEmail: metaMap.orgManagementEmail || ""
     }
   };
 }
@@ -88,7 +89,19 @@ async function submitGrievance(record) {
     const isNew = existing.rows.length === 0;
     const target = isNew ? { id } : { ...existing.rows[0].data };
 
+    // Capture "was this step already filed before this save?" BEFORE
+    // we overwrite the date fields below, so the caller can tell which
+    // steps were just newly filed in this specific save (used to decide
+    // whether to send a grievant progress-notification email).
+    const wasFiledBefore = {
+      step1: !!target.step1filed,
+      step2: !!target.step2filed,
+      step3: !!target.step3filed
+    };
+
     target.employee     = record.employee     || "";
+    target.grievantEmail = record.grievantEmail || "";
+    target.description  = record.description  || "";
     target.jobClass     = record.jobClass     || "";
     target.bu           = record.bu           || "";
     target.steward      = record.steward      || "";
@@ -118,7 +131,96 @@ async function submitGrievance(record) {
       [id, target.status, target.steward, JSON.stringify(target)]
     );
 
-    return { isNew, record: { ...target } };
+    // Which steps were just newly filed in THIS save (blank before, has
+    // a date now)? Used by the caller to decide which grievant
+    // progress-notification email(s), if any, to send.
+    const newlyFiledSteps = {
+      step1: !wasFiledBefore.step1 && !!target.step1filed,
+      step2: !wasFiledBefore.step2 && !!target.step2filed,
+      step3: !wasFiledBefore.step3 && !!target.step3filed
+    };
+
+    return { isNew, record: { ...target }, newlyFiledSteps };
+  });
+}
+
+/**
+ * Sends a one-time courtesy reminder email to management (the org-wide
+ * management contact set in Settings) about a Step 1 or Step 2 response
+ * deadline. This is always a manual, steward-triggered action — never
+ * automatic — and can only be sent once per step per grievance; the
+ * step1CourtesySent / step2CourtesySent flags on the record enforce
+ * that (checked here server-side, not just hidden in the UI).
+ *
+ * Returns { ok: true, deadlineDate } on success. Throws a descriptive
+ * Error if the step is invalid, already sent, has no computable
+ * deadline yet, or if management email / Brevo aren't configured.
+ */
+async function sendCourtesyNotice(gid, step) {
+  if (step !== "step1" && step !== "step2") {
+    throw new Error('Courtesy notices are only available for "step1" or "step2".');
+  }
+
+  const sentFlagKey = step === "step1" ? "step1CourtesySent" : "step2CourtesySent";
+
+  return withTransaction(async (client) => {
+    const existing = await client.query("select data from grievances where id = $1", [gid]);
+    if (existing.rows.length === 0) throw new Error(`Grievance ${gid} not found.`);
+    const rec = existing.rows[0].data;
+
+    if (rec[sentFlagKey]) {
+      throw new Error(`A courtesy notice for ${step === "step1" ? "Step 1" : "Step 2"} has already been sent for this grievance.`);
+    }
+
+    const metaRes = await client.query("select key, value from app_meta");
+    const metaMap = {};
+    for (const row of metaRes.rows) metaMap[row.key] = row.value;
+    const managementEmail = (metaMap.orgManagementEmail || "").trim();
+    if (!managementEmail) {
+      throw new Error("No management contact email is set. Go to Settings \u2192 Local chapter info to add one.");
+    }
+
+    const apiKey = process.env.BREVO_API_KEY || "";
+    const senderEmail = process.env.BREVO_SENDER_EMAIL || "";
+    if (!apiKey || !senderEmail) {
+      throw new Error("Email is not configured (BREVO_API_KEY / BREVO_SENDER_EMAIL). See server/mailer.js for setup steps.");
+    }
+
+    const holidaysRes = await client.query("select date, name from holidays");
+    const holidaySet = buildHolidaySet(holidaysRes.rows);
+    const d = deriveDeadlinesServer(rec, holidaySet);
+    const dueDate = step === "step1" ? d.step1Due : d.step2AnswerDue;
+    if (!dueDate) {
+      throw new Error(`No ${step === "step1" ? "Step 1 response" : "Step 2 answer"} deadline could be calculated yet for this grievance.`);
+    }
+    const dueDateISO = toISODate(dueDate);
+
+    const stepLabel = step === "step1" ? "Step 1 (Oral Grievance)" : "Step 2 (Written Grievance)";
+    const subject = `Courtesy Reminder: ${stepLabel} response due ${dueDateISO} — Grievance ${gid}`;
+    const text = [
+      `This is a courtesy reminder regarding Grievance ${gid} (${rec.employee || ""}).`,
+      "",
+      `A response at ${stepLabel} is due by ${dueDateISO} under the Master Agreement.`,
+      "",
+      "This notice is sent as a courtesy and does not waive or extend any contractual deadline.",
+      "",
+      `— AFSCME Council 31 FCRC${rec.steward ? ", " + rec.steward : ""}`
+    ].join("\n");
+
+    const { sendMail } = require("./mailer");
+    await sendMail({ apiKey, senderEmail, to: managementEmail, subject, text });
+
+    const updated = { ...rec, [sentFlagKey]: true, [`${step}CourtesySentAt`]: new Date().toISOString() };
+    await client.query(
+      `update grievances set data = $2::jsonb, updated_at = now() where id = $1`,
+      [gid, JSON.stringify(updated)]
+    );
+
+    await logEmailAttempt({
+      kind: "management-courtesy-notice", gid, step, to: managementEmail, ok: true
+    }).catch(logErr => console.error("[db] Failed to write email log entry:", logErr.message));
+
+    return { ok: true, deadlineDate: dueDateISO, record: updated };
   });
 }
 
@@ -214,14 +316,15 @@ async function updateHolidays(holidays) {
   return { ok: true, count: clean.length };
 }
 
-async function updateOrgSettings({ agency, localNo, bureau, location, county, shift }) {
+async function updateOrgSettings({ agency, localNo, bureau, location, county, shift, managementEmail }) {
   const clean = {
     orgAgency:   String(agency   || "").trim(),
     orgLocalNo:  String(localNo  || "").trim(),
     orgBureau:   String(bureau   || "").trim(),
     orgLocation: String(location || "").trim(),
     orgCounty:   String(county   || "").trim(),
-    orgShift:    String(shift    || "").trim()
+    orgShift:    String(shift    || "").trim(),
+    orgManagementEmail: String(managementEmail || "").trim()
   };
   await withTransaction(async (client) => {
     for (const [key, value] of Object.entries(clean)) {
@@ -235,7 +338,8 @@ async function updateOrgSettings({ agency, localNo, bureau, location, county, sh
   return {
     ok: true,
     agency: clean.orgAgency, localNo: clean.orgLocalNo, bureau: clean.orgBureau,
-    location: clean.orgLocation, county: clean.orgCounty, shift: clean.orgShift
+    location: clean.orgLocation, county: clean.orgCounty, shift: clean.orgShift,
+    managementEmail: clean.orgManagementEmail
   };
 }
 
@@ -304,6 +408,24 @@ function nextDeadlineServer(rec, holidaySet) {
 }
 
 /**
+ * Returns "today" as a local Date object representing midnight in
+ * America/Chicago (the FCRC's local timezone), regardless of what
+ * timezone the server's own clock is set to. Render's servers run
+ * on UTC, so using new Date() directly can silently be a day ahead
+ * for anything checked in the evening Central time — this avoids
+ * that by reading the actual Chicago calendar date first.
+ */
+function todayInChicago() {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/Chicago",
+    year: "numeric", month: "2-digit", day: "2-digit"
+  }).formatToParts(new Date());
+  const map = {};
+  for (const p of parts) map[p.type] = p.value;
+  return new Date(Number(map.year), Number(map.month) - 1, Number(map.day));
+}
+
+/**
  * Finds every non-resolved grievance whose next deadline is either
  * already overdue (any number of days in the past) or coming up
  * within `withinDays` days. Overdue items have a negative daysAway
@@ -315,8 +437,7 @@ async function findUpcomingDeadlines(withinDays = 3) {
     query("select date, name from holidays")
   ]);
   const holidaySet = buildHolidaySet(holidaysRes.rows);
-  const today = new Date();
-  const todayMid = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+  const todayMid = todayInChicago();
   const results = [];
   for (const row of grievancesRes.rows) {
     const rec = row.data;
@@ -473,6 +594,28 @@ async function destroySession(token) {
 
 function withLock(fn) { return Promise.resolve().then(fn); }
 
+/**
+ * Records one email log entry — used both for the daily steward
+ * deadline-reminder run and for individual grievant progress
+ * notifications, so every real email attempt (success or failure)
+ * leaves a small trace in the database. This also has the useful
+ * side effect of keeping the database "active" with real writes,
+ * which matters on hosting tiers (like Supabase's free tier) that
+ * pause a database after a period of total inactivity.
+ */
+async function logEmailAttempt(entry) {
+  await withTransaction(async (client) => {
+    await client.query(
+      "insert into email_log (data) values ($1::jsonb)",
+      [JSON.stringify({ loggedAt: new Date().toISOString(), ...entry })]
+    );
+    await client.query(
+      `delete from email_log where row_id not in
+       (select row_id from email_log order by row_id desc limit 200)`
+    );
+  });
+}
+
 async function writeRawAtomic(data) {
   await withTransaction(async (client) => {
     if (typeof data.lastEmailRunDate === "string") {
@@ -496,8 +639,8 @@ async function writeRawAtomic(data) {
 }
 
 module.exports = {
-  getAll, readRaw, writeRawAtomic, withLock,
-  submitGrievance, logActivity, archiveClosed,
+  getAll, readRaw, writeRawAtomic, withLock, logEmailAttempt,
+  submitGrievance, logActivity, archiveClosed, sendCourtesyNotice,
   updateStewards, updateSetupList, updateHolidays, updateOrgSettings,
   findUpcomingDeadlines, SIMPLE_SETUP_KEYS,
   hasAnyUsers, listUsersSafe, upsertUser, deleteUser,

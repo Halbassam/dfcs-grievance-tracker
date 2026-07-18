@@ -12,9 +12,20 @@ const { sendMail } = require("./mailer");
 const REMINDER_WINDOW_DAYS = 3;
 const CHECK_INTERVAL_MS = 60 * 60 * 1000; // check every hour
 
+/**
+ * Returns today's date as YYYY-MM-DD in America/Chicago (the FCRC's
+ * local timezone), not the server's own clock. Render runs on UTC,
+ * so anything checked in the evening Central time could otherwise
+ * be misdated as tomorrow.
+ */
 function todayISO() {
-  const t = new Date();
-  return `${t.getFullYear()}-${String(t.getMonth()+1).padStart(2,"0")}-${String(t.getDate()).padStart(2,"0")}`;
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/Chicago",
+    year: "numeric", month: "2-digit", day: "2-digit"
+  }).formatToParts(new Date());
+  const map = {};
+  for (const p of parts) map[p.type] = p.value;
+  return `${map.year}-${map.month}-${map.day}`;
 }
 
 function buildEmailBody(stewardName, items) {
@@ -48,7 +59,8 @@ function buildEmailBody(stewardName, items) {
   }
 
   lines.push("Art. V Sec. 3(b): Extensions to any deadline require mutual written agreement.");
-  lines.push("Log in to the FCRC Grievance Tracker for full case details.");
+  lines.push("Log in to the FCRC Grievance Tracker for full case details:");
+  lines.push("https://dfcs-grievance-tracker.onrender.com");
   lines.push("");
   lines.push("— AFSCME Council 31 FCRC Grievance Tracker (automated reminder)");
   return lines.join("\n");
@@ -87,6 +99,10 @@ async function runDeadlineCheck() {
       });
       summary.sent++;
       summary.stewardsNotified.push({ steward: group.stewardName, email, count: group.items.length });
+      await db.logEmailAttempt({
+        kind: "steward-deadline-digest", steward: group.stewardName, to: email,
+        count: group.items.length, overdueCount, ok: true
+      }).catch(logErr => console.error("[scheduler] Failed to write email log entry:", logErr.message));
     } catch (err) {
       // Some low-level network errors (blocked/refused outbound
       // connections, timeouts before a socket even connects) can
@@ -98,21 +114,18 @@ async function runDeadlineCheck() {
         : String(err);
       summary.errors.push(`Failed to email ${email}: ${detail}`);
       console.error(`[scheduler] Failed to email ${email}:`, err);
+      await db.logEmailAttempt({
+        kind: "steward-deadline-digest", steward: group.stewardName, to: email,
+        count: group.items.length, overdueCount, ok: false, error: detail
+      }).catch(logErr => console.error("[scheduler] Failed to write email log entry:", logErr.message));
     }
   }
 
+  // Individual send attempts are already logged per-steward above via
+  // db.logEmailAttempt(), so only lastEmailRunDate needs persisting here
+  // (used to avoid re-running the daily check twice on the same day).
   await db.withLock(async () => {
-    const fresh = {
-      lastEmailRunDate: todayISO(),
-      emailLog: [{
-        date: new Date().toISOString(),
-        sent: summary.sent,
-        skippedNoEmail: summary.skippedNoEmail,
-        errors: summary.errors,
-        stewardsNotified: summary.stewardsNotified
-      }]
-    };
-    await db.writeRawAtomic(fresh);
+    await db.writeRawAtomic({ lastEmailRunDate: todayISO() });
     return null;
   });
 

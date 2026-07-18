@@ -8,6 +8,7 @@ const fs = require("fs");
 const path = require("path");
 const db = require("./db");
 const scheduler = require("./scheduler");
+const grievantNotify = require("./grievantNotify");
 
 const PORT = process.env.PORT || 3000;
 const PUBLIC_DIR = path.join(__dirname, "../public");
@@ -127,7 +128,32 @@ const server = http.createServer(async (req, res) => {
       const body = await readBody(req);
       body.actingUser = currentUser.displayName || currentUser.username;
       const result = await db.submitGrievance(body);
+
+      // Fire-and-forget: notify the grievant of any step(s) newly filed
+      // in this save. This never blocks or fails the actual save, which
+      // has already succeeded — a notification problem shouldn't stop a
+      // steward from doing their work.
+      if (result.newlyFiledSteps && (result.newlyFiledSteps.step1 || result.newlyFiledSteps.step2 || result.newlyFiledSteps.step3)) {
+        grievantNotify.sendGrievantStepNotifications(result.record, result.newlyFiledSteps)
+          .catch(err => console.error("[index] Unexpected error sending grievant notification:", err));
+      }
+
       return sendJson(res, 200, result);
+    }
+
+    // Manual, steward-triggered courtesy reminder to management about a
+    // Step 1 or Step 2 response deadline. Unlike grievant notifications,
+    // this is synchronous — the steward needs to see whether it actually
+    // sent, since it's a deliberate one-time action, not a background
+    // notification.
+    if (pathname === "/api/grievance/courtesy-notice" && req.method === "POST") {
+      const body = await readBody(req);
+      try {
+        const result = await db.sendCourtesyNotice(body.gid, body.step);
+        return sendJson(res, 200, result);
+      } catch (err) {
+        return sendJson(res, 400, { error: err.message });
+      }
     }
 
     if (pathname === "/api/activity" && req.method === "POST") {
