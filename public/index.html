@@ -199,6 +199,7 @@ footer.app-foot{text-align:center;color:var(--grey);font-size:11.5px;padding:30p
       <div style="width:52px;height:52px;border-radius:50%;background:var(--green-3);display:inline-flex;align-items:center;justify-content:center;font-family:var(--serif);font-weight:700;font-size:22px;color:#fff;margin-bottom:12px;">31</div>
       <h2 style="font-family:var(--serif);color:var(--green-1);margin:0;font-size:20px;">FCRC Grievance Tracker</h2>
       <p style="color:var(--grey);font-size:12.5px;margin:4px 0 0;">AFSCME Council 31 &middot; Sign in to continue</p>
+      <p style="font-weight:700;font-size:1.05em;color:var(--green-1);margin:10px 0 0;">Developed by Hazem Albassam</p>
     </div>
     <div class="field" style="margin-bottom:14px;">
       <label for="loginUsername">Username</label>
@@ -211,8 +212,7 @@ footer.app-foot{text-align:center;color:var(--grey);font-size:11.5px;padding:30p
     <div id="loginError" style="display:none;background:var(--red-bg);border:1px solid #e3a8a5;color:var(--red);padding:9px 12px;border-radius:4px;font-size:13px;margin-bottom:14px;"></div>
     <button class="btn btn-primary btn-lg" id="loginSubmitBtn" style="width:100%;justify-content:center;">Sign in</button>
     <div style="text-align:center;margin-top:20px;padding-top:16px;border-top:1px solid var(--green-line);">
-      <div style="font-weight:700;font-size:1.1em;color:var(--green-1);">Developed by Hazem Albassam</div>
-      <div style="font-size:11.5px;color:var(--grey);margin-top:2px;">&copy; 2026 Hazem Albassam. All rights reserved.</div>
+      <div style="font-size:11.5px;color:var(--grey);">&copy; 2026 Hazem Albassam. All rights reserved.</div>
     </div>
   </div>
 </div>
@@ -259,6 +259,7 @@ footer.app-foot{text-align:center;color:var(--grey);font-size:11.5px;padding:30p
           <div class="field"><label for="f-bu">Bargaining unit</label><select id="f-bu"></select></div>
 
           <div class="section-divider"><span class="label">Contractual authority &mdash; Art. V Sec. 1</span><span class="line"></span></div>
+          <div class="field wide"><label for="f-description">Brief description <span style="font-weight:400;color:var(--grey);">(optional)</span></label><textarea id="f-description" placeholder="A sentence or two describing what happened, in your own words." style="min-height:56px;"></textarea></div>
           <div class="field"><label for="f-gtype">Grievance type</label><select id="f-gtype"></select></div>
           <div class="field"><label for="f-article">CBA article violated</label><select id="f-article"></select></div>
           <div class="field wide"><label for="f-section">Specific section / clause reference</label><input type="text" id="f-section" placeholder="e.g. Art. IX Sec. 2 — Progressive discipline not followed"></div>
@@ -324,7 +325,7 @@ footer.app-foot{text-align:center;color:var(--grey);font-size:11.5px;padding:30p
     <div class="section-head">
       <div><h2>Grievance Log</h2><div class="sub">Complete master ledger</div></div>
       <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;">
-        <input type="text" id="logSearchInput" placeholder="Search by employee, ID, or steward&hellip;" style="padding:8px 12px;border:1px solid var(--green-line);border-radius:6px;font-family:inherit;font-size:13.5px;min-width:240px;">
+        <input type="text" id="logSearchInput" placeholder="Search by employee, ID, steward, or description&hellip;" style="padding:8px 12px;border:1px solid var(--green-line);border-radius:6px;font-family:inherit;font-size:13.5px;min-width:240px;">
         <button class="btn btn-secondary" id="archiveClosedBtn">Archive closed</button>
       </div>
     </div>
@@ -373,6 +374,7 @@ footer.app-foot{text-align:center;color:var(--grey);font-size:11.5px;padding:30p
         <div class="field" style="margin:0;"><label for="orgLocationInput">FCRC / work location</label><input type="text" id="orgLocationInput" placeholder="e.g. North Suburban FCRC"></div>
         <div class="field" style="margin:0;"><label for="orgCountyInput">County</label><input type="text" id="orgCountyInput" placeholder="e.g. Cook R1N"></div>
         <div class="field" style="margin:0;"><label for="orgShiftInput">Shift</label><input type="text" id="orgShiftInput" placeholder="e.g. Day (1st Shift)"></div>
+        <div class="field" style="margin:0;"><label for="orgManagementEmailInput">Management contact email <span style="font-weight:400;color:var(--grey);">(for courtesy reminders)</span></label><input type="text" id="orgManagementEmailInput" placeholder="e.g. supervisor@illinois.gov"></div>
       </div>
       <button class="btn btn-primary" id="orgSettingsSaveBtn">Save</button>
     </div>
@@ -597,7 +599,7 @@ function uid(){ return 'a'+Math.random().toString(36).slice(2,10)+Date.now().toS
 
 let SETUP = {};
 let STATE = { grievances: [], activity: [], archive: [], holidays: [] };
-let ORG_SETTINGS = { agency: '', localNo: '', bureau: '', location: '', county: '', shift: '' };
+let ORG_SETTINGS = { agency: '', localNo: '', bureau: '', location: '', county: '', shift: '', managementEmail: '' };
 
 const $ = id => document.getElementById(id);
 function fillSelect(sel, items, withBlank=true){
@@ -647,7 +649,7 @@ async function refresh(isBackgroundPoll){
     STATE.activity = data.activity || [];
     STATE.archive = data.archive || [];
     STATE.holidays = data.holidays || [];
-    ORG_SETTINGS = data.orgSettings || { agency: '', localNo: '', bureau: '', location: '', county: '', shift: '' };
+    ORG_SETTINGS = data.orgSettings || { agency: '', localNo: '', bureau: '', location: '', county: '', shift: '', managementEmail: '' };
     updatePageTitle();
     $('connBanner').innerHTML = '';
 
@@ -791,6 +793,7 @@ async function submitAndClear(){
 
   const record = {
     id: gid, employee: name, grievantEmail: $('f-grievant-email').value.trim(), jobClass: $('f-job').value, bu: $('f-bu').value,
+    description: $('f-description').value.trim(),
     steward: $('f-steward').value, stewardEmail, gtype: $('f-gtype').value, article: $('f-article').value,
     section: $('f-section').value, remedy: $('f-remedy').value, status: $('f-status').value || 'Pending',
     awareness: $('f-awareness').value, step1filed: $('f-step1filed').value, step1resp: $('f-step1resp').value,
@@ -820,7 +823,7 @@ async function submitAndClear(){
 }
 
 function clearForm(){
-  ['f-gid','f-name','f-grievant-email','f-section','f-remedy'].forEach(id=>$(id).value='');
+  ['f-gid','f-name','f-grievant-email','f-description','f-section','f-remedy'].forEach(id=>$(id).value='');
   ['f-job','f-bu','f-gtype','f-article','f-steward','f-status']
     .forEach(id=>$(id).value='');
   ['f-awareness','f-step1filed','f-step1resp','f-step2filed','f-step2resp','f-step3filed','f-step3resp','f-step4filed']
@@ -986,7 +989,8 @@ function renderLog(){
     filtered = STATE.grievances.filter(rec =>
       (rec.employee||'').toLowerCase().includes(q) ||
       (rec.id||'').toLowerCase().includes(q) ||
-      (rec.steward||'').toLowerCase().includes(q)
+      (rec.steward||'').toLowerCase().includes(q) ||
+      (rec.description||'').toLowerCase().includes(q)
     );
   }
   if(!filtered.length){
@@ -1157,6 +1161,38 @@ function renderArchive(){
  * completed by hand from the previously hand-signed paper form.
  * The printed page is the official form only — no activity history.
  */
+/**
+ * Sends a one-time manual courtesy reminder to management about a
+ * Step 1 or Step 2 response deadline. Always steward-initiated by
+ * clicking the button in the detail modal — never automatic. On
+ * success, the grievance record is updated in-memory and the modal
+ * is refreshed so the button correctly disappears (can't send twice).
+ */
+async function sendCourtesyNotice(gid, step, btn){
+  const stepLabel = step === 'step1' ? 'Step 1' : 'Step 2';
+  if(!confirm(`Send a one-time courtesy reminder to management about the ${stepLabel} deadline for ${gid}? This can't be undone or sent again.`)) return;
+
+  btn.disabled = true;
+  const originalText = btn.textContent;
+  btn.textContent = 'Sending…';
+  try{
+    const result = await apiPost('/api/grievance/courtesy-notice', { gid, step });
+    // Update the in-memory record so the UI reflects the sent state
+    // immediately, without waiting for the next poll.
+    const rec = STATE.grievances.find(g=>g.id===gid);
+    if(rec){
+      rec[step === 'step1' ? 'step1CourtesySent' : 'step2CourtesySent'] = true;
+      rec[step === 'step1' ? 'step1CourtesySentAt' : 'step2CourtesySentAt'] = new Date().toISOString();
+    }
+    toast(`Courtesy reminder sent for ${stepLabel} (due ${result.deadlineDate}).`);
+    openDetail(gid); // re-render the modal so the button is replaced with the "already sent" note
+  }catch(err){
+    toast(err.message || 'Could not send courtesy reminder.', 'err');
+    btn.disabled = false;
+    btn.textContent = originalText;
+  }
+}
+
 function printGrievance(gid){
   const rec = STATE.grievances.find(g=>g.id===gid) || STATE.archive.find(g=>g.id===gid);
   if(!rec) return;
@@ -1232,6 +1268,34 @@ function printGrievance(gid){
   setTimeout(()=>window.print(), 50);
 }
 
+function courtesyNoticeSectionHtml(rec, d){
+  if(isResolved(rec)) return '';
+  const rows = [];
+
+  // Step 1: only offer if filed, has a computable due date, no response yet, and not already sent
+  if(rec.step1filed && d.step1Due && !rec.step1resp){
+    if(rec.step1CourtesySent){
+      rows.push(`<div style="font-size:12.5px;color:var(--grey);margin-top:4px;">&#10003; Step 1 courtesy reminder already sent${rec.step1CourtesySentAt ? ' ('+fmt(new Date(rec.step1CourtesySentAt))+')' : ''}.</div>`);
+    } else {
+      rows.push(`<button class="btn btn-secondary btn-tiny" id="courtesyStep1Btn" style="margin-top:6px;">Send Step 1 courtesy reminder to management (due ${fmt(d.step1Due)})</button>`);
+    }
+  }
+  // Step 2: only offer if filed, has a computable due date, no response yet, and not already sent
+  if(rec.step2filed && d.step2AnswerDue && !rec.step2resp){
+    if(rec.step2CourtesySent){
+      rows.push(`<div style="font-size:12.5px;color:var(--grey);margin-top:4px;">&#10003; Step 2 courtesy reminder already sent${rec.step2CourtesySentAt ? ' ('+fmt(new Date(rec.step2CourtesySentAt))+')' : ''}.</div>`);
+    } else {
+      rows.push(`<button class="btn btn-secondary btn-tiny" id="courtesyStep2Btn" style="margin-top:6px;">Send Step 2 courtesy reminder to management (due ${fmt(d.step2AnswerDue)})</button>`);
+    }
+  }
+
+  if(!rows.length) return '';
+  return `<hr style="border:none;border-top:1px solid var(--green-line);margin:14px 0;">
+    <p style="margin-bottom:4px;"><b>Courtesy reminder to management</b></p>
+    <p style="font-size:12px;color:var(--grey);margin-bottom:2px;">One-time, optional. Sent to the management contact set in Settings. Does not waive or extend any deadline.</p>
+    <div style="display:flex;flex-direction:column;gap:6px;align-items:flex-start;">${rows.join('')}</div>`;
+}
+
 function openDetail(gid){
   const rec = STATE.grievances.find(g=>g.id===gid) || STATE.archive.find(g=>g.id===gid);
   if(!rec) return;
@@ -1239,6 +1303,7 @@ function openDetail(gid){
   const d = deriveDeadlines(rec);
   $('detailBody').innerHTML = `
     <p><b>Employee:</b> ${escapeHtml(rec.employee||'')} &middot; <b>Job class:</b> ${escapeHtml(rec.jobClass||'')}</p>
+    ${rec.description ? `<p style="background:var(--paper-2);border-radius:6px;padding:8px 10px;margin:8px 0;font-size:13.5px;line-height:1.5;">${escapeHtml(rec.description)}</p>` : ''}
     <p><b>Bureau:</b> ${escapeHtml(ORG_SETTINGS.bureau||rec.bureau||'')} &middot; <b>Location:</b> ${escapeHtml(ORG_SETTINGS.location||rec.location||'')} &middot; <b>County:</b> ${escapeHtml(ORG_SETTINGS.county||rec.county||'')}</p>
     <p><b>Steward:</b> ${escapeHtml(rec.steward||'')} (${escapeHtml(rec.stewardEmail||'')})</p>
     <p><b>Type:</b> ${escapeHtml(rec.gtype||'')}</p>
@@ -1251,7 +1316,14 @@ function openDetail(gid){
     <p><b>Step 2 filed:</b> ${rec.step2filed||'—'} &middot; <b>answer due:</b> ${d.step2AnswerDue?fmt(d.step2AnswerDue):'—'} &middot; <b>response:</b> ${rec.step2resp||'—'}</p>
     <p><b>Step 3 filed:</b> ${rec.step3filed||'—'} &middot; <b>sign-off due:</b> ${d.step3SignDue?fmt(d.step3SignDue):'—'} &middot; <b>response:</b> ${rec.step3resp||'—'}</p>
     <p><b>Step 4/Arb filed:</b> ${rec.step4filed||'—'} &middot; <b>hearing due:</b> ${d.arbHearingDue?fmt(d.arbHearingDue):'—'}</p>
+    ${courtesyNoticeSectionHtml(rec, d)}
   `;
+
+  const step1Btn = $('courtesyStep1Btn');
+  if(step1Btn) step1Btn.onclick = ()=>sendCourtesyNotice(rec.id, 'step1', step1Btn);
+  const step2Btn = $('courtesyStep2Btn');
+  if(step2Btn) step2Btn.onclick = ()=>sendCourtesyNotice(rec.id, 'step2', step2Btn);
+
   $('detailEditBtn').onclick = ()=>{ loadIntoForm(rec); $('detailModalOverlay').classList.remove('show'); switchTab('intake'); };
   $('detailPrintBtn').onclick = ()=>printGrievance(rec.id);
   $('detailModalOverlay').classList.add('show');
@@ -1262,6 +1334,7 @@ function loadIntoForm(rec){
   $('f-gid').value = rec.id;
   $('f-name').value = rec.employee||'';
   $('f-grievant-email').value = rec.grievantEmail||'';
+  $('f-description').value = rec.description||'';
   $('f-job').value = rec.jobClass||'';
   $('f-bu').value = rec.bu||'';
   $('f-gtype').value = rec.gtype||'';
@@ -1671,7 +1744,7 @@ function renderSettingsCounts(isBackgroundPoll){
 
   // Org settings fields — don't overwrite while an admin is mid-typing
   // during a silent background poll.
-  const orgFields = ['orgAgencyInput','orgLocalNoInput','orgBureauInput','orgLocationInput','orgCountyInput','orgShiftInput'];
+  const orgFields = ['orgAgencyInput','orgLocalNoInput','orgBureauInput','orgLocationInput','orgCountyInput','orgShiftInput','orgManagementEmailInput'];
   const anyFocused = orgFields.some(id => document.activeElement === $(id));
   if(!isBackgroundPoll || !anyFocused){
     $('orgAgencyInput')   && ($('orgAgencyInput').value   = ORG_SETTINGS.agency   || '');
@@ -1680,6 +1753,7 @@ function renderSettingsCounts(isBackgroundPoll){
     $('orgLocationInput') && ($('orgLocationInput').value = ORG_SETTINGS.location || '');
     $('orgCountyInput')   && ($('orgCountyInput').value   = ORG_SETTINGS.county   || '');
     $('orgShiftInput')    && ($('orgShiftInput').value    = ORG_SETTINGS.shift    || '');
+    $('orgManagementEmailInput') && ($('orgManagementEmailInput').value = ORG_SETTINGS.managementEmail || '');
   }
 }
 
@@ -1691,11 +1765,12 @@ $('orgSettingsSaveBtn').addEventListener('click', async ()=>{
   const location = $('orgLocationInput').value.trim();
   const county   = $('orgCountyInput').value.trim();
   const shift    = $('orgShiftInput').value.trim();
+  const managementEmail = $('orgManagementEmailInput').value.trim();
   const btn = $('orgSettingsSaveBtn');
   btn.disabled = true; btn.textContent = 'Saving…';
   try{
-    await apiPost('/api/org-settings', { agency, localNo, bureau, location, county, shift });
-    ORG_SETTINGS = { agency, localNo, bureau, location, county, shift };
+    await apiPost('/api/org-settings', { agency, localNo, bureau, location, county, shift, managementEmail });
+    ORG_SETTINGS = { agency, localNo, bureau, location, county, shift, managementEmail };
     updatePageTitle();
     toast('Local chapter info updated.');
   }catch(err){
