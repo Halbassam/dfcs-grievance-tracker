@@ -189,6 +189,11 @@ footer.app-foot{text-align:center;color:var(--grey);font-size:11.5px;padding:30p
   .user-row{grid-template-columns:1fr 1fr !important;}
   .user-row .ur-password{grid-column:1 / -1;}
 }
+.chat-bubble{max-width:82%;padding:10px 14px;border-radius:10px;font-size:13.5px;line-height:1.55;white-space:pre-wrap;}
+.chat-bubble.user{align-self:flex-end;background:var(--green-2);color:#fff;border-bottom-right-radius:2px;}
+.chat-bubble.bot{align-self:flex-start;background:var(--paper-2);color:var(--ink);border-bottom-left-radius:2px;border:1px solid var(--green-line);}
+.chat-bubble.bot.pending{color:var(--grey);font-style:italic;}
+.chat-bubble.bot.error{background:var(--red-bg);color:var(--red);border-color:var(--red);}
 </style>
 </head>
 <body>
@@ -225,6 +230,7 @@ footer.app-foot{text-align:center;color:var(--grey);font-size:11.5px;padding:30p
   <button class="menu-toggle" id="menuToggle">&#9776;</button>
   <nav class="tabs" id="tabs">
     <button class="tab-btn active" data-tab="intake">Intake Form</button>
+    <button class="tab-btn" data-tab="draftbot" id="draftbotTabBtn">Draft a Grievance</button>
     <button class="tab-btn" data-tab="dashboard">Priority Dashboard <span class="count" id="navOverdueCount">0</span></button>
     <button class="tab-btn" data-tab="log">Grievance Log</button>
     <button class="tab-btn" data-tab="activity">Activity Log</button>
@@ -299,6 +305,34 @@ footer.app-foot{text-align:center;color:var(--grey);font-size:11.5px;padding:30p
           </div>
         </div>
       </form>
+    </div>
+  </section>
+
+  <!-- DRAFT A GRIEVANCE (AI ASSISTANT) -->
+  <section id="tab-draftbot" class="hidden">
+    <div class="section-head">
+      <div><h2>Draft a Grievance</h2><div class="sub">Describe the situation — the assistant will ask what it needs and cite the relevant Master Contract articles</div></div>
+      <button class="btn btn-ghost" id="clearDraftBtn">Clear conversation</button>
+    </div>
+    <div class="panel panel-pad">
+      <div class="notice-box notice-amber" style="margin-bottom:16px;">&#9888;&#65039; <span>This is a drafting aid, not legal advice. Double-check every fact, date, and contract citation before filing, and loop in your local grievance chair on anything unusual or high-stakes.</span></div>
+      <div id="draftbotThread" style="display:flex;flex-direction:column;gap:14px;max-height:52vh;overflow-y:auto;padding:4px 2px;margin-bottom:14px;"></div>
+      <div id="draftbotDraftCard" class="hidden" style="border:1.5px solid var(--green-line);border-radius:var(--radius);background:var(--green-soft);padding:14px;margin-bottom:14px;">
+        <div style="font-family:var(--serif);color:var(--green-1);font-weight:600;margin-bottom:6px;">Latest draft</div>
+        <div id="draftbotDraftSummary" style="font-size:13.5px;line-height:1.6;"></div>
+        <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:10px;">
+          <button class="btn btn-primary" id="useDraftBtn">Use this draft in the Intake Form</button>
+          <button class="btn btn-secondary" id="copyDraftBtn">Copy as document</button>
+        </div>
+        <textarea id="draftbotDocText" readonly style="width:100%;margin-top:10px;min-height:180px;font-family:var(--mono);font-size:12.5px;line-height:1.6;"></textarea>
+        <div id="copyDraftNote" class="field-note hidden">Copied — paste into Word, an email, or wherever you're filing this.</div>
+      </div>
+      <div id="draftbotError" class="hidden" style="color:var(--red);font-size:13px;margin-bottom:10px;"></div>
+      <form id="draftbotForm" style="display:flex;gap:10px;align-items:flex-end;">
+        <div class="field wide" style="margin:0;flex:1;"><textarea id="draftbotInput" placeholder="e.g. My grievant was given a written warning for tardiness but was never verbally counseled first..." style="min-height:56px;"></textarea></div>
+        <button type="submit" class="btn btn-primary btn-lg" id="draftbotSendBtn">Send</button>
+      </form>
+      <div id="draftbotArticlesUsed" class="field-note" style="margin-top:8px;"></div>
     </div>
   </section>
 
@@ -545,6 +579,7 @@ footer.app-foot{text-align:center;color:var(--grey);font-size:11.5px;padding:30p
     <div class="modal-head"><span>&#128272;</span><h3>Manage user accounts</h3></div>
     <div class="modal-body">
       <p style="margin-top:0;color:var(--grey);font-size:13px;">Each row is one login. Leave the password field blank when editing an existing user to keep their current password unchanged. Usernames cannot be changed once created &mdash; delete and re-add instead.</p>
+      <p style="margin-top:0;color:var(--grey);font-size:13px;"><b>Roles:</b> <i>Steward</i> — normal access. <i>Steward Plus</i> — normal access plus the AI grievance-drafting bot. <i>Admin</i> — full access, including the bot and account/settings management.</p>
       <div id="userRows" style="display:flex;flex-direction:column;gap:12px;margin-top:14px;max-height:380px;overflow-y:auto;"></div>
       <button class="btn btn-ghost" id="addUserRowBtn" style="margin-top:10px;">+ Add another user</button>
     </div>
@@ -1377,6 +1412,132 @@ document.querySelectorAll('.tab-btn').forEach(btn=>{
 });
 $('menuToggle').addEventListener('click', ()=>$('tabs').classList.toggle('open'));
 
+/* ---------- Draft a Grievance (AI assistant) ---------- */
+let draftbotMessages = [];
+let draftbotLatestDraft = null;
+let draftbotBusy = false;
+
+function draftbotRenderThread(){
+  const thread = $('draftbotThread');
+  thread.innerHTML = draftbotMessages.map(m=>{
+    const cls = m.role === 'user' ? 'user' : (m.error ? 'bot error' : 'bot');
+    return `<div class="chat-bubble ${cls}">${escapeHtml(m.content)}</div>`;
+  }).join('') + (draftbotBusy ? `<div class="chat-bubble bot pending">Thinking…</div>` : '');
+  thread.scrollTop = thread.scrollHeight;
+}
+
+function draftbotRenderDraftCard(){
+  const card = $('draftbotDraftCard');
+  if(!draftbotLatestDraft){ card.classList.add('hidden'); return; }
+  card.classList.remove('hidden');
+  const d = draftbotLatestDraft;
+  $('draftbotDraftSummary').innerHTML = [
+    d.article ? `<div><b>CBA article:</b> ${escapeHtml(d.article)}</div>` : '',
+    d.section ? `<div><b>Section:</b> ${escapeHtml(d.section)}</div>` : '',
+    d.quote ? `<div style="margin-top:6px;"><b>Contract language (verbatim — check this against the real contract):</b><br>"${escapeHtml(d.quote)}"</div>` : '',
+    d.description ? `<div style="margin-top:6px;"><b>Description:</b> ${escapeHtml(d.description)}</div>` : '',
+    d.remedy ? `<div style="margin-top:6px;"><b>Remedy sought:</b> ${escapeHtml(d.remedy)}</div>` : ''
+  ].join('');
+  $('draftbotDocText').value = draftbotFormatAsDocument(d);
+  $('copyDraftNote').classList.add('hidden');
+}
+
+function draftbotFormatAsDocument(d){
+  const today = new Date().toLocaleDateString('en-US', { year:'numeric', month:'long', day:'numeric' });
+  const lines = [
+    'STATEMENT OF GRIEVANCE',
+    'AFSCME Council 31 — Master Contract 2023–2027',
+    '',
+    `Employee: __________________________     Date: ${today}`,
+    `Steward: __________________________`,
+    ''
+  ];
+  if(d.article || d.section) lines.push(`CBA Provision Cited: ${[d.article, d.section].filter(Boolean).join(', ')}`, '');
+  if(d.description) lines.push('Statement of Facts:', d.description, '');
+  if(d.quote) lines.push('Contract Language Relied Upon (verbatim — verify against the official contract text):', `"${d.quote}"`, '');
+  if(d.remedy) lines.push('Remedy Sought:', d.remedy, '');
+  lines.push('— Drafted with the FCRC Grievance Tracker assistant; verify all facts, dates, and citations before filing.');
+  return lines.join('\n');
+}
+
+$('copyDraftBtn').addEventListener('click', async ()=>{
+  const text = $('draftbotDocText').value;
+  try{
+    await navigator.clipboard.writeText(text);
+  }catch(err){
+    $('draftbotDocText').select();
+    document.execCommand('copy');
+  }
+  $('copyDraftNote').classList.remove('hidden');
+});
+
+$('draftbotForm').addEventListener('submit', async (e)=>{
+  e.preventDefault();
+  if(draftbotBusy) return;
+  const input = $('draftbotInput');
+  const text = input.value.trim();
+  if(!text) return;
+  input.value = '';
+  draftbotMessages.push({ role:'user', content:text });
+  draftbotBusy = true;
+  $('draftbotError').classList.add('hidden');
+  draftbotRenderThread();
+
+  try{
+    const res = await fetch('/api/grievance-draft/chat', {
+      method:'POST',
+      headers:{ 'Content-Type':'application/json' },
+      body: JSON.stringify({ messages: draftbotMessages.map(m=>({ role:m.role, content:m.content })) })
+    });
+    const data = await res.json();
+    if(!res.ok) throw new Error(data.error || 'The drafting assistant is unavailable right now.');
+
+    draftbotMessages.push({ role:'assistant', content:data.reply });
+    if(data.draft){
+      draftbotLatestDraft = data.draft;
+      draftbotRenderDraftCard();
+    }
+    if(data.articlesUsed && data.articlesUsed.length){
+      $('draftbotArticlesUsed').textContent = 'Referenced: ' + data.articlesUsed.join(' · ');
+    }
+  }catch(err){
+    $('draftbotError').textContent = err.message;
+    $('draftbotError').classList.remove('hidden');
+    draftbotMessages.push({ role:'assistant', content: 'Something went wrong: ' + err.message, error:true });
+  }finally{
+    draftbotBusy = false;
+    draftbotRenderThread();
+  }
+});
+
+$('clearDraftBtn').addEventListener('click', ()=>{
+  draftbotMessages = [];
+  draftbotLatestDraft = null;
+  $('draftbotArticlesUsed').textContent = '';
+  $('draftbotError').classList.add('hidden');
+  draftbotRenderThread();
+  draftbotRenderDraftCard();
+});
+
+$('useDraftBtn').addEventListener('click', ()=>{
+  if(!draftbotLatestDraft) return;
+  const d = draftbotLatestDraft;
+  switchTab('intake');
+  if(d.description) $('f-description').value = d.description;
+  if(d.remedy) $('f-remedy').value = d.remedy;
+  if(d.section) $('f-section').value = d.section;
+  if(d.article){
+    const sel = $('f-article');
+    const match = Array.from(sel.options).find(o =>
+      o.value.toLowerCase().includes(d.article.toLowerCase()) ||
+      d.article.toLowerCase().includes(o.value.toLowerCase().replace(/^article\s*/,''))
+    );
+    if(match) sel.value = match.value;
+  }
+  recalcDeadlines();
+});
+
+
 function renderAll(){
   renderDashboard();
   renderLog();
@@ -1869,6 +2030,15 @@ function applyRoleVisibility(user){
   // Change-password is available to every logged-in user
   const changePasswordPanel = $('changePasswordPanel');
   if(changePasswordPanel) changePasswordPanel.style.display = (user && user.username) ? '' : 'none';
+
+  // Draft-a-Grievance bot: admin or steward_plus only. Hiding the button is
+  // just a convenience — the real check is server-side on every request.
+  const botAllowed = !!(user && (user.role === 'admin' || user.role === 'steward_plus' || !user.username));
+  const draftTabBtn = $('draftbotTabBtn');
+  if(draftTabBtn){
+    draftTabBtn.style.display = botAllowed ? '' : 'none';
+    if(!botAllowed && draftTabBtn.classList.contains('active')) switchTab('intake');
+  }
 }
 
 async function attemptLogin(){
@@ -1929,12 +2099,12 @@ async function loadUserList(){
   }
 }
 function userRowHtml(idx, username, displayName, isExisting, role){
-  const r = role === 'admin' ? 'admin' : 'steward';
+  const r = (role === 'admin' || role === 'steward_plus') ? role : 'steward';
   return `<div class="user-row" data-idx="${idx}" data-existing="${isExisting?'1':'0'}" style="display:grid;grid-template-columns:1fr 1fr 1fr auto auto;gap:10px;align-items:center;">
     <input type="text" class="ur-username" placeholder="username" value="${escapeHtml(username)}" ${isExisting?'readonly style="background:var(--paper-2);"':''}>
     <input type="text" class="ur-displayname" placeholder="Full name" value="${escapeHtml(displayName)}">
     <input type="password" class="ur-password" placeholder="${isExisting?'(unchanged)':'Set password'}" autocomplete="new-password">
-    <select class="ur-role" title="Account role"><option value="steward" ${r==='steward'?'selected':''}>Steward</option><option value="admin" ${r==='admin'?'selected':''}>Admin</option></select>
+    <select class="ur-role" title="Account role"><option value="steward" ${r==='steward'?'selected':''}>Steward</option><option value="steward_plus" ${r==='steward_plus'?'selected':''}>Steward Plus (can use AI bot)</option><option value="admin" ${r==='admin'?'selected':''}>Admin</option></select>
     <button type="button" class="btn-tiny ur-remove" title="${isExisting?'Delete this account':'Remove this row'}">&#10005;</button>
   </div>`;
 }
