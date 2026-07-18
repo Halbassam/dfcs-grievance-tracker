@@ -1,151 +1,122 @@
 /**
+ * ================================================================
  * AFSCME Council 31 — FCRC Grievance Tracker
- * Daily deadline email scheduler.
- * Sends reminder emails to stewards for grievances with deadlines
- * coming up within REMINDER_WINDOW_DAYS days.
- * No reminders are sent after Step 3 — Council 31 staff track Step 4.
+ * Grievant progress notifications.
+ *
+ * Sends an email to the grievant(s) named on a case whenever Step 1,
+ * Step 2, or Step 3 is newly filed (transitions from blank to a
+ * date in the same save). Entirely optional per-case — if no
+ * grievantEmail is on file, nothing is sent and nothing errors.
+ *
+ * For "All Affected" / group grievances, grievantEmail may contain
+ * multiple addresses separated by commas — each gets its own email.
+ *
+ * Uses the same Brevo API sender as the steward deadline reminders
+ * (server/mailer.js) — no separate configuration needed.
+ * ================================================================
  */
 
-const db = require("./db");
 const { sendMail } = require("./mailer");
+const db = require("./db");
 
-const REMINDER_WINDOW_DAYS = 3;
-const CHECK_INTERVAL_MS = 60 * 60 * 1000; // check every hour
-
-/**
- * Returns today's date as YYYY-MM-DD in America/Chicago (the FCRC's
- * local timezone), not the server's own clock. Render runs on UTC,
- * so anything checked in the evening Central time could otherwise
- * be misdated as tomorrow.
- */
-function todayISO() {
-  const parts = new Intl.DateTimeFormat("en-US", {
-    timeZone: "America/Chicago",
-    year: "numeric", month: "2-digit", day: "2-digit"
-  }).formatToParts(new Date());
-  const map = {};
-  for (const p of parts) map[p.type] = p.value;
-  return `${map.year}-${map.month}-${map.day}`;
+function parseEmailList(raw) {
+  return String(raw || "")
+    .split(",")
+    .map(s => s.trim())
+    .filter(s => s.length > 0 && s.includes("@"));
 }
 
-function buildEmailBody(stewardName, items) {
-  const overdue = items.filter(i => i.daysAway < 0).sort((a, b) => a.daysAway - b.daysAway);
-  const upcoming = items.filter(i => i.daysAway >= 0).sort((a, b) => a.daysAway - b.daysAway);
+const STEP_LABELS = {
+  step1: "Step 1 (Oral Grievance)",
+  step2: "Step 2 (Written Grievance)",
+  step3: "Step 3 (Agency Head)"
+};
 
+function buildStepEmailBody(rec, step) {
   const lines = [];
-  lines.push(`Dear ${stewardName},`);
+  lines.push(`Dear ${rec.employee || "Grievant"},`);
+  lines.push("");
+  lines.push(`This is an update on your grievance (Case ${rec.id}).`);
   lines.push("");
 
-  if (overdue.length) {
-    lines.push(`\u26A0 ${overdue.length} grievance deadline(s) are PAST DUE:`);
+  if (step === "step1") {
+    lines.push(`Your grievance has been filed at ${STEP_LABELS.step1}.`);
     lines.push("");
-    for (const item of overdue) {
-      const daysLate = Math.abs(item.daysAway);
-      lines.push(`  - Grievance ${item.id} (${item.employee})`);
-      lines.push(`    OVERDUE: ${item.deadlineLabel} was due ${item.deadlineDate} — ${daysLate} day${daysLate === 1 ? "" : "s"} ago`);
-      lines.push("");
-    }
+    lines.push("What happens next: your steward has raised this grievance orally with your immediate supervisor.");
+    lines.push("Expected response timeframe: the supervisor's response is due within 10 working days of filing.");
+    lines.push("If a satisfactory response isn't received in that time, the grievance will normally advance to Step 2.");
+  } else if (step === "step2") {
+    lines.push(`Your grievance has advanced to ${STEP_LABELS.step2}.`);
+    lines.push("");
+    lines.push("What happens next: a written grievance has been filed with the Intermediate Administrator or their designee. A meeting may be held to discuss the grievance.");
+    lines.push("Expected response timeframe: a written answer is due within 15 working days of receipt.");
+    lines.push("If a satisfactory response isn't received in that time, the grievance will normally advance to Step 3.");
+  } else if (step === "step3") {
+    lines.push(`Your grievance has advanced to ${STEP_LABELS.step3}.`);
+    lines.push("");
+    lines.push("What happens next: the grievance has been filed with the Agency Head and a copy sent to Council 31. From this point, AFSCME Council 31 staff take over primary handling of your case, including any further scheduling with the Agency.");
+    // Per local policy, no expected response timeframe is stated for
+    // Step 3 — timing depends on the monthly grievance committee
+    // schedule and other factors that make a firm estimate unreliable.
   }
 
-  if (upcoming.length) {
-    lines.push(`The following grievance deadline(s) are coming up within the next ${REMINDER_WINDOW_DAYS} days:`);
-    lines.push("");
-    for (const item of upcoming) {
-      const dueText = item.daysAway === 0 ? "DUE TODAY" : item.daysAway === 1 ? "due tomorrow" : `due in ${item.daysAway} days`;
-      lines.push(`  - Grievance ${item.id} (${item.employee})`);
-      lines.push(`    ${item.deadlineLabel} ${dueText} — ${item.deadlineDate}`);
-      lines.push("");
-    }
-  }
-
-  lines.push("Art. V Sec. 3(b): Extensions to any deadline require mutual written agreement.");
-  lines.push("Log in to the FCRC Grievance Tracker for full case details:");
-  lines.push("https://dfcs-grievance-tracker.onrender.com");
   lines.push("");
-  lines.push("— AFSCME Council 31 FCRC Grievance Tracker (automated reminder)");
+  lines.push("Your steward will keep you informed as your case progresses. If you have questions in the meantime, please reach out to your steward directly.");
+  lines.push("");
+  lines.push("— AFSCME Council 31 FCRC Grievance Tracker (automated notification)");
   return lines.join("\n");
 }
 
-async function runDeadlineCheck() {
+/**
+ * Sends progress-notification emails for whichever steps were newly
+ * filed in this save. `newlyFiledSteps` is the object returned by
+ * db.submitGrievance(), e.g. { step1: true, step2: false, step3: false }.
+ *
+ * Never throws — a failed or skipped notification should never block
+ * the actual grievance save, which has already succeeded by the time
+ * this runs. Returns a summary object for logging/testing purposes.
+ */
+async function sendGrievantStepNotifications(rec, newlyFiledSteps) {
+  const summary = { attempted: [], sent: [], skippedNoEmail: false, errors: [] };
+
   const apiKey = process.env.BREVO_API_KEY || "";
   const senderEmail = process.env.BREVO_SENDER_EMAIL || "";
-  const summary = { sent: 0, skippedNoEmail: 0, errors: [], stewardsNotified: [] };
 
-  if (!apiKey || !senderEmail) {
-    summary.errors.push("BREVO_API_KEY or BREVO_SENDER_EMAIL not set — no emails sent. See server/mailer.js for setup steps.");
+  const recipients = parseEmailList(rec.grievantEmail);
+  if (recipients.length === 0) {
+    summary.skippedNoEmail = true;
     return summary;
   }
 
-  const upcoming = await db.findUpcomingDeadlines(REMINDER_WINDOW_DAYS);
-
-  const byEmail = new Map();
-  for (const item of upcoming) {
-    const email = (item.stewardEmail || "").trim();
-    if (!email) { summary.skippedNoEmail++; continue; }
-    if (!byEmail.has(email)) byEmail.set(email, { stewardName: item.steward || "Steward", items: [] });
-    byEmail.get(email).items.push(item);
+  if (!apiKey || !senderEmail) {
+    summary.errors.push("BREVO_API_KEY or BREVO_SENDER_EMAIL not set — grievant notification not sent.");
+    return summary;
   }
 
-  for (const [email, group] of byEmail.entries()) {
-    const overdueCount = group.items.filter(i => i.daysAway < 0).length;
-    const subject = overdueCount
-      ? `\u26A0 FCRC Grievance Tracker — ${overdueCount} OVERDUE deadline${overdueCount > 1 ? "s" : ""}`
-      : `FCRC Grievance Tracker — ${group.items.length} upcoming deadline${group.items.length > 1 ? "s" : ""}`;
-    try {
-      await sendMail({
-        apiKey, senderEmail, to: email,
-        subject,
-        text: buildEmailBody(group.stewardName, group.items)
-      });
-      summary.sent++;
-      summary.stewardsNotified.push({ steward: group.stewardName, email, count: group.items.length });
-      await db.logEmailAttempt({
-        kind: "steward-deadline-digest", steward: group.stewardName, to: email,
-        count: group.items.length, overdueCount, ok: true
-      }).catch(logErr => console.error("[scheduler] Failed to write email log entry:", logErr.message));
-    } catch (err) {
-      // Some low-level network errors (blocked/refused outbound
-      // connections, timeouts before a socket even connects) can
-      // surface with an empty .message. Include .code and .name too
-      // so a genuinely blank message doesn't leave us with nothing
-      // to diagnose from.
-      const detail = err && (err.message || err.code || err.name)
-        ? [err.message, err.code, err.name].filter(Boolean).join(" | ")
-        : String(err);
-      summary.errors.push(`Failed to email ${email}: ${detail}`);
-      console.error(`[scheduler] Failed to email ${email}:`, err);
-      await db.logEmailAttempt({
-        kind: "steward-deadline-digest", steward: group.stewardName, to: email,
-        count: group.items.length, overdueCount, ok: false, error: detail
-      }).catch(logErr => console.error("[scheduler] Failed to write email log entry:", logErr.message));
+  const stepsToNotify = ["step1", "step2", "step3"].filter(s => newlyFiledSteps && newlyFiledSteps[s]);
+  for (const step of stepsToNotify) {
+    summary.attempted.push(step);
+    const subject = `Grievance Update — ${rec.id} filed at ${STEP_LABELS[step]}`;
+    const text = buildStepEmailBody(rec, step);
+    for (const to of recipients) {
+      try {
+        await sendMail({ apiKey, senderEmail, to, subject, text });
+        summary.sent.push({ step, to });
+        await db.logEmailAttempt({
+          kind: "grievant-update", gid: rec.id, step, to, ok: true
+        }).catch(err => console.error("[grievantNotify] Failed to write email log entry:", err.message));
+      } catch (err) {
+        const detail = err && (err.message || err.code || err.name) || String(err);
+        summary.errors.push(`Failed to notify grievant ${to} for ${step}: ${detail}`);
+        console.error(`[grievantNotify] Failed to email ${to} for ${rec.id} ${step}:`, err);
+        await db.logEmailAttempt({
+          kind: "grievant-update", gid: rec.id, step, to, ok: false, error: detail
+        }).catch(logErr => console.error("[grievantNotify] Failed to write email log entry:", logErr.message));
+      }
     }
   }
-
-  // Individual send attempts are already logged per-steward above via
-  // db.logEmailAttempt(), so only lastEmailRunDate needs persisting here
-  // (used to avoid re-running the daily check twice on the same day).
-  await db.withLock(async () => {
-    await db.writeRawAtomic({ lastEmailRunDate: todayISO() });
-    return null;
-  });
 
   return summary;
 }
 
-function startScheduler() {
-  setInterval(async () => {
-    try {
-      const data = await db.readRaw();
-      const today = todayISO();
-      if (data.lastEmailRunDate === today) return;
-      console.log(`[scheduler] Running daily deadline check for ${today}...`);
-      const summary = await runDeadlineCheck();
-      console.log(`[scheduler] Done. Sent ${summary.sent} email(s), ${summary.errors.length} error(s).`);
-    } catch (err) {
-      console.error("[scheduler] Unexpected error during daily check:", err);
-    }
-  }, CHECK_INTERVAL_MS);
-  console.log("[scheduler] Daily deadline email scheduler started.");
-}
-
-module.exports = { runDeadlineCheck, startScheduler };
+module.exports = { sendGrievantStepNotifications, buildStepEmailBody, parseEmailList };

@@ -1,37 +1,50 @@
 /**
- * ================================================================
- * AFSCME Council 31 — DFCS Grievance Tracker
- * Password hashing — zero npm dependencies, uses Node's built-in
- * crypto.scrypt (a deliberately slow, memory-hard hash designed
- * for passwords — much safer than a plain SHA-256 hash).
- *
- * Stored format: "scrypt:<salt-hex>:<hash-hex>"
- * The salt is randomly generated per-password, so two stewards
- * with the same password never produce the same stored hash.
- * ================================================================
+ * AFSCME Council 31 — FCRC Grievance Tracker
+ * Postgres connection pool (Supabase pooled connection, port 6543).
+ * Set DATABASE_URL on Render to the Supabase Connection Pooling
+ * (Transaction mode) string — not the direct connection.
  */
 
-const crypto = require("crypto");
+const { Pool } = require("pg");
 
-const KEY_LENGTH = 64;
+const connectionString = process.env.DATABASE_URL;
 
-function hashPassword(plainPassword) {
-  const salt = crypto.randomBytes(16).toString("hex");
-  const hash = crypto.scryptSync(plainPassword, salt, KEY_LENGTH).toString("hex");
-  return `scrypt:${salt}:${hash}`;
+if (!connectionString) {
+  console.error(
+    "FATAL: DATABASE_URL environment variable is not set. " +
+    "Set it on Render to your Supabase pooled connection string."
+  );
 }
 
-function verifyPassword(plainPassword, storedHash) {
-  if (!storedHash || typeof storedHash !== "string") return false;
-  const parts = storedHash.split(":");
-  if (parts.length !== 3 || parts[0] !== "scrypt") return false;
+const pool = new Pool({
+  connectionString,
+  ssl: { rejectUnauthorized: false },
+  max: 10,
+  idleTimeoutMillis: 30000,
+  connectionTimeoutMillis: 10000
+});
 
-  const [, salt, originalHashHex] = parts;
-  const originalHash = Buffer.from(originalHashHex, "hex");
-  const attemptHash = crypto.scryptSync(plainPassword, salt, KEY_LENGTH);
+pool.on("error", (err) => {
+  console.error("Unexpected Postgres pool error:", err.message);
+});
 
-  if (attemptHash.length !== originalHash.length) return false;
-  return crypto.timingSafeEqual(attemptHash, originalHash);
+function query(text, params) {
+  return pool.query(text, params);
 }
 
-module.exports = { hashPassword, verifyPassword };
+async function withTransaction(fn) {
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    const result = await fn(client);
+    await client.query("COMMIT");
+    return result;
+  } catch (err) {
+    try { await client.query("ROLLBACK"); } catch (e) { console.error("Rollback failed:", e.message); }
+    throw err;
+  } finally {
+    client.release();
+  }
+}
+
+module.exports = { pool, query, withTransaction };

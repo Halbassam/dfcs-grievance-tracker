@@ -1,7 +1,8 @@
 const assert = require('assert');
 const path = require('path');
+const http = require('http');
 
-async function testBackend() {
+async function testNewlyFiledDetection() {
   const { newDb } = require('pg-mem');
   const mem = newDb();
   const pgAdapter = mem.adapters.createPg();
@@ -17,89 +18,149 @@ async function testBackend() {
   };
   await pool.query(`
     create table grievances (id text primary key, status text not null default 'Pending', steward text, data jsonb not null default '{}', created_at timestamptz not null default now(), updated_at timestamptz not null default now());
-    create table holidays (date text primary key, name text not null);
   `);
   const db = require('/home/claude/dfcs-rebuild/server/db.js');
 
-  const today = new Date();
-  function iso(d){ return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
-  const longAgo = new Date(today); longAgo.setDate(longAgo.getDate() - 200);
+  // First save: new grievance, Step 1 filed immediately.
+  const g1 = await db.submitGrievance({
+    id: '2026-500', employee: 'Jane Doe', grievantEmail: 'jane@example.gov',
+    steward: 'Hazem', status: 'Pending', step1filed: '2026-06-01', actingUser: 'Hazem'
+  });
+  assert.strictEqual(g1.newlyFiledSteps.step1, true, 'Step 1 should be detected as newly filed on creation');
+  assert.strictEqual(g1.newlyFiledSteps.step2, false);
+  assert.strictEqual(g1.newlyFiledSteps.step3, false);
+  assert.strictEqual(g1.record.grievantEmail, 'jane@example.gov');
+  console.log('✓ Step 1 correctly detected as newly filed when set on grievance creation');
 
-  // A grievance filed at Step 3 a long time ago, with no Step 3 response —
-  // under the OLD logic this would be wildly overdue and alert every day.
-  await pool.query(
-    `insert into grievances (id, status, steward, data) values ($1,$2,$3,$4::jsonb)`,
-    ['2026-777', 'Pending', 'Hazem', JSON.stringify({
-      id: '2026-777', employee: 'Step3 Test', steward: 'Hazem', stewardEmail: 'h@x.gov',
-      status: 'Pending',
-      step1filed: iso(longAgo), step1resp: iso(longAgo),
-      step2filed: iso(longAgo), step2resp: iso(longAgo),
-      step3filed: iso(longAgo) // filed at step 3, no response yet — 200 days ago
-    })]
-  );
+  // Second save: same grievance, no new dates -- nothing should be "newly filed"
+  const g2 = await db.submitGrievance({
+    id: '2026-500', employee: 'Jane Doe', grievantEmail: 'jane@example.gov',
+    steward: 'Hazem', status: 'Pending', actingUser: 'Hazem'
+  });
+  assert.strictEqual(g2.newlyFiledSteps.step1, false, 'Step 1 already had a date -- must NOT re-trigger on a save that does not change it');
+  console.log('✓ Re-saving without changing dates does NOT re-trigger a "newly filed" notification (no duplicate emails)');
 
-  const result = await db.findUpcomingDeadlines(9999); // huge window — should still find nothing
-  const hit = result.find(r => r.id === '2026-777');
-  assert.strictEqual(hit, undefined, 'a grievance filed at Step 3 must generate NO deadline alert, even with an enormous window');
-  console.log('✓ Backend: no alert generated once Step 3 is filed, regardless of how overdue it would otherwise be');
+  // Third save: now add step2filed -- only step2 should be newly filed
+  const g3 = await db.submitGrievance({
+    id: '2026-500', employee: 'Jane Doe', grievantEmail: 'jane@example.gov',
+    steward: 'Hazem', status: 'Pending', step2filed: '2026-06-20', actingUser: 'Hazem'
+  });
+  assert.strictEqual(g3.newlyFiledSteps.step1, false, 'Step 1 was already filed before this save');
+  assert.strictEqual(g3.newlyFiledSteps.step2, true, 'Step 2 is newly filed in this save');
+  assert.strictEqual(g3.newlyFiledSteps.step3, false);
+  console.log('✓ Adding Step 2 filed date correctly triggers ONLY the step2 notification flag, not step1 again');
+
+  // Fourth save: add BOTH step3filed while step1/step2 stay set -- only step3 true
+  const g4 = await db.submitGrievance({
+    id: '2026-500', employee: 'Jane Doe', grievantEmail: 'jane@example.gov',
+    steward: 'Hazem', status: 'Pending', step3filed: '2026-07-10', actingUser: 'Hazem'
+  });
+  assert.strictEqual(g4.newlyFiledSteps.step1, false);
+  assert.strictEqual(g4.newlyFiledSteps.step2, false);
+  assert.strictEqual(g4.newlyFiledSteps.step3, true, 'Step 3 is newly filed in this save');
+  console.log('✓ Adding Step 3 filed date correctly triggers ONLY the step3 notification flag');
 }
 
-async function testFrontend() {
-  const { JSDOM } = require('jsdom');
-  const fs = require('fs');
-  let html = fs.readFileSync('/home/claude/dfcs-rebuild/public/index.html', 'utf8');
-  html = html.replace('</script>', `</script><script>
-    window.__t2 = {
-      rowClass: (r)=>rowClass(r), isOverdue: (r)=>isOverdue(r), nextDeadline: (r)=>nextDeadline(r)
-    };
-  </script>`);
-  const dom = new JSDOM(html, { runScripts: 'dangerously', url: 'http://localhost/' });
-  const w = dom.window;
-  await new Promise(r => setTimeout(r, 300));
+async function testEmailContent() {
+  const { buildStepEmailBody, parseEmailList } = require('/home/claude/dfcs-rebuild/server/grievantNotify.js');
 
-  const rec = {
-    id: '2026-777', employee: 'Step3 Test', status: 'Pending',
-    step1filed: '2025-01-01', step1resp: '2025-01-05',
-    step2filed: '2025-01-10', step2resp: '2025-01-20',
-    step3filed: '2025-02-01' // filed long ago, no response
-  };
+  // parseEmailList handles comma-separated group grievance emails
+  assert.deepStrictEqual(parseEmailList('a@x.gov, b@y.gov,c@z.gov'), ['a@x.gov', 'b@y.gov', 'c@z.gov']);
+  assert.deepStrictEqual(parseEmailList(''), []);
+  assert.deepStrictEqual(parseEmailList('   '), []);
+  assert.deepStrictEqual(parseEmailList('not-an-email, valid@x.gov'), ['valid@x.gov']);
+  console.log('✓ parseEmailList correctly splits comma-separated group-grievance emails and filters invalid entries');
 
-  assert.strictEqual(w.__t2.rowClass(rec), 'row-blue', 'expected row-blue once Step 3 is filed, got: ' + w.__t2.rowClass(rec));
-  assert.strictEqual(w.__t2.isOverdue(rec), false, 'a Step-3-filed grievance must not be flagged overdue by this system anymore');
-  assert.strictEqual(w.__t2.nextDeadline(rec), null, 'a Step-3-filed grievance must have no tracked next deadline');
-  console.log('✓ Frontend: rowClass returns row-blue, isOverdue is false, nextDeadline is null once Step 3 is filed');
+  const rec = { id: '2026-500', employee: 'Jane Doe' };
 
-  // Confirm a resolved grievance still shows green even if step3filed is set
-  const resolvedRec = { ...rec, status: 'Settled' };
-  assert.strictEqual(w.__t2.rowClass(resolvedRec), 'row-green', 'resolved should stay green even with step3filed set');
-  console.log('✓ Frontend: resolved status still takes priority over the blue Step 3 styling');
+  const step1Body = buildStepEmailBody(rec, 'step1');
+  assert.ok(step1Body.includes('Step 1'), 'Step 1 email should mention Step 1');
+  assert.ok(step1Body.includes('10 working days'), 'Step 1 email should include the response timeframe');
+  console.log('✓ Step 1 email includes the expected response timeframe');
 
-  // Confirm the CSS class actually has blue background + white text
-  const styleText = [...w.document.querySelectorAll('style')].map(s=>s.textContent).join('\n');
-  assert.ok(/row-blue\s*\{[^}]*background:\s*#1a4fa0/.test(styleText), 'row-blue must have the blue background color');
-  assert.ok(/row-blue\s*\{[^}]*color:\s*#fff/.test(styleText), 'row-blue must have white text color');
-  console.log('✓ CSS: .row-blue has blue background (#1a4fa0) and white text (#fff)');
+  const step2Body = buildStepEmailBody(rec, 'step2');
+  assert.ok(step2Body.includes('Step 2'), 'Step 2 email should mention Step 2');
+  assert.ok(step2Body.includes('15 working days'), 'Step 2 email should include the response timeframe');
+  console.log('✓ Step 2 email includes the expected response timeframe');
+
+  const step3Body = buildStepEmailBody(rec, 'step3');
+  assert.ok(step3Body.includes('Step 3'), 'Step 3 email should mention Step 3');
+  assert.ok(!/due within \d+ working days/.test(step3Body), 'Step 3 email must NOT include a specific response timeframe');
+  assert.ok(!step3Body.toLowerCase().includes('expected response timeframe'), 'Step 3 email must not label any timeframe as "expected"');
+  console.log('✓ Step 3 email correctly OMITS the expected response timeframe (per local policy)');
+}
+
+async function testSendingLogic() {
+  const server = http.createServer((req, res) => {
+    let body = '';
+    req.on('data', c => body += c);
+    req.on('end', () => {
+      res.writeHead(201, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ messageId: '<test@brevo.com>' }));
+    });
+  });
+  await new Promise(r => server.listen(0, r));
+  const port = server.address().port;
+
+  // Monkey-patch mailer's https call target isn't feasible without editing
+  // production code for a test hook, so instead we verify end-to-end
+  // behavior using the REAL grievantNotify module against a REAL local
+  // server by temporarily pointing BREVO env vars at test values and
+  // relying on mailer.js's actual network call -- but since mailer.js
+  // hardcodes api.brevo.com, we instead verify the skip/error paths that
+  // don't require reaching the real API, which is what matters most for
+  // correctness (no crashes, no silent double-sends, clear errors).
+  const { sendGrievantStepNotifications } = require('/home/claude/dfcs-rebuild/server/grievantNotify.js');
+  server.close();
+
+  // No grievant email on file -> should skip cleanly, no error, no crash
+  const noEmailResult = await sendGrievantStepNotifications(
+    { id: '2026-501', employee: 'No Email Case', grievantEmail: '' },
+    { step1: true, step2: false, step3: false }
+  );
+  assert.strictEqual(noEmailResult.skippedNoEmail, true);
+  assert.strictEqual(noEmailResult.sent.length, 0);
+  assert.strictEqual(noEmailResult.errors.length, 0);
+  console.log('✓ A grievance with no grievantEmail on file is skipped cleanly -- no error, no crash');
+
+  // No step newly filed -> nothing attempted at all
+  const oldApiKey = process.env.BREVO_API_KEY;
+  const oldSender = process.env.BREVO_SENDER_EMAIL;
+  process.env.BREVO_API_KEY = 'fake_key_for_test';
+  process.env.BREVO_SENDER_EMAIL = 'sender@example.gov';
+
+  const nothingNewResult = await sendGrievantStepNotifications(
+    { id: '2026-502', employee: 'Has Email', grievantEmail: 'grievant@x.gov' },
+    { step1: false, step2: false, step3: false }
+  );
+  assert.strictEqual(nothingNewResult.attempted.length, 0, 'no steps newly filed -> nothing should be attempted');
+  console.log('✓ When no step was newly filed in a save, no notification is attempted at all');
+
+  process.env.BREVO_API_KEY = oldApiKey;
+  process.env.BREVO_SENDER_EMAIL = oldSender;
+
+  // Missing Brevo config entirely -> clean error, not a crash
+  delete process.env.BREVO_API_KEY;
+  delete process.env.BREVO_SENDER_EMAIL;
+  const noConfigResult = await sendGrievantStepNotifications(
+    { id: '2026-503', employee: 'Has Email', grievantEmail: 'grievant@x.gov' },
+    { step1: true, step2: false, step3: false }
+  );
+  assert.ok(noConfigResult.errors.length > 0, 'missing Brevo config should produce a clear error, not silent failure');
+  assert.ok(noConfigResult.errors[0].includes('BREVO_API_KEY') || noConfigResult.errors[0].includes('BREVO_SENDER_EMAIL'));
+  console.log('✓ Missing Brevo configuration produces a clear error rather than crashing or silently doing nothing');
+  if (oldApiKey) process.env.BREVO_API_KEY = oldApiKey;
+  if (oldSender) process.env.BREVO_SENDER_EMAIL = oldSender;
 }
 
 (async () => {
   try {
-    await testBackend();
-    await testFrontend();
-    console.log('\nALL STEP-3 TESTS PASSED');
+    await testNewlyFiledDetection();
+    await testEmailContent();
+    await testSendingLogic();
+    console.log('\nALL GRIEVANT NOTIFICATION TESTS PASSED');
   } catch (e) {
     console.error('\n✗ FAILED:', e.message);
     process.exit(1);
   }
-})();
-
-// Extra check: due-within-7-days rows are now true yellow, not the old amber
-(async () => {
-  const { JSDOM } = require('jsdom');
-  const fs = require('fs');
-  const html = fs.readFileSync('/home/claude/dfcs-rebuild/public/index.html', 'utf8');
-  const dom = new JSDOM(html);
-  const styleText = [...dom.window.document.querySelectorAll('style')].map(s=>s.textContent).join('\n');
-  const assert = require('assert');
-  assert.ok(/row-amber\s*\{[^}]*background:\s*#fff3b0/i.test(styleText), 'row-amber must use the new yellow (#fff3b0)');
-  console.log('✓ CSS: .row-amber (due within 7 days) now uses yellow (#fff3b0)');
 })();
