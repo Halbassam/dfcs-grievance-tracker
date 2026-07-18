@@ -1,132 +1,112 @@
 const assert = require('assert');
-const http = require('http');
-const { sendMail } = require('/home/claude/dfcs-rebuild/server/mailer.js');
+const path = require('path');
 
-// mailer.js hits api.brevo.com over TLS on port 443. To test the exact
-// request-construction logic without editing production code just for
-// testing, this re-implements the same request against a local HTTP
-// server and verifies: (1) request shape matches Brevo's documented API,
-// (2) success/error/network paths all produce clear results.
+async function testBackendPersistence() {
+  const { newDb } = require('pg-mem');
+  const mem = newDb();
+  const pgAdapter = mem.adapters.createPg();
+  const poolPath = path.resolve('/home/claude/dfcs-rebuild/server/pool.js');
+  const dbPath = path.resolve('/home/claude/dfcs-rebuild/server/db.js');
+  const Pool = pgAdapter.Pool;
+  const pool = new Pool();
+  require.cache[poolPath] = {
+    id: poolPath, filename: poolPath, loaded: true,
+    exports: {
+      pool, query: (t,p) => pool.query(t,p),
+      withTransaction: async (fn) => { const c = await pool.connect(); try { return await fn(c); } finally { c.release(); } }
+    }
+  };
+  delete require.cache[dbPath];
+  await pool.query(`
+    create table grievances (id text primary key, status text not null default 'Pending', steward text, data jsonb not null default '{}', created_at timestamptz not null default now(), updated_at timestamptz not null default now());
+  `);
+  const db = require(dbPath);
 
-function sendMailToHost({ apiKey, senderEmail, senderName, to, subject, text, hostname, port }) {
-  const httpMod = require('http');
-  return new Promise((resolve, reject) => {
-    const payload = JSON.stringify({
-      sender: { name: senderName || 'FCRC Grievance Tracker', email: senderEmail },
-      to: [{ email: to }], subject, textContent: text
-    });
-    const req = httpMod.request(
-      { hostname, port, path: '/v3/smtp/email', method: 'POST',
-        headers: { 'api-key': apiKey, 'Content-Type': 'application/json', 'Accept': 'application/json', 'Content-Length': Buffer.byteLength(payload) },
-        timeout: 5000 },
-      (res) => {
-        let body = '';
-        res.on('data', c => body += c);
-        res.on('end', () => {
-          let parsed = null;
-          try { parsed = JSON.parse(body); } catch(e) {}
-          if (res.statusCode >= 200 && res.statusCode < 300) resolve({ ok: true, id: parsed && parsed.messageId, sentPayload: JSON.parse(payload) });
-          else reject(new Error(`Brevo API error (${res.statusCode}): ${(parsed && (parsed.message||parsed.code)) || body}`));
-        });
-      }
-    );
-    req.on('error', (err) => reject(new Error(`Could not reach Brevo API: ${err.message || err.code || err.name}`)));
-    req.on('timeout', () => { req.destroy(); reject(new Error('Brevo API request timed out after 15s.')); });
-    req.write(payload);
-    req.end();
+  // Description persists correctly on creation
+  const g1 = await db.submitGrievance({
+    id: '2026-d1', employee: 'Jane Doe', steward: 'Hazem', status: 'Pending',
+    description: 'Supervisor changed my shift with no notice, violates Art. V Sec. 4.',
+    actingUser: 'Hazem'
   });
+  assert.strictEqual(g1.record.description, 'Supervisor changed my shift with no notice, violates Art. V Sec. 4.');
+  console.log('✓ description persists correctly on grievance creation');
+
+  // Blank description is fine (optional field)
+  const g2 = await db.submitGrievance({
+    id: '2026-d2', employee: 'No Description Case', steward: 'Hazem', status: 'Pending', actingUser: 'Hazem'
+  });
+  assert.strictEqual(g2.record.description, '', 'description should default to empty string, not undefined, when not provided');
+  console.log('✓ description is correctly optional -- defaults to empty string, does not break submission');
+
+  // Description can be added later on an edit
+  const g3 = await db.submitGrievance({
+    id: '2026-d2', employee: 'No Description Case', steward: 'Hazem', status: 'Pending',
+    description: 'Added on a later edit.', actingUser: 'Hazem'
+  });
+  assert.strictEqual(g3.record.description, 'Added on a later edit.');
+  console.log('✓ description can be added on a later edit, not just at creation time');
 }
 
-async function testSuccessPath() {
-  const server = http.createServer((req, res) => {
-    let body = '';
-    req.on('data', c => body += c);
-    req.on('end', () => {
-      const parsed = JSON.parse(body);
-      // Verify the request shape matches Brevo's documented API exactly
-      assert.strictEqual(parsed.sender.email, 'hazem.albassam@illinois.gov');
-      assert.strictEqual(parsed.to[0].email, 'maria.p.perez@illinois.gov');
-      assert.strictEqual(parsed.subject, 'Test subject');
-      assert.strictEqual(parsed.textContent, 'Test body');
-      assert.strictEqual(req.headers['api-key'], 'xkeysib_test_123');
-      assert.strictEqual(req.headers['content-type'], 'application/json');
-      res.writeHead(201, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ messageId: '<abc123@brevo.com>' }));
-    });
+async function testFrontend() {
+  const { JSDOM } = require('jsdom');
+  const fs = require('fs');
+  let html = fs.readFileSync('/home/claude/dfcs-rebuild/public/index.html', 'utf8');
+  html = html.replace('</script>', `</script><script>
+    window.__t4 = {
+      setState: (s)=>{ STATE = s; }, dollar: (id)=>$(id), renderLog: ()=>renderLog(),
+      loadIntoForm: (r)=>loadIntoForm(r), openDetail: (gid)=>openDetail(gid)
+    };
+  </script>`);
+  const dom = new JSDOM(html, { runScripts: 'dangerously', url: 'http://localhost/' });
+  const w = dom.window;
+  await new Promise(r => setTimeout(r, 300));
+
+  // Description field exists on the Intake Form
+  assert.ok(w.__t4.dollar('f-description'), 'f-description textarea must exist on the Intake Form');
+  console.log('✓ Brief description field exists on the Intake Form');
+
+  // loadIntoForm populates it correctly
+  w.__t4.loadIntoForm({ id: '2026-d1', employee: 'Jane Doe', status: 'Pending', description: 'Test description text.' });
+  assert.strictEqual(w.__t4.dollar('f-description').value, 'Test description text.');
+  console.log('✓ loadIntoForm correctly populates the description field when editing an existing grievance');
+
+  // Log search matches on description content
+  w.__t4.setState({
+    grievances: [
+      { id: '2026-d1', employee: 'Jane Doe', steward: 'Hazem', status: 'Pending', description: 'Shift changed without notice' },
+      { id: '2026-d2', employee: 'John Smith', steward: 'Maria', status: 'Pending', description: 'Denied sick leave request' }
+    ],
+    activity: [], archive: [], holidays: []
   });
-  await new Promise(r => server.listen(0, r));
-  const port = server.address().port;
+  w.__t4.dollar('logSearchInput').value = 'sick leave';
+  w.__t4.renderLog();
+  const logHtml = w.__t4.dollar('logBody').innerHTML;
+  assert.ok(logHtml.includes('John Smith'), 'search by description text should find the matching grievance');
+  assert.ok(!logHtml.includes('Jane Doe'), 'search by description text should NOT match unrelated grievances');
+  console.log('✓ Grievance Log search correctly matches on description content, not just employee/ID/steward');
 
-  const result = await sendMailToHost({
-    apiKey: 'xkeysib_test_123', senderEmail: 'hazem.albassam@illinois.gov',
-    to: 'maria.p.perez@illinois.gov', subject: 'Test subject', text: 'Test body',
-    hostname: '127.0.0.1', port
+  // Detail view shows the description when present, and omits it cleanly when blank
+  w.__t4.openDetail('2026-d1');
+  const detailHtml1 = w.__t4.dollar('detailBody').innerHTML;
+  assert.ok(detailHtml1.includes('Shift changed without notice'), 'detail view should show the description when present');
+  console.log('✓ Detail view shows the description prominently when present');
+
+  w.__t4.setState({
+    grievances: [{ id: '2026-d3', employee: 'No Desc', steward: 'Hazem', status: 'Pending', description: '' }],
+    activity: [], archive: [], holidays: []
   });
-  assert.strictEqual(result.ok, true);
-  assert.strictEqual(result.id, '<abc123@brevo.com>');
-  server.close();
-  console.log('✓ Success path: request shape matches Brevo API exactly (api-key header, sender/to as objects, textContent field)');
-}
-
-async function testApiErrorPath() {
-  const server = http.createServer((req, res) => {
-    let body = '';
-    req.on('data', c => body += c);
-    req.on('end', () => {
-      res.writeHead(401, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ code: 'unauthorized', message: 'Key not found' }));
-    });
-  });
-  await new Promise(r => server.listen(0, r));
-  const port = server.address().port;
-
-  try {
-    await sendMailToHost({ apiKey: 'bad_key', senderEmail: 'x@y.gov', to: 'z@w.gov', subject: 's', text: 't', hostname: '127.0.0.1', port });
-    throw new Error('expected rejection');
-  } catch (err) {
-    assert.ok(err.message.includes('401'), 'error should include status code, got: ' + err.message);
-    assert.ok(err.message.includes('Key not found'), 'error should include Brevo\'s real message, got: ' + err.message);
-    console.log('✓ API error path: 401 unauthorized surfaces the real Brevo error message, not blank');
-  }
-  server.close();
-}
-
-async function testConnectionErrorPath() {
-  try {
-    await sendMailToHost({ apiKey: 'x', senderEmail: 'a@b.gov', to: 'c@d.gov', subject: 's', text: 't', hostname: '127.0.0.1', port: 1 });
-    throw new Error('expected rejection');
-  } catch (err) {
-    assert.ok(err.message && err.message.length > 0, 'connection error must have a non-empty message, got: "' + err.message + '"');
-    assert.ok(err.message.includes('Could not reach Brevo API'), 'error should clearly say it could not reach the API, got: ' + err.message);
-    console.log('✓ Connection error path: refused connection surfaces a clear, non-empty message');
-  }
-}
-
-async function testRealMailerRequiresApiKeyAndSender() {
-  // Exercises the REAL mailer.js for the cases we can verify without a live network call.
-  try {
-    await sendMail({ apiKey: '', senderEmail: 'x@y.gov', to: 'z@w.gov', subject: 's', text: 't' });
-    throw new Error('expected rejection');
-  } catch (err) {
-    assert.ok(err.message.includes('BREVO_API_KEY'), 'should clearly say the API key is missing, got: ' + err.message);
-    console.log('✓ Real mailer.js: missing API key rejects immediately with a clear message');
-  }
-  try {
-    await sendMail({ apiKey: 'some_key', senderEmail: '', to: 'z@w.gov', subject: 's', text: 't' });
-    throw new Error('expected rejection');
-  } catch (err) {
-    assert.ok(err.message.includes('BREVO_SENDER_EMAIL'), 'should clearly say the sender email is missing, got: ' + err.message);
-    console.log('✓ Real mailer.js: missing sender email rejects immediately with a clear message (no network call attempted)');
-  }
+  w.__t4.openDetail('2026-d3');
+  const detailHtml2 = w.__t4.dollar('detailBody').innerHTML;
+  // No stray empty <p></p> block or "—" placeholder clutter for the optional field
+  assert.ok(!/background:var\(--paper-2\)[^>]*>\s*<\/p>/.test(detailHtml2), 'blank description should not leave an empty styled block in the detail view');
+  console.log('✓ Detail view cleanly omits the description block entirely when there is none (no empty clutter)');
 }
 
 (async () => {
   try {
-    await testSuccessPath();
-    await testApiErrorPath();
-    await testConnectionErrorPath();
-    await testRealMailerRequiresApiKeyAndSender();
-    console.log('\nALL BREVO MAILER TESTS PASSED');
+    await testBackendPersistence();
+    await testFrontend();
+    console.log('\nALL DESCRIPTION FIELD TESTS PASSED');
   } catch (e) {
     console.error('\n✗ FAILED:', e.message);
     process.exit(1);

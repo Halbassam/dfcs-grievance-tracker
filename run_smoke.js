@@ -1,253 +1,59 @@
-/**
- * AFSCME Council 31 — FCRC Grievance Tracker
- * Web server and API routes.
- */
+# FCRC Grievance Tracker — Update v3.2.0
 
-const http = require("http");
-const fs = require("fs");
-const path = require("path");
-const db = require("./db");
-const scheduler = require("./scheduler");
-const grievantNotify = require("./grievantNotify");
+Update package for an EXISTING deployment (GitHub + Supabase + Render).
 
-const PORT = process.env.PORT || 3000;
-const PUBLIC_DIR = path.join(__dirname, "../public");
+## REQUIRED: one SQL step before using the new features
 
-const MIME = {
-  ".html": "text/html; charset=utf-8",
-  ".js": "text/javascript; charset=utf-8",
-  ".css": "text/css; charset=utf-8",
-  ".json": "application/json",
-  ".png": "image/png",
-  ".ico": "image/x-icon"
-};
+Open the Supabase SQL Editor and run the contents of:
 
-function sendJson(res, status, data) {
-  res.writeHead(status, { "Content-Type": "application/json" });
-  res.end(JSON.stringify(data));
-}
+    migrations/003_add_org_settings.sql
 
-function readBody(req) {
-  return new Promise((resolve, reject) => {
-    let body = "";
-    req.on("data", chunk => { body += chunk; if (body.length > 1e6) req.destroy(); });
-    req.on("end", () => { try { resolve(JSON.parse(body || "{}")); } catch (e) { resolve({}); } });
-    req.on("error", reject);
-  });
-}
+(Safe to re-run. It only adds six empty settings keys — no data is touched.)
 
-function serveStatic(req, res, urlPath) {
-  let filePath = urlPath === "/" ? "/index.html" : urlPath;
-  let fullPath = path.join(PUBLIC_DIR, filePath);
-  if (!fullPath.startsWith(PUBLIC_DIR)) fullPath = path.join(PUBLIC_DIR, "index.html");
+If your database is still on the version WITHOUT admin/steward roles,
+also run `migrations/002_add_roles.sql` first. If the live app already
+shows a role dropdown under Manage Users, you already have it.
 
-  fs.readFile(fullPath, (err, data) => {
-    if (err) {
-      fs.readFile(path.join(PUBLIC_DIR, "index.html"), (err2, data2) => {
-        if (err2) { res.writeHead(404, { "Content-Type": "text/plain" }); res.end("Not found"); return; }
-        res.writeHead(200, { "Content-Type": MIME[".html"] });
-        res.end(data2);
-      });
-      return;
-    }
-    const ext = path.extname(fullPath);
-    res.writeHead(200, { "Content-Type": MIME[ext] || "application/octet-stream" });
-    res.end(data);
-  });
-}
+## Deploying the code
 
-function getSessionTokenFromRequest(req) {
-  const cookie = req.headers.cookie || "";
-  const match = cookie.match(/dfcs_session=([^;]+)/);
-  return match ? match[1] : null;
-}
+1. Open your GitHub repo (github.com/Halbassam/dfcs-grievance-tracker)
+2. Upload ALL files from this zip, replacing the existing ones
+   (`package.json`, everything in `server/`, `public/index.html`,
+   and the `migrations/` folder). Commit to main.
+3. Render redeploys automatically. Wait for "Your service is live".
+4. Hard-refresh the app in your browser (Ctrl+Shift+R).
 
-function setSessionCookie(res, token) {
-  res.setHeader("Set-Cookie",
-    `dfcs_session=${token}; HttpOnly; SameSite=Strict; Max-Age=${30*24*3600}; Path=/`);
-}
+## What's new in this update
 
-function clearSessionCookie(res) {
-  res.setHeader("Set-Cookie", "dfcs_session=; HttpOnly; SameSite=Strict; Max-Age=0; Path=/");
-}
+- **Deadline emails fixed** — reminders now include the union's own
+  Step 2 and Step 3 FILING deadlines (the ones that waive the
+  grievance if missed), not just management's response deadlines.
+  No reminders after Step 3 is filed — Council 31 staff track Step 4.
+- **Intake Form simplified** — Shift, Bureau, Location, and County
+  removed. These are now set ONCE in Settings → Local chapter info,
+  together with Agency and AFSCME Local No.
+- **Page title** shows your local number (e.g. "FCRC Grievance
+  Tracker — Local 2858") once set in Settings.
+- **Steward Workload** — "By DFCS bureau" removed; location section
+  is now "By Local <your number>".
+- **Official grievance form printing** — grievance detail → Print
+  produces the AFSCME/State of Illinois Contract Grievance form,
+  auto-filled from tracker + Settings. Statement of Grievance box,
+  Step 2/3/4 dates, and all signature lines stay blank for
+  hand-completion. No activity history on the printout.
+- **Edit in form fixed** — all step dates now pre-fill when editing.
+- **Stewards can change their own password** — Settings → Change my
+  password (requires current password).
+- **Editable dropdown lists** — Settings → Other dropdown lists.
 
-async function getCurrentUser(req) {
-  const hasAnyUsers = await db.hasAnyUsers();
-  if (!hasAnyUsers) return { username: "", displayName: "", role: "admin", openAccess: true };
-  const token = getSessionTokenFromRequest(req);
-  return db.getSessionUser(token);
-}
+## After deploying
 
-function isAdmin(currentUser) {
-  return !!(currentUser && currentUser.role === "admin");
-}
+Log in as an admin → Settings → **Local chapter info** → fill in all
+six fields → Save. The printed form and page title use these values.
 
-const server = http.createServer(async (req, res) => {
-  const url = new URL(req.url, `http://localhost`);
-  const pathname = url.pathname;
+## Verification
 
-  try {
-    // Auth routes (no session required)
-    if (pathname === "/api/auth/login" && req.method === "POST") {
-      const body = await readBody(req);
-      const user = await db.verifyLogin(body.username, body.password);
-      if (!user) return sendJson(res, 401, { error: "Incorrect username or password." });
-      const token = await db.createSession(user.username);
-      setSessionCookie(res, token);
-      return sendJson(res, 200, { ok: true, user });
-    }
-
-    if (pathname === "/api/auth/session" && req.method === "GET") {
-      const user = await getCurrentUser(req);
-      if (!user) return sendJson(res, 401, { error: "Not logged in." });
-      return sendJson(res, 200, { user });
-    }
-
-    if (pathname === "/api/auth/logout" && req.method === "POST") {
-      const token = getSessionTokenFromRequest(req);
-      if (token) await db.destroySession(token);
-      clearSessionCookie(res);
-      return sendJson(res, 200, { ok: true });
-    }
-
-    // Static files
-    if (!pathname.startsWith("/api/")) {
-      return serveStatic(req, res, pathname);
-    }
-
-    // All other API routes require a valid session
-    const currentUser = await getCurrentUser(req);
-    if (!currentUser) return sendJson(res, 401, { error: "Login required." });
-
-    if (pathname === "/api/data" && req.method === "GET") {
-      const data = await db.getAll();
-      return sendJson(res, 200, data);
-    }
-
-    if (pathname === "/api/grievance" && req.method === "POST") {
-      const body = await readBody(req);
-      body.actingUser = currentUser.displayName || currentUser.username;
-      const result = await db.submitGrievance(body);
-
-      // Fire-and-forget: notify the grievant of any step(s) newly filed
-      // in this save. This never blocks or fails the actual save, which
-      // has already succeeded — a notification problem shouldn't stop a
-      // steward from doing their work.
-      if (result.newlyFiledSteps && (result.newlyFiledSteps.step1 || result.newlyFiledSteps.step2 || result.newlyFiledSteps.step3)) {
-        grievantNotify.sendGrievantStepNotifications(result.record, result.newlyFiledSteps)
-          .catch(err => console.error("[index] Unexpected error sending grievant notification:", err));
-      }
-
-      return sendJson(res, 200, result);
-    }
-
-    if (pathname === "/api/activity" && req.method === "POST") {
-      const body = await readBody(req);
-      body.actingUser = currentUser.displayName || currentUser.username;
-      const result = await db.logActivity(body);
-      return sendJson(res, 200, result);
-    }
-
-    if (pathname === "/api/archive" && req.method === "POST") {
-      const result = await db.archiveClosed();
-      return sendJson(res, 200, result);
-    }
-
-    if (pathname === "/api/setup/stewards" && req.method === "POST") {
-      if (!isAdmin(currentUser)) return sendJson(res, 403, { error: "Only admins can manage the steward roster." });
-      const body = await readBody(req);
-      const result = await db.updateStewards(body.stewards, body.emails);
-      return sendJson(res, 200, result);
-    }
-
-    if (pathname === "/api/setup/list" && req.method === "POST") {
-      if (!isAdmin(currentUser)) return sendJson(res, 403, { error: "Only admins can edit dropdown lists." });
-      const body = await readBody(req);
-      const result = await db.updateSetupList(body.key, body.items);
-      return sendJson(res, 200, result);
-    }
-
-    if (pathname === "/api/holidays" && req.method === "POST") {
-      if (!isAdmin(currentUser)) return sendJson(res, 403, { error: "Only admins can edit the holiday calendar." });
-      const body = await readBody(req);
-      const result = await db.updateHolidays(body.holidays);
-      return sendJson(res, 200, result);
-    }
-
-    if (pathname === "/api/org-settings" && req.method === "POST") {
-      if (!isAdmin(currentUser)) return sendJson(res, 403, { error: "Only admins can edit org settings." });
-      const body = await readBody(req);
-      const result = await db.updateOrgSettings(body);
-      return sendJson(res, 200, result);
-    }
-
-    // User management (admin only)
-    if (pathname === "/api/users" && req.method === "GET") {
-      if (!isAdmin(currentUser)) return sendJson(res, 403, { error: "Only admins can view user accounts." });
-      return sendJson(res, 200, { users: await db.listUsersSafe() });
-    }
-
-    if (pathname === "/api/users" && req.method === "POST") {
-      if (!isAdmin(currentUser)) return sendJson(res, 403, { error: "Only admins can manage user accounts." });
-      const body = await readBody(req);
-      const result = await db.upsertUser(body);
-      return sendJson(res, 200, result);
-    }
-
-    if (pathname === "/api/users/delete" && req.method === "POST") {
-      if (!isAdmin(currentUser)) return sendJson(res, 403, { error: "Only admins can manage user accounts." });
-      const body = await readBody(req);
-      if (currentUser.username && body.username &&
-          currentUser.username.toLowerCase() === String(body.username).toLowerCase()) {
-        return sendJson(res, 400, { error: "You can't delete the account you're currently logged in as." });
-      }
-      const result = await db.deleteUser(body.username);
-      return sendJson(res, 200, result);
-    }
-
-    // Change own password (any logged-in user)
-    if (pathname === "/api/auth/change-password" && req.method === "POST") {
-      const body = await readBody(req);
-      const { currentPassword, newPassword } = body;
-      if (!currentPassword || !newPassword)
-        return sendJson(res, 400, { error: "Both the current and new passwords are required." });
-      if (String(newPassword).length < 6)
-        return sendJson(res, 400, { error: "New password must be at least 6 characters." });
-      const verified = await db.verifyLogin(currentUser.username, currentPassword);
-      if (!verified) return sendJson(res, 401, { error: "Current password is incorrect." });
-      await db.upsertUser({
-        username: currentUser.username,
-        displayName: currentUser.displayName,
-        password: newPassword
-      });
-      return sendJson(res, 200, { ok: true });
-    }
-
-    // Email
-    if (pathname === "/api/email/status" && req.method === "GET") {
-      const data = await db.getAll();
-      const emailConfigured = !!(process.env.BREVO_API_KEY && process.env.BREVO_SENDER_EMAIL);
-      return sendJson(res, 200, {
-        emailConfigured,
-        lastEmailRunDate: data.lastEmailRunDate || "",
-        emailLog: (data.emailLog || []).slice(0, 20)
-      });
-    }
-
-    if (pathname === "/api/email/run-now" && req.method === "POST") {
-      const summary = await scheduler.runDeadlineCheck();
-      return sendJson(res, 200, summary);
-    }
-
-    return sendJson(res, 404, { error: "Unknown API route" });
-
-  } catch (err) {
-    console.error("Server error:", err);
-    sendJson(res, 500, { error: "Internal server error." });
-  }
-});
-
-server.listen(PORT, () => {
-  console.log(`FCRC Grievance Tracker running on port ${PORT}`);
-  scheduler.startScheduler();
-});
+`__selftest__/run_smoke.js` — 14 checks against real executed SQL
+(pg-mem) and a real DOM (jsdom). To run locally:
+    npm install --no-save pg-mem jsdom
+    node __selftest__/run_smoke.js

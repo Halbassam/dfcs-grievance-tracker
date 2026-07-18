@@ -1,146 +1,166 @@
--- AFSCME Council 31 — FCRC Grievance Tracker
--- Complete database setup. Run this ONE file in Supabase SQL Editor.
--- Creates all tables AND pre-populates all dropdown lists and the holiday calendar.
--- Safe to re-run — uses IF NOT EXISTS and ON CONFLICT DO NOTHING.
+const assert = require('assert');
+const path = require('path');
+const http = require('http');
 
--- ---------- grievances ----------
-create table if not exists grievances (
-  id            text primary key,
-  status        text not null default 'Pending',
-  steward       text,
-  data          jsonb not null default '{}'::jsonb,
-  created_at    timestamptz not null default now(),
-  updated_at    timestamptz not null default now()
-);
-create index if not exists idx_grievances_status  on grievances (status);
-create index if not exists idx_grievances_steward on grievances (steward);
+async function testNewlyFiledDetection() {
+  const { newDb } = require('pg-mem');
+  const mem = newDb();
+  const pgAdapter = mem.adapters.createPg();
+  const poolPath = path.resolve('/home/claude/dfcs-rebuild/server/pool.js');
+  const Pool = pgAdapter.Pool;
+  const pool = new Pool();
+  require.cache[poolPath] = {
+    id: poolPath, filename: poolPath, loaded: true,
+    exports: {
+      pool, query: (t,p) => pool.query(t,p),
+      withTransaction: async (fn) => { const c = await pool.connect(); try { return await fn(c); } finally { c.release(); } }
+    }
+  };
+  await pool.query(`
+    create table grievances (id text primary key, status text not null default 'Pending', steward text, data jsonb not null default '{}', created_at timestamptz not null default now(), updated_at timestamptz not null default now());
+  `);
+  const db = require('/home/claude/dfcs-rebuild/server/db.js');
 
--- ---------- activity ----------
-create table if not exists activity (
-  row_id     bigint generated always as identity primary key,
-  gid        text not null,
-  data       jsonb not null default '{}'::jsonb,
-  created_at timestamptz not null default now()
-);
-create index if not exists idx_activity_gid on activity (gid);
+  // First save: new grievance, Step 1 filed immediately.
+  const g1 = await db.submitGrievance({
+    id: '2026-500', employee: 'Jane Doe', grievantEmail: 'jane@example.gov',
+    steward: 'Hazem', status: 'Pending', step1filed: '2026-06-01', actingUser: 'Hazem'
+  });
+  assert.strictEqual(g1.newlyFiledSteps.step1, true, 'Step 1 should be detected as newly filed on creation');
+  assert.strictEqual(g1.newlyFiledSteps.step2, false);
+  assert.strictEqual(g1.newlyFiledSteps.step3, false);
+  assert.strictEqual(g1.record.grievantEmail, 'jane@example.gov');
+  console.log('✓ Step 1 correctly detected as newly filed when set on grievance creation');
 
--- ---------- archive ----------
-create table if not exists archive (
-  id          text primary key,
-  status      text,
-  steward     text,
-  archived_at text,
-  data        jsonb not null default '{}'::jsonb,
-  created_at  timestamptz not null default now()
-);
+  // Second save: same grievance, no new dates -- nothing should be "newly filed"
+  const g2 = await db.submitGrievance({
+    id: '2026-500', employee: 'Jane Doe', grievantEmail: 'jane@example.gov',
+    steward: 'Hazem', status: 'Pending', actingUser: 'Hazem'
+  });
+  assert.strictEqual(g2.newlyFiledSteps.step1, false, 'Step 1 already had a date -- must NOT re-trigger on a save that does not change it');
+  console.log('✓ Re-saving without changing dates does NOT re-trigger a "newly filed" notification (no duplicate emails)');
 
--- ---------- users ----------
-create table if not exists users (
-  username      text primary key,
-  display_name  text not null,
-  password_hash text not null,
-  role          text not null default 'steward' check (role in ('admin','steward')),
-  created_at    timestamptz not null default now()
-);
+  // Third save: now add step2filed -- only step2 should be newly filed
+  const g3 = await db.submitGrievance({
+    id: '2026-500', employee: 'Jane Doe', grievantEmail: 'jane@example.gov',
+    steward: 'Hazem', status: 'Pending', step2filed: '2026-06-20', actingUser: 'Hazem'
+  });
+  assert.strictEqual(g3.newlyFiledSteps.step1, false, 'Step 1 was already filed before this save');
+  assert.strictEqual(g3.newlyFiledSteps.step2, true, 'Step 2 is newly filed in this save');
+  assert.strictEqual(g3.newlyFiledSteps.step3, false);
+  console.log('✓ Adding Step 2 filed date correctly triggers ONLY the step2 notification flag, not step1 again');
 
--- ---------- sessions ----------
-create table if not exists sessions (
-  token      text primary key,
-  username   text not null references users(username) on delete cascade,
-  expires_at timestamptz not null
-);
-create index if not exists idx_sessions_username on sessions (username);
-create index if not exists idx_sessions_expires  on sessions (expires_at);
+  // Fourth save: add BOTH step3filed while step1/step2 stay set -- only step3 true
+  const g4 = await db.submitGrievance({
+    id: '2026-500', employee: 'Jane Doe', grievantEmail: 'jane@example.gov',
+    steward: 'Hazem', status: 'Pending', step3filed: '2026-07-10', actingUser: 'Hazem'
+  });
+  assert.strictEqual(g4.newlyFiledSteps.step1, false);
+  assert.strictEqual(g4.newlyFiledSteps.step2, false);
+  assert.strictEqual(g4.newlyFiledSteps.step3, true, 'Step 3 is newly filed in this save');
+  console.log('✓ Adding Step 3 filed date correctly triggers ONLY the step3 notification flag');
+}
 
--- ---------- holidays ----------
-create table if not exists holidays (
-  date text primary key,
-  name text not null
-);
+async function testEmailContent() {
+  const { buildStepEmailBody, parseEmailList } = require('/home/claude/dfcs-rebuild/server/grievantNotify.js');
 
--- ---------- setup / dropdown lists ----------
-create table if not exists setup_lists (
-  key   text primary key,
-  items jsonb not null default '[]'::jsonb
-);
+  // parseEmailList handles comma-separated group grievance emails
+  assert.deepStrictEqual(parseEmailList('a@x.gov, b@y.gov,c@z.gov'), ['a@x.gov', 'b@y.gov', 'c@z.gov']);
+  assert.deepStrictEqual(parseEmailList(''), []);
+  assert.deepStrictEqual(parseEmailList('   '), []);
+  assert.deepStrictEqual(parseEmailList('not-an-email, valid@x.gov'), ['valid@x.gov']);
+  console.log('✓ parseEmailList correctly splits comma-separated group-grievance emails and filters invalid entries');
 
--- ---------- email log ----------
-create table if not exists email_log (
-  row_id bigint generated always as identity primary key,
-  run_at timestamptz not null default now(),
-  data   jsonb not null default '{}'::jsonb
-);
+  const rec = { id: '2026-500', employee: 'Jane Doe' };
 
--- ---------- app meta (org settings, last email run date, etc.) ----------
-create table if not exists app_meta (
-  key   text primary key,
-  value text
-);
+  const step1Body = buildStepEmailBody(rec, 'step1');
+  assert.ok(step1Body.includes('Step 1'), 'Step 1 email should mention Step 1');
+  assert.ok(step1Body.includes('10 working days'), 'Step 1 email should include the response timeframe');
+  console.log('✓ Step 1 email includes the expected response timeframe');
 
-insert into app_meta (key, value) values ('lastEmailRunDate', '') on conflict (key) do nothing;
-insert into app_meta (key, value) values ('orgAgency',   '')      on conflict (key) do nothing;
-insert into app_meta (key, value) values ('orgLocalNo',  '')      on conflict (key) do nothing;
-insert into app_meta (key, value) values ('orgBureau',   '')      on conflict (key) do nothing;
-insert into app_meta (key, value) values ('orgLocation', '')      on conflict (key) do nothing;
-insert into app_meta (key, value) values ('orgCounty',   '')      on conflict (key) do nothing;
-insert into app_meta (key, value) values ('orgShift',    '')      on conflict (key) do nothing;
+  const step2Body = buildStepEmailBody(rec, 'step2');
+  assert.ok(step2Body.includes('Step 2'), 'Step 2 email should mention Step 2');
+  assert.ok(step2Body.includes('15 working days'), 'Step 2 email should include the response timeframe');
+  console.log('✓ Step 2 email includes the expected response timeframe');
 
--- ================================================================
--- Default dropdown lists
--- ================================================================
-insert into setup_lists (key, items) values ('Status', '["Pending","Granted","Denied","Withdrawn","Settled","Partially Granted","Pending Arbitration","Arbitration Scheduled","Held in Abeyance"]'::jsonb) on conflict (key) do nothing;
-insert into setup_lists (key, items) values ('BargainingUnit', '["RC-14 (Clerical / Office)","RC-28 (Technical)","RC-62 (Professional)","RC-63 (Supervisory Professional)","All Affected"]'::jsonb) on conflict (key) do nothing;
-insert into setup_lists (key, items) values ('JobClass', '["Human Services Caseworker (RC-62)","Human Services Caseworker Manager (RC-62)","Social Service Career Trainee - Option 1","Social Service Career Trainee - Option 2 (Bilingual/MSW)","Public Aid Eligibility Assistant (RC-28)","Clerical Trainee I (RC-14)","Office Aide (RC-14)","Office Clerk (RC-14)","Office Assistant (RC-14)","Office Associate (RC-14)","Office Coordinator (RC-14)","All Affected"]'::jsonb) on conflict (key) do nothing;
-insert into setup_lists (key, items) values ('GrievanceType', '["Discipline - Oral Reprimand (Art. IX Sec. 5)","Discipline - Written Reprimand (Art. IX Sec. 6)","Discipline - Suspension 1-29 Days (Art. IX Sec. 6)","Discipline - Suspension 30+ Days (Art. IX Sec. 6)","Discipline - Discharge (Special Grievance MOU)","Discipline - Suspension Pending Discharge (Art. IX Sec. 3)","Discipline - Improper Progressive Discipline (Art. IX Sec. 2)","Cook County PA - Pre-Suspension Procedure Violation (Art. IX Sec. 4)","Cook County PA - Pre-Separation Procedure Violation (Art. IX Sec. 4)","Wages - Improper Step Placement (Art. XXXII Sec. 4)","Wages - Missing General Increase (Art. XXXII Sec. 6)","Wages - Bi-lingual Pay Denied (Art. XXXII Sec. 10)","Wages - Payroll Error (Art. XXXI Sec. 15)","Overtime - Improper Payment (Art. XII Sec. 10)","Overtime - Improper Scheduling / Rotation (Art. XII)","Holiday Pay - Improper / Denied (Art. XI)","Temporary Assignment - Improper / No Pay (Art. XIV)","Benefit Recoupment Dispute (Art. XIII - File at Step 3 Directly)","Health Insurance Dispute (Art. XIII Sec. 1)","Vacation - Denied / Improper Schedule (Art. X)","Vacation - Improper Seniority Order (Art. X Sec. 6)","Sick Leave - Denied (Art. XXIII Sec. 16)","Sick Leave - Abuse Charge Dispute (Art. XXIII Sec. 16)","Affirmative Attendance - Improper Discipline","FMLA - Interference / Denial (Art. XXIII Sec. 28)","Parental Leave - Denied (Art. XXIII Sec. 27)","Bereavement Leave - Denied / Improper (Art. XXIII Sec. 15)","General Leave - Denied (Art. XXIII Sec. 1)","Educational Leave - Denied (Art. XXIII Sec. 3)","Schedule Change - Improper (Art. V Sec. 4)","Rest Period - Denied (Art. XII Sec. 12)","Comp Time - Denied / Improper (Art. XII Sec. 16)","Workload - Unreasonable / Excessive Caseload (Art. XXXI Sec. 1)","Safety & Health Violation (Art. XXV Sec. 1)","Seniority - Improper Calculation (Art. XVIII Sec. 1)","Seniority - Improper Application (Art. XVIII Sec. 2)","Posting - County-Wide Violation (Art. XIX Sec. 2)","Job Assignment - Improper (Art. XIX Sec. 3)","Shift Preference - Denied (Art. XIX Sec. 4)","Promotion - Improper (Art. XIX Sec. 5)","Transfer - Improper Denial (Art. XIX Sec. 7)","Upward Mobility - Denied (Art. XV Sec. 8 - File at Step 3 Directly)","Training / Development - Denied (Art. XXVIII)","Layoff - Improper Procedure (Special Grievance MOU)","Layoff - Improper Bumping Order County-Based (Art. XX Sec. 3)","Layoff - Recall Violation (Art. XX Sec. 4)","Demotion - Improper (Special Grievance MOU)","Geographical Transfer - Improper (Special Grievance MOU)","Reclassification - Improper (Special Grievance MOU)","Salary Grade Placement - New Classification (Art. XXVI Sec. 8)","Personnel File - Improper Content (Art. XXIV)","Personnel File - Access Denied (Art. XXIV Sec. 3)","Performance Evaluation - Improper (Art. XXVII Sec. 2)","Work Rules - Improper / Not Posted (Art. VIII)","Union Rights - Steward Access Denied (Art. VI Sec. 9)","Sub-Contracting Violation (Art. XXIX)","Group Grievance","Union Grievance"]'::jsonb) on conflict (key) do nothing;
-insert into setup_lists (key, items) values ('ActivityType', '["Step 1 - Oral Grievance Raised with Supervisor","Step 1 - Supervisor Oral Response Received","Step 1 - No Response / Auto-Advance to Step 2","Step 2 - Written Grievance Filed with Intermediate Admin","Step 2 - Meeting Held with Intermediate Admin","Step 2 - Written Answer Received","Step 2 - No Response / Auto-Advance to Step 3","Step 3 - Grievance Filed with Agency Head","Step 3 - Monthly DFCS Grievance Committee Meeting","Step 3 - Hold Placed (Art. V Sec. 2)","Step 3 - Hold Released","Step 3 - Resolution Signed / Settled","Step 3 - Denied by Agency","Step 4 - Pre-Arb Staff Meeting Filed with CMS","Step 4 - CMS Pre-Arb Meeting Held","Step 4 - Resolution Signed / Settled at Pre-Arb","Arbitration - Moved to Expedited Arb","Arbitration - Moved to Regular Arb","Arbitration - Hearing Held","Arbitration - Award Issued (Union Prevails)","Arbitration - Award Issued (Employer Prevails)","Benefit Recoupment - Filed Directly at Step 3 (Art. XIII)","Upward Mobility - Filed Directly at Step 3 (Art. XV Sec. 8)","Cook County PA - Pre-Suspension Hearing Requested","Cook County PA - Pre-Separation Hearing Requested","Grievance - Withdrawn by Union (Art. V Sec. 3a)","Grievance - Settled","Grievance - Granted","Grievance - Denied","Grievance - Partially Granted","Document - Art. V Sec. 8 Information Request Submitted","Document - Art. V Sec. 8 Information Received","Document - Caseload / Workload Records Obtained","Document - Personnel File Reviewed (Art. XXIV Sec. 3)","Document - Discipline Letter / Transaction Notice Obtained","Document - Witness Statement Taken","Document - Comparator Cases / Employees Identified","Communication - Email / Letter Sent to Management","Communication - In-Person Meeting with Grievant","Communication - Council 31 Staff Consulted","Communication - Local Union President Notified","Deadline - Extension Requested (Art. V Sec. 3b)","Deadline - Extension Granted by Mutual Agreement","Deadline - Extension Denied","Note - General Update / Follow-Up Entry"]'::jsonb) on conflict (key) do nothing;
-insert into setup_lists (key, items) values ('Steward',      '[]'::jsonb) on conflict (key) do nothing;
-insert into setup_lists (key, items) values ('StewardEmail', '[]'::jsonb) on conflict (key) do nothing;
+  const step3Body = buildStepEmailBody(rec, 'step3');
+  assert.ok(step3Body.includes('Step 3'), 'Step 3 email should mention Step 3');
+  assert.ok(!/due within \d+ working days/.test(step3Body), 'Step 3 email must NOT include a specific response timeframe');
+  assert.ok(!step3Body.toLowerCase().includes('expected response timeframe'), 'Step 3 email must not label any timeframe as "expected"');
+  console.log('✓ Step 3 email correctly OMITS the expected response timeframe (per local policy)');
+}
 
--- ================================================================
--- Default holidays 2024-2027
--- ================================================================
-insert into holidays (date, name) values ('2024-01-01','New Year''s Day') on conflict (date) do nothing;
-insert into holidays (date, name) values ('2024-01-15','Martin Luther King Jr. Day') on conflict (date) do nothing;
-insert into holidays (date, name) values ('2024-02-19','Presidents'' Day') on conflict (date) do nothing;
-insert into holidays (date, name) values ('2024-05-27','Memorial Day') on conflict (date) do nothing;
-insert into holidays (date, name) values ('2024-06-19','Juneteenth') on conflict (date) do nothing;
-insert into holidays (date, name) values ('2024-07-04','Independence Day') on conflict (date) do nothing;
-insert into holidays (date, name) values ('2024-09-02','Labor Day') on conflict (date) do nothing;
-insert into holidays (date, name) values ('2024-11-11','Veterans Day') on conflict (date) do nothing;
-insert into holidays (date, name) values ('2024-11-28','Thanksgiving Day') on conflict (date) do nothing;
-insert into holidays (date, name) values ('2024-12-25','Christmas Day') on conflict (date) do nothing;
-insert into holidays (date, name) values ('2025-01-01','New Year''s Day') on conflict (date) do nothing;
-insert into holidays (date, name) values ('2025-01-20','Martin Luther King Jr. Day') on conflict (date) do nothing;
-insert into holidays (date, name) values ('2025-02-17','Presidents'' Day') on conflict (date) do nothing;
-insert into holidays (date, name) values ('2025-05-26','Memorial Day') on conflict (date) do nothing;
-insert into holidays (date, name) values ('2025-06-19','Juneteenth') on conflict (date) do nothing;
-insert into holidays (date, name) values ('2025-07-04','Independence Day') on conflict (date) do nothing;
-insert into holidays (date, name) values ('2025-09-01','Labor Day') on conflict (date) do nothing;
-insert into holidays (date, name) values ('2025-11-11','Veterans Day') on conflict (date) do nothing;
-insert into holidays (date, name) values ('2025-11-27','Thanksgiving Day') on conflict (date) do nothing;
-insert into holidays (date, name) values ('2025-12-25','Christmas Day') on conflict (date) do nothing;
-insert into holidays (date, name) values ('2026-01-01','New Year''s Day') on conflict (date) do nothing;
-insert into holidays (date, name) values ('2026-01-19','Martin Luther King Jr. Day') on conflict (date) do nothing;
-insert into holidays (date, name) values ('2026-02-16','Presidents'' Day') on conflict (date) do nothing;
-insert into holidays (date, name) values ('2026-05-25','Memorial Day') on conflict (date) do nothing;
-insert into holidays (date, name) values ('2026-06-19','Juneteenth') on conflict (date) do nothing;
-insert into holidays (date, name) values ('2026-07-03','Independence Day (Observed)') on conflict (date) do nothing;
-insert into holidays (date, name) values ('2026-09-07','Labor Day') on conflict (date) do nothing;
-insert into holidays (date, name) values ('2026-11-11','Veterans Day') on conflict (date) do nothing;
-insert into holidays (date, name) values ('2026-11-26','Thanksgiving Day') on conflict (date) do nothing;
-insert into holidays (date, name) values ('2026-12-25','Christmas Day') on conflict (date) do nothing;
-insert into holidays (date, name) values ('2027-01-01','New Year''s Day') on conflict (date) do nothing;
-insert into holidays (date, name) values ('2027-01-18','Martin Luther King Jr. Day') on conflict (date) do nothing;
-insert into holidays (date, name) values ('2027-05-31','Memorial Day') on conflict (date) do nothing;
-insert into holidays (date, name) values ('2027-07-05','Independence Day (Observed)') on conflict (date) do nothing;
-insert into holidays (date, name) values ('2027-09-06','Labor Day') on conflict (date) do nothing;
-insert into holidays (date, name) values ('2027-11-11','Veterans Day') on conflict (date) do nothing;
-insert into holidays (date, name) values ('2027-11-25','Thanksgiving Day') on conflict (date) do nothing;
-insert into holidays (date, name) values ('2027-12-24','Christmas Day (Observed)') on conflict (date) do nothing;
+async function testSendingLogic() {
+  const server = http.createServer((req, res) => {
+    let body = '';
+    req.on('data', c => body += c);
+    req.on('end', () => {
+      res.writeHead(201, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ messageId: '<test@brevo.com>' }));
+    });
+  });
+  await new Promise(r => server.listen(0, r));
+  const port = server.address().port;
 
--- Lists restored from original defaults (Article, Bureau, Location, County, Shift)
-insert into setup_lists (key, items) values ('Article', '["Art. I - Agreement","Art. II - Definition of Terms","Art. III - Recognition","Art. IV - Dues Deductions","Art. V - Grievance Procedure","Art. V Sec. 1 - Definition of Grievance","Art. V Sec. 2 - Grievance Steps (Step 1 through Arbitration)","Art. V Sec. 3 - Time Limits","Art. V Sec. 3(b) - Extensions by Mutual Agreement Only","Art. V Sec. 3(c) - Auto-Advance on Employer Failure to Respond","Art. V Sec. 3(e) - Discipline Clock (from receipt of documentation)","Art. V Sec. 4 - Special Grievances MOU","Art. V Sec. 7 - Advanced Step Filing","Art. V Sec. 8 - Information Request (Pertinent Witnesses & Documents)","Art. VI - Union Rights","Art. VI Sec. 9 - Stewards and Union Representatives","Art. VII - Labor/Management Committee","Art. VIII - Work Rules","Art. IX - Discipline","Art. IX Sec. 2 - Progressive Discipline","Art. IX Sec. 3 - Suspension Pending Discharge","Art. IX Sec. 4 - Pre-Disciplinary Meeting","Art. IX Sec. 4 - Cook County PA Pre-Suspension Procedure","Art. IX Sec. 5 - Oral Reprimands","Art. IX Sec. 6 - Notification of Disciplinary Action","Art. IX Sec. 7 - Removal of Discipline from File","Art. X - Vacations","Art. X Sec. 1 - Vacation Amounts","Art. X Sec. 5 - Vacation Schedules","Art. X Sec. 6 - Vacation Scheduling by Seniority","Art. XI - Holidays","Art. XI Sec. 1 - Holiday Amounts","Art. XI Sec. 6 - Holiday Eligibility","Art. XII - Hours of Work and Overtime","Art. XII Sec. 10 - Overtime Payments","Art. XII Sec. 12 - Rest Periods","Art. XII Sec. 13 - Flexible Hours","Art. XII Sec. 16 - Compensatory Time","Art. XII Sec. 19 - Overtime Scheduling Information to Union","Art. XIII - Insurance, Pension, EAP & Indemnification","Art. XIII Sec. 1 - Health Insurance","Art. XIII - Benefit Recoupment (File Directly at Step 3)","Art. XIV - Temporary Assignment","Art. XV - Upward Mobility Program","Art. XV Sec. 8 - UMP Vacancies (File Directly at Step 3)","Art. XVI - Demotions","Art. XVII - Records and Forms","Art. XVIII - Seniority","Art. XVIII Sec. 1 - Definition","Art. XVIII Sec. 2 - Application","Art. XIX - Filling of Vacancies","Art. XIX Sec. 2 - Posting (County-Wide RC-14/28/62/63)","Art. XIX Sec. 3 - Job Assignment","Art. XIX Sec. 4 - Shift Preference","Art. XIX Sec. 5 - Promotion / Reduction / Parallel Movement","Art. XIX Sec. 7 - Transfers","Art. XX - Layoff","Art. XX Sec. 2 - General Layoff Procedures","Art. XX Sec. 3 - Bumping Rights (County-Based RC-14/28/62/63)","Art. XX Sec. 4 - Recall from Layoff","Art. XXI - Continuous Service","Art. XXII - Geographical Transfer","Art. XXIII - Leaves of Absence","Art. XXIII Sec. 16 - Sick Leave","Art. XXIII Sec. 27 - Parental Leave","Art. XXIII Sec. 28 - Family Medical Leave Act (FMLA)","Art. XXIV - Personnel Files","Art. XXV - Working Conditions, Safety and Health","Art. XXVI - Job Classifications","Art. XXVI Sec. 6 - New Classifications & Reclassification","Art. XXVI Sec. 8 - Salary Grade Placement","Art. XXVII - Evaluations","Art. XXVIII - Employee Development","Art. XXIX - Sub-Contracting","Art. XXXI Sec. 15 - Payroll Errors","Art. XXXII - Wages and Other Pay Provisions","Art. XXXII Sec. 4 - Steps","Art. XXXII Sec. 6 - General Increases","Art. XXXII Sec. 10 - Bi-lingual Pay"]'::jsonb) on conflict (key) do nothing;
-insert into setup_lists (key, items) values ('Bureau', '["Bureau of Family & Community Programs"]'::jsonb) on conflict (key) do nothing;
-insert into setup_lists (key, items) values ('Location', '["North Suburban (1N)","West Suburban (1N)","Northside (1N)","Lincolnwood (1N)","Humboldt Park (1N)","Lower North (1N)","Northwest (1N)","Ogden (1N)","Special Units (1N)","South Loop (1N)","Roseland (1S)","Aurora (Kane County)","Elgin (Kane County)","Waukegan (Lake County)","Joliet (Will County)","Alton (Madison County)","DuPage County"]'::jsonb) on conflict (key) do nothing;
-insert into setup_lists (key, items) values ('County', '["Cook R1N","Cook R1S","Kane","Lake","Will","Madison"]'::jsonb) on conflict (key) do nothing;
-insert into setup_lists (key, items) values ('Shift', '["Day (1st Shift)","Evening (2nd Shift)","Night (3rd Shift)","Rotating","Flexible / Variable","Monday-Friday Regular","Other"]'::jsonb) on conflict (key) do nothing;
+  // Monkey-patch mailer's https call target isn't feasible without editing
+  // production code for a test hook, so instead we verify end-to-end
+  // behavior using the REAL grievantNotify module against a REAL local
+  // server by temporarily pointing BREVO env vars at test values and
+  // relying on mailer.js's actual network call -- but since mailer.js
+  // hardcodes api.brevo.com, we instead verify the skip/error paths that
+  // don't require reaching the real API, which is what matters most for
+  // correctness (no crashes, no silent double-sends, clear errors).
+  const { sendGrievantStepNotifications } = require('/home/claude/dfcs-rebuild/server/grievantNotify.js');
+  server.close();
+
+  // No grievant email on file -> should skip cleanly, no error, no crash
+  const noEmailResult = await sendGrievantStepNotifications(
+    { id: '2026-501', employee: 'No Email Case', grievantEmail: '' },
+    { step1: true, step2: false, step3: false }
+  );
+  assert.strictEqual(noEmailResult.skippedNoEmail, true);
+  assert.strictEqual(noEmailResult.sent.length, 0);
+  assert.strictEqual(noEmailResult.errors.length, 0);
+  console.log('✓ A grievance with no grievantEmail on file is skipped cleanly -- no error, no crash');
+
+  // No step newly filed -> nothing attempted at all
+  const oldApiKey = process.env.BREVO_API_KEY;
+  const oldSender = process.env.BREVO_SENDER_EMAIL;
+  process.env.BREVO_API_KEY = 'fake_key_for_test';
+  process.env.BREVO_SENDER_EMAIL = 'sender@example.gov';
+
+  const nothingNewResult = await sendGrievantStepNotifications(
+    { id: '2026-502', employee: 'Has Email', grievantEmail: 'grievant@x.gov' },
+    { step1: false, step2: false, step3: false }
+  );
+  assert.strictEqual(nothingNewResult.attempted.length, 0, 'no steps newly filed -> nothing should be attempted');
+  console.log('✓ When no step was newly filed in a save, no notification is attempted at all');
+
+  process.env.BREVO_API_KEY = oldApiKey;
+  process.env.BREVO_SENDER_EMAIL = oldSender;
+
+  // Missing Brevo config entirely -> clean error, not a crash
+  delete process.env.BREVO_API_KEY;
+  delete process.env.BREVO_SENDER_EMAIL;
+  const noConfigResult = await sendGrievantStepNotifications(
+    { id: '2026-503', employee: 'Has Email', grievantEmail: 'grievant@x.gov' },
+    { step1: true, step2: false, step3: false }
+  );
+  assert.ok(noConfigResult.errors.length > 0, 'missing Brevo config should produce a clear error, not silent failure');
+  assert.ok(noConfigResult.errors[0].includes('BREVO_API_KEY') || noConfigResult.errors[0].includes('BREVO_SENDER_EMAIL'));
+  console.log('✓ Missing Brevo configuration produces a clear error rather than crashing or silently doing nothing');
+  if (oldApiKey) process.env.BREVO_API_KEY = oldApiKey;
+  if (oldSender) process.env.BREVO_SENDER_EMAIL = oldSender;
+}
+
+(async () => {
+  try {
+    await testNewlyFiledDetection();
+    await testEmailContent();
+    await testSendingLogic();
+    console.log('\nALL GRIEVANT NOTIFICATION TESTS PASSED');
+  } catch (e) {
+    console.error('\n✗ FAILED:', e.message);
+    process.exit(1);
+  }
+})();

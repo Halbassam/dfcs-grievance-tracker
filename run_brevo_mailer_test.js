@@ -1,151 +1,164 @@
-/**
- * AFSCME Council 31 — FCRC Grievance Tracker
- * Daily deadline email scheduler.
- * Sends reminder emails to stewards for grievances with deadlines
- * coming up within REMINDER_WINDOW_DAYS days.
- * No reminders are sent after Step 3 — Council 31 staff track Step 4.
- */
-
-const db = require("./db");
-const { sendMail } = require("./mailer");
-
-const REMINDER_WINDOW_DAYS = 3;
-const CHECK_INTERVAL_MS = 60 * 60 * 1000; // check every hour
-
-/**
- * Returns today's date as YYYY-MM-DD in America/Chicago (the FCRC's
- * local timezone), not the server's own clock. Render runs on UTC,
- * so anything checked in the evening Central time could otherwise
- * be misdated as tomorrow.
- */
-function todayISO() {
-  const parts = new Intl.DateTimeFormat("en-US", {
-    timeZone: "America/Chicago",
-    year: "numeric", month: "2-digit", day: "2-digit"
-  }).formatToParts(new Date());
-  const map = {};
-  for (const p of parts) map[p.type] = p.value;
-  return `${map.year}-${map.month}-${map.day}`;
-}
-
-function buildEmailBody(stewardName, items) {
-  const overdue = items.filter(i => i.daysAway < 0).sort((a, b) => a.daysAway - b.daysAway);
-  const upcoming = items.filter(i => i.daysAway >= 0).sort((a, b) => a.daysAway - b.daysAway);
-
-  const lines = [];
-  lines.push(`Dear ${stewardName},`);
-  lines.push("");
-
-  if (overdue.length) {
-    lines.push(`\u26A0 ${overdue.length} grievance deadline(s) are PAST DUE:`);
-    lines.push("");
-    for (const item of overdue) {
-      const daysLate = Math.abs(item.daysAway);
-      lines.push(`  - Grievance ${item.id} (${item.employee})`);
-      lines.push(`    OVERDUE: ${item.deadlineLabel} was due ${item.deadlineDate} — ${daysLate} day${daysLate === 1 ? "" : "s"} ago`);
-      lines.push("");
+{
+  "name": "fcrc-grievance-tracker",
+  "version": "3.2.0",
+  "lockfileVersion": 3,
+  "requires": true,
+  "packages": {
+    "": {
+      "name": "fcrc-grievance-tracker",
+      "version": "3.2.0",
+      "dependencies": {
+        "pg": "^8.11.5"
+      },
+      "engines": {
+        "node": ">=18.0.0"
+      }
+    },
+    "node_modules/pg": {
+      "version": "8.22.0",
+      "resolved": "https://registry.npmjs.org/pg/-/pg-8.22.0.tgz",
+      "integrity": "sha512-8wih1vVIBMxoUM2oB4soJsD9tDnDpLv4OXBJ+EJzFsvycD+lfyIreC2gGHq78f8jbLLt+bvlPTFdFZfJkOuzAA==",
+      "license": "MIT",
+      "dependencies": {
+        "pg-connection-string": "^2.14.0",
+        "pg-pool": "^3.14.0",
+        "pg-protocol": "^1.15.0",
+        "pg-types": "2.2.0",
+        "pgpass": "1.0.5"
+      },
+      "engines": {
+        "node": ">= 16.0.0"
+      },
+      "optionalDependencies": {
+        "pg-cloudflare": "^1.4.0"
+      },
+      "peerDependencies": {
+        "pg-native": ">=3.0.1"
+      },
+      "peerDependenciesMeta": {
+        "pg-native": {
+          "optional": true
+        }
+      }
+    },
+    "node_modules/pg-cloudflare": {
+      "version": "1.4.0",
+      "resolved": "https://registry.npmjs.org/pg-cloudflare/-/pg-cloudflare-1.4.0.tgz",
+      "integrity": "sha512-Vo7z/6rrQYxpNRylp4Tlob2elzbh+N/MOQbxFVWCxS7oEx6jF53GTJFxK2WWpKuBRkmiin4Mt+xofFDjx09R0A==",
+      "license": "MIT",
+      "optional": true
+    },
+    "node_modules/pg-connection-string": {
+      "version": "2.14.0",
+      "resolved": "https://registry.npmjs.org/pg-connection-string/-/pg-connection-string-2.14.0.tgz",
+      "integrity": "sha512-XwWDGcLRGCXAR8F/AM5bG7Q+A3Wm2s6QeEjlOKZLlH3UYcguiqCWKyWXVag5TLTIjR7oOJUY8kcADaZgWPyLeg==",
+      "license": "MIT"
+    },
+    "node_modules/pg-int8": {
+      "version": "1.0.1",
+      "resolved": "https://registry.npmjs.org/pg-int8/-/pg-int8-1.0.1.tgz",
+      "integrity": "sha512-WCtabS6t3c8SkpDBUlb1kjOs7l66xsGdKpIPZsg4wR+B3+u9UAum2odSsF9tnvxg80h4ZxLWMy4pRjOsFIqQpw==",
+      "license": "ISC",
+      "engines": {
+        "node": ">=4.0.0"
+      }
+    },
+    "node_modules/pg-pool": {
+      "version": "3.14.0",
+      "resolved": "https://registry.npmjs.org/pg-pool/-/pg-pool-3.14.0.tgz",
+      "integrity": "sha512-gKtPkFdQPU3DksooVLi9LsjZxrsBUZIpa+7aVx+LV5pNh0KzP4Zleud2po+ConrxbuXGBJ6Hfer6hdgpIBpBaw==",
+      "license": "MIT",
+      "peerDependencies": {
+        "pg": ">=8.0"
+      }
+    },
+    "node_modules/pg-protocol": {
+      "version": "1.15.0",
+      "resolved": "https://registry.npmjs.org/pg-protocol/-/pg-protocol-1.15.0.tgz",
+      "integrity": "sha512-cq9sECI5s0+uPUXjbz8ioyPJni6RzsRib0US67i5IoTZKw8fNeYlVE7u8F4dG7vEJJtc5wdD1K189lCCUwqWTQ==",
+      "license": "MIT"
+    },
+    "node_modules/pg-types": {
+      "version": "2.2.0",
+      "resolved": "https://registry.npmjs.org/pg-types/-/pg-types-2.2.0.tgz",
+      "integrity": "sha512-qTAAlrEsl8s4OiEQY69wDvcMIdQN6wdz5ojQiOy6YRMuynxenON0O5oCpJI6lshc6scgAY8qvJ2On/p+CXY0GA==",
+      "license": "MIT",
+      "dependencies": {
+        "pg-int8": "1.0.1",
+        "postgres-array": "~2.0.0",
+        "postgres-bytea": "~1.0.0",
+        "postgres-date": "~1.0.4",
+        "postgres-interval": "^1.1.0"
+      },
+      "engines": {
+        "node": ">=4"
+      }
+    },
+    "node_modules/pgpass": {
+      "version": "1.0.5",
+      "resolved": "https://registry.npmjs.org/pgpass/-/pgpass-1.0.5.tgz",
+      "integrity": "sha512-FdW9r/jQZhSeohs1Z3sI1yxFQNFvMcnmfuj4WBMUTxOrAyLMaTcE1aAMBiTlbMNaXvBCQuVi0R7hd8udDSP7ug==",
+      "license": "MIT",
+      "dependencies": {
+        "split2": "^4.1.0"
+      }
+    },
+    "node_modules/postgres-array": {
+      "version": "2.0.0",
+      "resolved": "https://registry.npmjs.org/postgres-array/-/postgres-array-2.0.0.tgz",
+      "integrity": "sha512-VpZrUqU5A69eQyW2c5CA1jtLecCsN2U/bD6VilrFDWq5+5UIEVO7nazS3TEcHf1zuPYO/sqGvUvW62g86RXZuA==",
+      "license": "MIT",
+      "engines": {
+        "node": ">=4"
+      }
+    },
+    "node_modules/postgres-bytea": {
+      "version": "1.0.1",
+      "resolved": "https://registry.npmjs.org/postgres-bytea/-/postgres-bytea-1.0.1.tgz",
+      "integrity": "sha512-5+5HqXnsZPE65IJZSMkZtURARZelel2oXUEO8rH83VS/hxH5vv1uHquPg5wZs8yMAfdv971IU+kcPUczi7NVBQ==",
+      "license": "MIT",
+      "engines": {
+        "node": ">=0.10.0"
+      }
+    },
+    "node_modules/postgres-date": {
+      "version": "1.0.7",
+      "resolved": "https://registry.npmjs.org/postgres-date/-/postgres-date-1.0.7.tgz",
+      "integrity": "sha512-suDmjLVQg78nMK2UZ454hAG+OAW+HQPZ6n++TNDUX+L0+uUlLywnoxJKDou51Zm+zTCjrCl0Nq6J9C5hP9vK/Q==",
+      "license": "MIT",
+      "engines": {
+        "node": ">=0.10.0"
+      }
+    },
+    "node_modules/postgres-interval": {
+      "version": "1.2.0",
+      "resolved": "https://registry.npmjs.org/postgres-interval/-/postgres-interval-1.2.0.tgz",
+      "integrity": "sha512-9ZhXKM/rw350N1ovuWHbGxnGh/SNJ4cnxHiM0rxE4VN41wsg8P8zWn9hv/buK00RP4WvlOyr/RBDiptyxVbkZQ==",
+      "license": "MIT",
+      "dependencies": {
+        "xtend": "^4.0.0"
+      },
+      "engines": {
+        "node": ">=0.10.0"
+      }
+    },
+    "node_modules/split2": {
+      "version": "4.2.0",
+      "resolved": "https://registry.npmjs.org/split2/-/split2-4.2.0.tgz",
+      "integrity": "sha512-UcjcJOWknrNkF6PLX83qcHM6KHgVKNkV62Y8a5uYDVv9ydGQVwAHMKqHdJje1VTWpljG0WYpCDhrCdAOYH4TWg==",
+      "license": "ISC",
+      "engines": {
+        "node": ">= 10.x"
+      }
+    },
+    "node_modules/xtend": {
+      "version": "4.0.2",
+      "resolved": "https://registry.npmjs.org/xtend/-/xtend-4.0.2.tgz",
+      "integrity": "sha512-LKYU1iAXJXUgAXn9URjiu+MWhyUXHsvfp7mcuYm9dSUKK0/CjtrUwFAxD82/mCWbtLsGjFIad0wIsod4zrTAEQ==",
+      "license": "MIT",
+      "engines": {
+        "node": ">=0.4"
+      }
     }
   }
-
-  if (upcoming.length) {
-    lines.push(`The following grievance deadline(s) are coming up within the next ${REMINDER_WINDOW_DAYS} days:`);
-    lines.push("");
-    for (const item of upcoming) {
-      const dueText = item.daysAway === 0 ? "DUE TODAY" : item.daysAway === 1 ? "due tomorrow" : `due in ${item.daysAway} days`;
-      lines.push(`  - Grievance ${item.id} (${item.employee})`);
-      lines.push(`    ${item.deadlineLabel} ${dueText} — ${item.deadlineDate}`);
-      lines.push("");
-    }
-  }
-
-  lines.push("Art. V Sec. 3(b): Extensions to any deadline require mutual written agreement.");
-  lines.push("Log in to the FCRC Grievance Tracker for full case details:");
-  lines.push("https://dfcs-grievance-tracker.onrender.com");
-  lines.push("");
-  lines.push("— AFSCME Council 31 FCRC Grievance Tracker (automated reminder)");
-  return lines.join("\n");
 }
-
-async function runDeadlineCheck() {
-  const apiKey = process.env.BREVO_API_KEY || "";
-  const senderEmail = process.env.BREVO_SENDER_EMAIL || "";
-  const summary = { sent: 0, skippedNoEmail: 0, errors: [], stewardsNotified: [] };
-
-  if (!apiKey || !senderEmail) {
-    summary.errors.push("BREVO_API_KEY or BREVO_SENDER_EMAIL not set — no emails sent. See server/mailer.js for setup steps.");
-    return summary;
-  }
-
-  const upcoming = await db.findUpcomingDeadlines(REMINDER_WINDOW_DAYS);
-
-  const byEmail = new Map();
-  for (const item of upcoming) {
-    const email = (item.stewardEmail || "").trim();
-    if (!email) { summary.skippedNoEmail++; continue; }
-    if (!byEmail.has(email)) byEmail.set(email, { stewardName: item.steward || "Steward", items: [] });
-    byEmail.get(email).items.push(item);
-  }
-
-  for (const [email, group] of byEmail.entries()) {
-    const overdueCount = group.items.filter(i => i.daysAway < 0).length;
-    const subject = overdueCount
-      ? `\u26A0 FCRC Grievance Tracker — ${overdueCount} OVERDUE deadline${overdueCount > 1 ? "s" : ""}`
-      : `FCRC Grievance Tracker — ${group.items.length} upcoming deadline${group.items.length > 1 ? "s" : ""}`;
-    try {
-      await sendMail({
-        apiKey, senderEmail, to: email,
-        subject,
-        text: buildEmailBody(group.stewardName, group.items)
-      });
-      summary.sent++;
-      summary.stewardsNotified.push({ steward: group.stewardName, email, count: group.items.length });
-      await db.logEmailAttempt({
-        kind: "steward-deadline-digest", steward: group.stewardName, to: email,
-        count: group.items.length, overdueCount, ok: true
-      }).catch(logErr => console.error("[scheduler] Failed to write email log entry:", logErr.message));
-    } catch (err) {
-      // Some low-level network errors (blocked/refused outbound
-      // connections, timeouts before a socket even connects) can
-      // surface with an empty .message. Include .code and .name too
-      // so a genuinely blank message doesn't leave us with nothing
-      // to diagnose from.
-      const detail = err && (err.message || err.code || err.name)
-        ? [err.message, err.code, err.name].filter(Boolean).join(" | ")
-        : String(err);
-      summary.errors.push(`Failed to email ${email}: ${detail}`);
-      console.error(`[scheduler] Failed to email ${email}:`, err);
-      await db.logEmailAttempt({
-        kind: "steward-deadline-digest", steward: group.stewardName, to: email,
-        count: group.items.length, overdueCount, ok: false, error: detail
-      }).catch(logErr => console.error("[scheduler] Failed to write email log entry:", logErr.message));
-    }
-  }
-
-  // Individual send attempts are already logged per-steward above via
-  // db.logEmailAttempt(), so only lastEmailRunDate needs persisting here
-  // (used to avoid re-running the daily check twice on the same day).
-  await db.withLock(async () => {
-    await db.writeRawAtomic({ lastEmailRunDate: todayISO() });
-    return null;
-  });
-
-  return summary;
-}
-
-function startScheduler() {
-  setInterval(async () => {
-    try {
-      const data = await db.readRaw();
-      const today = todayISO();
-      if (data.lastEmailRunDate === today) return;
-      console.log(`[scheduler] Running daily deadline check for ${today}...`);
-      const summary = await runDeadlineCheck();
-      console.log(`[scheduler] Done. Sent ${summary.sent} email(s), ${summary.errors.length} error(s).`);
-    } catch (err) {
-      console.error("[scheduler] Unexpected error during daily check:", err);
-    }
-  }, CHECK_INTERVAL_MS);
-  console.log("[scheduler] Daily deadline email scheduler started.");
-}
-
-module.exports = { runDeadlineCheck, startScheduler };
