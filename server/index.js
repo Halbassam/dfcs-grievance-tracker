@@ -9,6 +9,7 @@ const path = require("path");
 const db = require("./db");
 const scheduler = require("./scheduler");
 const grievantNotify = require("./grievantNotify");
+const grievanceDraftBot = require("./grievanceDraftBot");
 
 const PORT = process.env.PORT || 3000;
 const PUBLIC_DIR = path.join(__dirname, "../public");
@@ -80,6 +81,9 @@ async function getCurrentUser(req) {
 
 function isAdmin(currentUser) {
   return !!(currentUser && currentUser.role === "admin");
+}
+function canUseBot(currentUser) {
+  return !!(currentUser && (currentUser.role === "admin" || currentUser.role === "steward_plus"));
 }
 
 const server = http.createServer(async (req, res) => {
@@ -153,6 +157,23 @@ const server = http.createServer(async (req, res) => {
         return sendJson(res, 200, result);
       } catch (err) {
         return sendJson(res, 400, { error: err.message });
+      }
+    }
+
+    // AI grievance-drafting assistant. Any logged-in user (steward or
+    // admin) can use it — it only reads the contract text and the
+    // conversation the steward types; it never touches the database.
+    if (pathname === "/api/grievance-draft/chat" && req.method === "POST") {
+      if (!canUseBot(currentUser)) {
+        return sendJson(res, 403, { error: "Your account doesn't have access to the grievance-drafting assistant. Ask an admin to grant \"Steward Plus\" or \"Admin\" access." });
+      }
+      const body = await readBody(req);
+      try {
+        const result = await grievanceDraftBot.chat(body.messages);
+        return sendJson(res, 200, result);
+      } catch (err) {
+        console.error("[grievance-draft] error:", err);
+        return sendJson(res, 502, { error: err.message || "The drafting assistant is unavailable right now." });
       }
     }
 
@@ -266,3 +287,8 @@ server.listen(PORT, () => {
   console.log(`FCRC Grievance Tracker running on port ${PORT}`);
   scheduler.startScheduler();
 });
+
+// Exported for unit testing only (see __selftest__/run_bot_permission_test.js).
+// index.js still starts listening immediately on require, same as before —
+// these exports don't change runtime behavior.
+module.exports = { isAdmin, canUseBot };
