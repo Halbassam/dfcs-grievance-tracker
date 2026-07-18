@@ -192,3 +192,41 @@ async function testFrontendButtonVisibility() {
     process.exit(1);
   }
 })();
+
+async function testMultipleRecipientsParsing() {
+  const db = await setupDb();
+  await db.updateOrgSettings({ managementEmail: 'super@illinois.gov, hr@illinois.gov , labor.relations@illinois.gov' });
+  const all = await db.getAll();
+  // Confirm the raw comma-separated string round-trips correctly through
+  // org settings storage (parsing itself happens inside sendCourtesyNotice).
+  assert.strictEqual(all.orgSettings.managementEmail, 'super@illinois.gov, hr@illinois.gov , labor.relations@illinois.gov');
+  console.log('✓ Multiple comma-separated management emails round-trip correctly through org settings storage');
+}
+
+async function testMultiRecipientRejectsWithBadAddressesOnly() {
+  const db = await setupDb();
+  // Only garbage/invalid "emails" -- parseEmailList should filter all of
+  // them out, leaving zero valid recipients, same as if the field were blank.
+  await db.updateOrgSettings({ managementEmail: 'not-an-email, also not one, ,, ' });
+  process.env.BREVO_API_KEY = 'fake';
+  process.env.BREVO_SENDER_EMAIL = 'sender@x.gov';
+  await db.submitGrievance({ id: '2026-c5', employee: 'Test', steward: 'Hazem', status: 'Pending', step1filed: '2026-06-01', actingUser: 'Hazem' });
+  try {
+    await db.sendCourtesyNotice('2026-c5', 'step1');
+    throw new Error('expected rejection');
+  } catch (err) {
+    assert.ok(err.message.includes('management contact'), 'should say no valid management email is set, got: ' + err.message);
+    console.log('✓ A management-email field containing only invalid entries is correctly treated as unset');
+  }
+}
+
+(async () => {
+  try {
+    await testMultipleRecipientsParsing();
+    await testMultiRecipientRejectsWithBadAddressesOnly();
+    console.log('\nALL MULTI-RECIPIENT COURTESY NOTICE TESTS PASSED');
+  } catch (e) {
+    console.error('\n✗ FAILED:', e.message);
+    process.exit(1);
+  }
+})();

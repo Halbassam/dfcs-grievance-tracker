@@ -156,6 +156,19 @@ async function submitGrievance(record) {
  * Error if the step is invalid, already sent, has no computable
  * deadline yet, or if management email / Brevo aren't configured.
  */
+/**
+ * Splits a comma-separated email list into clean, validated addresses.
+ * Kept as a small local copy (rather than importing from
+ * grievantNotify.js) to avoid a circular require, since
+ * grievantNotify.js itself requires this file.
+ */
+function parseEmailList(raw) {
+  return String(raw || "")
+    .split(",")
+    .map(s => s.trim())
+    .filter(s => s.length > 0 && s.includes("@"));
+}
+
 async function sendCourtesyNotice(gid, step) {
   if (step !== "step1" && step !== "step2") {
     throw new Error('Courtesy notices are only available for "step1" or "step2".');
@@ -175,8 +188,8 @@ async function sendCourtesyNotice(gid, step) {
     const metaRes = await client.query("select key, value from app_meta");
     const metaMap = {};
     for (const row of metaRes.rows) metaMap[row.key] = row.value;
-    const managementEmail = (metaMap.orgManagementEmail || "").trim();
-    if (!managementEmail) {
+    const recipients = parseEmailList(metaMap.orgManagementEmail || "");
+    if (recipients.length === 0) {
       throw new Error("No management contact email is set. Go to Settings \u2192 Local chapter info to add one.");
     }
 
@@ -208,7 +221,33 @@ async function sendCourtesyNotice(gid, step) {
     ].join("\n");
 
     const { sendMail } = require("./mailer");
-    await sendMail({ apiKey, senderEmail, to: managementEmail, subject, text });
+
+    // Send to every configured management recipient. A courtesy notice
+    // is a paper-trail action, so we send to each address independently
+    // rather than failing the whole thing if one address has a problem —
+    // but we still need to know if ANY of them actually went out.
+    const sendResults = [];
+    for (const to of recipients) {
+      try {
+        await sendMail({ apiKey, senderEmail, to, subject, text });
+        sendResults.push({ to, ok: true });
+        await logEmailAttempt({
+          kind: "management-courtesy-notice", gid, step, to, ok: true
+        }).catch(logErr => console.error("[db] Failed to write email log entry:", logErr.message));
+      } catch (err) {
+        const detail = err && (err.message || err.code || err.name) || String(err);
+        sendResults.push({ to, ok: false, error: detail });
+        await logEmailAttempt({
+          kind: "management-courtesy-notice", gid, step, to, ok: false, error: detail
+        }).catch(logErr => console.error("[db] Failed to write email log entry:", logErr.message));
+      }
+    }
+
+    const anySucceeded = sendResults.some(r => r.ok);
+    if (!anySucceeded) {
+      const firstError = sendResults[0] && sendResults[0].error;
+      throw new Error(`Could not send the courtesy notice to any recipient. ${firstError || ""}`.trim());
+    }
 
     const updated = { ...rec, [sentFlagKey]: true, [`${step}CourtesySentAt`]: new Date().toISOString() };
     await client.query(
@@ -216,11 +255,15 @@ async function sendCourtesyNotice(gid, step) {
       [gid, JSON.stringify(updated)]
     );
 
-    await logEmailAttempt({
-      kind: "management-courtesy-notice", gid, step, to: managementEmail, ok: true
-    }).catch(logErr => console.error("[db] Failed to write email log entry:", logErr.message));
-
-    return { ok: true, deadlineDate: dueDateISO, record: updated };
+    const failedCount = sendResults.filter(r => !r.ok).length;
+    return {
+      ok: true,
+      deadlineDate: dueDateISO,
+      record: updated,
+      sentTo: sendResults.filter(r => r.ok).map(r => r.to),
+      failedTo: sendResults.filter(r => !r.ok).map(r => r.to),
+      partialFailure: failedCount > 0
+    };
   });
 }
 

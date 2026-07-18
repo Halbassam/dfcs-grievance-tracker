@@ -374,7 +374,7 @@ footer.app-foot{text-align:center;color:var(--grey);font-size:11.5px;padding:30p
         <div class="field" style="margin:0;"><label for="orgLocationInput">FCRC / work location</label><input type="text" id="orgLocationInput" placeholder="e.g. North Suburban FCRC"></div>
         <div class="field" style="margin:0;"><label for="orgCountyInput">County</label><input type="text" id="orgCountyInput" placeholder="e.g. Cook R1N"></div>
         <div class="field" style="margin:0;"><label for="orgShiftInput">Shift</label><input type="text" id="orgShiftInput" placeholder="e.g. Day (1st Shift)"></div>
-        <div class="field" style="margin:0;"><label for="orgManagementEmailInput">Management contact email <span style="font-weight:400;color:var(--grey);">(for courtesy reminders)</span></label><input type="text" id="orgManagementEmailInput" placeholder="e.g. supervisor@illinois.gov"></div>
+        <div class="field" style="margin:0;"><label for="orgManagementEmailInput">Management contact email(s) <span style="font-weight:400;color:var(--grey);">(for courtesy reminders)</span></label><input type="text" id="orgManagementEmailInput" placeholder="e.g. supervisor@illinois.gov, hr@illinois.gov (comma-separated for multiple)"></div>
       </div>
       <button class="btn btn-primary" id="orgSettingsSaveBtn">Save</button>
     </div>
@@ -1184,7 +1184,13 @@ async function sendCourtesyNotice(gid, step, btn){
       rec[step === 'step1' ? 'step1CourtesySent' : 'step2CourtesySent'] = true;
       rec[step === 'step1' ? 'step1CourtesySentAt' : 'step2CourtesySentAt'] = new Date().toISOString();
     }
-    toast(`Courtesy reminder sent for ${stepLabel} (due ${result.deadlineDate}).`);
+    const sentCount = (result.sentTo||[]).length;
+    const recipientWord = sentCount === 1 ? 'recipient' : 'recipients';
+    if(result.partialFailure){
+      toast(`Courtesy reminder sent to ${sentCount} of ${sentCount + (result.failedTo||[]).length} management ${recipientWord} for ${stepLabel} (due ${result.deadlineDate}). One or more addresses failed — check View recent runs.`, 'err');
+    } else {
+      toast(`Courtesy reminder sent to ${sentCount} management ${recipientWord} for ${stepLabel} (due ${result.deadlineDate}).`);
+    }
     openDetail(gid); // re-render the modal so the button is replaced with the "already sent" note
   }catch(err){
     toast(err.message || 'Could not send courtesy reminder.', 'err');
