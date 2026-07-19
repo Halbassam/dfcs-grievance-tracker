@@ -343,6 +343,15 @@ async function updateSetupList(key, items) {
   return { ok: true, count: cleanItems.length };
 }
 
+/** Fetch a single setup list (e.g. "Article", "GrievanceType") straight from
+ *  the DB, without pulling the whole app payload. Used by the grievance-draft
+ *  bot so it always picks from this local's real, current dropdown options
+ *  rather than trusting whatever the browser happened to have cached. */
+async function getSetupList(key) {
+  const res = await query("select items from setup_lists where key = $1", [key]);
+  return (res.rows[0] && res.rows[0].items) || [];
+}
+
 function isValidISODate(s) { return /^\d{4}-\d{2}-\d{2}$/.test(String(s || "")); }
 
 async function updateHolidays(holidays) {
@@ -684,7 +693,7 @@ async function writeRawAtomic(data) {
 module.exports = {
   getAll, readRaw, writeRawAtomic, withLock, logEmailAttempt,
   submitGrievance, logActivity, archiveClosed, sendCourtesyNotice,
-  updateStewards, updateSetupList, updateHolidays, updateOrgSettings,
+  updateStewards, updateSetupList, getSetupList, updateHolidays, updateOrgSettings,
   findUpcomingDeadlines, SIMPLE_SETUP_KEYS,
   hasAnyUsers, listUsersSafe, upsertUser, deleteUser,
   verifyLogin, createSession, getSessionUser, destroySession

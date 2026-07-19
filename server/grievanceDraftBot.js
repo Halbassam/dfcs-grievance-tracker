@@ -19,7 +19,14 @@ const ANTHROPIC_VERSION = "2023-06-01";
 const DRAFT_MARKER_START = "===GRIEVANCE_DRAFT===";
 const DRAFT_MARKER_END = "===END===";
 
-function buildInstructions() {
+function buildInstructions(articleOptions, grievanceTypeOptions) {
+  const articleList = (articleOptions && articleOptions.length)
+    ? articleOptions.map(a => `- ${a}`).join("\n")
+    : null;
+  const typeList = (grievanceTypeOptions && grievanceTypeOptions.length)
+    ? grievanceTypeOptions.map(t => `- ${t}`).join("\n")
+    : null;
+
   return `You are a grievance-drafting assistant for AFSCME Council 31 stewards at a DFCS/FCRC local, working under the State of Illinois / AFSCME Master Contract (2023–2027).
 
 A steward will describe a workplace situation, possibly incompletely. Your job:
@@ -30,12 +37,15 @@ A steward will describe a workplace situation, possibly incompletely. Your job:
 
 ${DRAFT_MARKER_START}
 ARTICLE: <e.g. Article IX>
+TYPE: <the grievance type, see rules below>
 SECTION: <e.g. Sec. 2 — Progressive Discipline>
 QUOTE: <the exact sentence(s) from the excerpt below that support this grievance, copied verbatim, word-for-word — this is what the steward checks against the real contract, so do not paraphrase it>
 DESCRIPTION: <a factual, concise statement of what happened — who, what, when, where>
 REMEDY: <the specific remedy/relief being sought>
 ${DRAFT_MARKER_END}
 
+${articleList ? `For ARTICLE, you MUST copy one of these exact strings, character-for-character, from this local's own dropdown list (do not invent your own formatting even if it looks different from "Article IX" style):\n${articleList}\n\nIf none of these options match what the contract excerpts actually cover, leave ARTICLE blank rather than guessing.\n` : ""}
+${typeList ? `For TYPE, you MUST copy one of these exact strings, character-for-character, from this local's own dropdown list:\n${typeList}\n\nPick whichever one best fits the situation. If truly nothing fits, leave TYPE blank rather than guessing.\n` : ""}
 The QUOTE field matters most for accuracy: copy it character-for-character from the excerpt text you were given, not from memory and not paraphrased. If more than one sentence is needed for the quote to make sense, include all of them verbatim. If you genuinely cannot find contract language that supports the grievance, do not fabricate a QUOTE — say so in prose instead of emitting the block.
 
 You can still write normal prose before or after that block (e.g. "Here's a draft based on what you've told me — take a look at the Article and Section, since I want you to double check those before filing:"). Keep the DESCRIPTION and REMEDY factual and free of legal argument — that block is what gets copied into the intake form.
@@ -106,7 +116,7 @@ function extractDraft(replyText) {
 
   const block = replyText.slice(start + DRAFT_MARKER_START.length, end);
   const draft = {};
-  const fieldPattern = /^(ARTICLE|SECTION|QUOTE|DESCRIPTION|REMEDY):\s*([\s\S]*?)(?=\n[A-Z]+:|$)/gm;
+  const fieldPattern = /^(ARTICLE|TYPE|SECTION|QUOTE|DESCRIPTION|REMEDY):\s*([\s\S]*?)(?=\n[A-Z]+:|$)/gm;
   let match;
   while ((match = fieldPattern.exec(block)) !== null) {
     draft[match[1].toLowerCase()] = match[2].trim();
@@ -129,6 +139,7 @@ function formatDraftForDisplay(draft) {
   return [
     "**Draft Statement of Grievance**",
     draft.article ? `- **CBA article:** ${draft.article}` : null,
+    draft.type ? `- **Grievance type:** ${draft.type}` : null,
     draft.section ? `- **Section:** ${draft.section}` : null,
     draft.quote ? `- **Contract language (verbatim, verify against the actual contract):** "${draft.quote}"` : null,
     draft.description ? `- **Description:** ${draft.description}` : null,
@@ -140,18 +151,29 @@ function formatDraftForDisplay(draft) {
  * messages: [{ role: "user"|"assistant", content: string }, ...]
  * Returns { reply, draft, articlesUsed }
  */
-async function chat(messages) {
+async function chat(messages, options = {}) {
   if (!Array.isArray(messages) || messages.length === 0) {
     throw new Error("At least one message is required.");
   }
 
-  const userText = messages
-    .filter(m => m.role === "user")
-    .map(m => m.content)
-    .join("\n");
+  const articleOptions = Array.isArray(options.articleOptions) ? options.articleOptions : [];
+  const grievanceTypeOptions = Array.isArray(options.grievanceTypeOptions) ? options.grievanceTypeOptions : [];
 
-  const relevantChunks = contractData.searchRelevant(userText, 5);
-  const instructions = buildInstructions();
+  // Base article selection on the FIRST user message only, not the whole
+  // growing conversation. Two reasons: (1) that's where the actual fact
+  // pattern lives -- later turns are usually the steward answering the
+  // bot's own clarifying questions, not introducing a new contract issue,
+  // and (2) it keeps the excerpt set IDENTICAL turn to turn, which is what
+  // makes the cache actually hit. Recomputing from the full growing
+  // conversation on every turn (the previous behavior) changed the excerpt
+  // set almost every message, which busted the cache nearly every time --
+  // that's why turns were showing cache_write instead of cache_read even
+  // within one back-and-forth.
+  const firstUserMessage = messages.find(m => m.role === "user");
+  const searchText = firstUserMessage ? firstUserMessage.content : "";
+
+  const relevantChunks = contractData.searchRelevant(searchText, 5);
+  const instructions = buildInstructions(articleOptions, grievanceTypeOptions);
   const excerptsBlock = buildExcerptsBlock(relevantChunks);
 
   const { text: rawReply, usage } = await callAnthropic(instructions, excerptsBlock, messages);

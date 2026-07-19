@@ -169,7 +169,11 @@ const server = http.createServer(async (req, res) => {
       }
       const body = await readBody(req);
       try {
-        const result = await grievanceDraftBot.chat(body.messages);
+        const [articleOptions, grievanceTypeOptions] = await Promise.all([
+          db.getSetupList("Article"),
+          db.getSetupList("GrievanceType")
+        ]);
+        const result = await grievanceDraftBot.chat(body.messages, { articleOptions, grievanceTypeOptions });
         return sendJson(res, 200, result);
       } catch (err) {
         console.error("[grievance-draft] error:", err);
