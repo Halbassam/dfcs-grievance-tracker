@@ -19,11 +19,7 @@ const ANTHROPIC_VERSION = "2023-06-01";
 const DRAFT_MARKER_START = "===GRIEVANCE_DRAFT===";
 const DRAFT_MARKER_END = "===END===";
 
-function buildSystemPrompt(relevantChunks) {
-  const excerpts = relevantChunks
-    .map(c => `--- ${c.label} ---\n${c.text}`)
-    .join("\n\n");
-
+function buildInstructions() {
   return `You are a grievance-drafting assistant for AFSCME Council 31 stewards at a DFCS/FCRC local, working under the State of Illinois / AFSCME Master Contract (2023–2027).
 
 A steward will describe a workplace situation, possibly incompletely. Your job:
@@ -46,12 +42,16 @@ You can still write normal prose before or after that block (e.g. "Here's a draf
 
 Always remind the steward, at least once and briefly, that this is a drafting aid: they should verify facts, dates, and citations themselves before filing, and loop in the local grievance chair on anything unusual or high-stakes (discipline up to discharge, group grievances, anything likely to reach arbitration).
 
-Relevant contract excerpts for this conversation:
-
-${excerpts}`;
+Relevant contract excerpts for this conversation follow below.`;
 }
 
-async function callAnthropic(systemPrompt, messages) {
+function buildExcerptsBlock(relevantChunks) {
+  return relevantChunks
+    .map(c => `--- ${c.label} ---\n${c.text}`)
+    .join("\n\n");
+}
+
+async function callAnthropic(instructions, excerptsBlock, messages) {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) {
     throw new Error(
@@ -59,6 +59,14 @@ async function callAnthropic(systemPrompt, messages) {
     );
   }
 
+  // Two system blocks: the short per-request instructions, then the large
+  // contract-excerpt text marked cacheable. Anthropic caches everything up
+  // to and including a cache_control breakpoint, so as long as the SAME set
+  // of excerpts is sent again within the cache TTL (~5 min by default),
+  // that block is billed at ~10% of normal input price instead of full
+  // price. Since a chat conversation resends its whole history + system
+  // prompt on every turn, this is what keeps a multi-turn conversation from
+  // re-charging full price for the ~40-50K-token contract context each time.
   const response = await fetch("https://api.anthropic.com/v1/messages", {
     method: "POST",
     headers: {
@@ -69,7 +77,10 @@ async function callAnthropic(systemPrompt, messages) {
     body: JSON.stringify({
       model: MODEL,
       max_tokens: MAX_TOKENS,
-      system: systemPrompt,
+      system: [
+        { type: "text", text: instructions },
+        { type: "text", text: excerptsBlock, cache_control: { type: "ephemeral" } }
+      ],
       messages
     })
   });
@@ -85,7 +96,7 @@ async function callAnthropic(systemPrompt, messages) {
     .map(block => block.text)
     .join("\n");
 
-  return text;
+  return { text, usage: data.usage || null };
 }
 
 /** Pulls out the machine-readable draft block, if the reply included one. */
@@ -141,9 +152,15 @@ async function chat(messages) {
     .join("\n");
 
   const relevantChunks = contractData.searchRelevant(userText, 7);
-  const systemPrompt = buildSystemPrompt(relevantChunks);
+  const instructions = buildInstructions();
+  const excerptsBlock = buildExcerptsBlock(relevantChunks);
 
-  const rawReply = await callAnthropic(systemPrompt, messages);
+  const { text: rawReply, usage } = await callAnthropic(instructions, excerptsBlock, messages);
+  if (usage) {
+    console.log(
+      `[grievance-draft] tokens — input:${usage.input_tokens} cache_write:${usage.cache_creation_input_tokens || 0} cache_read:${usage.cache_read_input_tokens || 0} output:${usage.output_tokens}`
+    );
+  }
   const extracted = extractDraft(rawReply);
 
   return {
