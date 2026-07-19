@@ -110,7 +110,7 @@ function idf(term) {
  * always including Article V (Grievance Procedure) since it governs the
  * filing process itself regardless of subject matter.
  */
-function searchRelevant(queryText, topN = 7) {
+function searchRelevant(queryText, topN = 5) {
   const chunks = loadChunks();
   const qTokens = tokenize(queryText);
   const qTf = termFreq(qTokens);

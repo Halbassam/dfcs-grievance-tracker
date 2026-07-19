@@ -12,7 +12,7 @@
 
 const contractData = require("./contractData");
 
-const MODEL = "claude-sonnet-4-6";
+const MODEL = "claude-haiku-4-5-20251001"; // $1/$5 per million tokens vs Sonnet's $3/$15 -- ~3x cheaper
 const MAX_TOKENS = 2000;
 const ANTHROPIC_VERSION = "2023-06-01";
 
@@ -60,13 +60,12 @@ async function callAnthropic(instructions, excerptsBlock, messages) {
   }
 
   // Two system blocks: the short per-request instructions, then the large
-  // contract-excerpt text marked cacheable. Anthropic caches everything up
-  // to and including a cache_control breakpoint, so as long as the SAME set
-  // of excerpts is sent again within the cache TTL (~5 min by default),
-  // that block is billed at ~10% of normal input price instead of full
-  // price. Since a chat conversation resends its whole history + system
-  // prompt on every turn, this is what keeps a multi-turn conversation from
-  // re-charging full price for the ~40-50K-token contract context each time.
+  // contract-excerpt text marked cacheable. Plain 5-minute (default) TTL --
+  // at roughly one grievance a day, sessions are hours apart, so the 1-hour
+  // cache's cross-session reuse never really pays off and its higher write
+  // premium (2x base vs 1.25x) would just be wasted. The 5-minute window
+  // still covers what actually matters: the handful of back-and-forth turns
+  // within a single drafting session, which happen minutes apart.
   const response = await fetch("https://api.anthropic.com/v1/messages", {
     method: "POST",
     headers: {
@@ -151,7 +150,7 @@ async function chat(messages) {
     .map(m => m.content)
     .join("\n");
 
-  const relevantChunks = contractData.searchRelevant(userText, 7);
+  const relevantChunks = contractData.searchRelevant(userText, 5);
   const instructions = buildInstructions();
   const excerptsBlock = buildExcerptsBlock(relevantChunks);
 
