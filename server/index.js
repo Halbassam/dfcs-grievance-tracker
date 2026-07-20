@@ -173,7 +173,7 @@ const server = http.createServer(async (req, res) => {
           db.getSetupList("Article"),
           db.getSetupList("GrievanceType")
         ]);
-        const result = await grievanceDraftBot.chat(body.messages, { articleOptions, grievanceTypeOptions });
+        const result = await grievanceDraftBot.chat(body.messages, { articleOptions, grievanceTypeOptions, chunkIds: body.chunkIds });
         return sendJson(res, 200, result);
       } catch (err) {
         console.error("[grievance-draft] error:", err);

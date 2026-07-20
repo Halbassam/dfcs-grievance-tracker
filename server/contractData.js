@@ -156,4 +156,34 @@ function listArticleTitles() {
     .map(c => c.label);
 }
 
-module.exports = { searchRelevant, listArticleTitles };
+/** Every chunk's id + label (no body text) -- cheap enough to hand to the
+ *  model as a table of contents so IT can pick which ones are relevant,
+ *  rather than relying purely on keyword overlap (see selectRelevantChunkIds
+ *  in grievanceDraftBot.js for why: keyword scoring lets a strongly-matching
+ *  topic crowd out a second, less-lexically-obvious one in a multi-issue
+ *  grievance, e.g. a vacancy-bidding dispute that also turns on the
+ *  Seniority article's ranking-tier rule). */
+function listAllChunks() {
+  return loadChunks().map(c => ({ id: c.id, label: c.label }));
+}
+
+/** Look up specific chunks by id (as chosen by the model from listAllChunks).
+ *  Unknown ids are silently skipped; Article V is always included regardless
+ *  since it governs the grievance process itself. Order/dedupe preserved. */
+function getChunksByIds(ids) {
+  const chunks = loadChunks();
+  const byId = new Map(chunks.map(c => [c.id, c]));
+  const results = [];
+  const seen = new Set();
+
+  const articleV = byId.get("article-V");
+  if (articleV) { results.push(articleV); seen.add(articleV.id); }
+
+  for (const id of ids || []) {
+    const c = byId.get(id);
+    if (c && !seen.has(c.id)) { results.push(c); seen.add(c.id); }
+  }
+  return results;
+}
+
+module.exports = { searchRelevant, listArticleTitles, listAllChunks, getChunksByIds };
