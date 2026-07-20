@@ -268,7 +268,12 @@ footer.app-foot{text-align:center;color:var(--grey);font-size:11.5px;padding:30p
           <div class="field wide"><label for="f-description">Brief description <span style="font-weight:400;color:var(--grey);">(optional)</span></label><textarea id="f-description" placeholder="A sentence or two describing what happened, in your own words." style="min-height:56px;"></textarea></div>
           <div class="field"><label for="f-gtype">Grievance type</label><select id="f-gtype"></select></div>
           <div class="field"><label for="f-article">CBA article violated</label><select id="f-article"></select></div>
-          <div class="field wide"><label for="f-section">Specific section / clause reference</label><input type="text" id="f-section" placeholder="e.g. Art. IX Sec. 2 — Progressive discipline not followed"></div>
+          <div class="field wide">
+            <label for="f-section">Specific section / clause reference</label>
+            <select id="f-section-picker" style="margin-bottom:6px;"><option value="">— Pick a section from the contract (optional) —</option></select>
+            <input type="text" id="f-section" placeholder="e.g. Art. IX Sec. 2 — Progressive discipline not followed">
+            <div class="field-note">Pick a CBA article above first, then choose a section here to fill in the text box — you can still edit the text freely (e.g. to add a subsection or paragraph letter, since those aren't consistent enough across the contract to list here reliably).</div>
+          </div>
           <div class="field wide"><label for="f-remedy">Remedy sought</label><textarea id="f-remedy" placeholder="Be specific."></textarea></div>
 
           <div class="section-divider"><span class="label">Lifecycle milestones &mdash; Art. V Sec. 2 (working days)</span><span class="line"></span></div>
@@ -326,6 +331,7 @@ footer.app-foot{text-align:center;color:var(--grey);font-size:11.5px;padding:30p
         </div>
         <textarea id="draftbotDocText" readonly style="width:100%;margin-top:10px;min-height:180px;font-family:var(--mono);font-size:12.5px;line-height:1.6;"></textarea>
         <div id="copyDraftNote" class="field-note hidden">Copied — paste into Word, an email, or wherever you're filing this.</div>
+        <div id="useDraftWarning" class="hidden" style="color:var(--red);font-size:12.5px;margin-top:8px;"></div>
       </div>
       <div id="draftbotError" class="hidden" style="color:var(--red);font-size:13px;margin-bottom:10px;"></div>
       <form id="draftbotForm" style="display:flex;gap:10px;align-items:flex-end;">
@@ -716,11 +722,34 @@ function populateDropdowns(){
   fillSelect($('f-status'), SETUP.Status||[]);
   fillSelect($('actSteward'), SETUP.Steward||[], false);
   fillSelect($('actType'), SETUP.ActivityType||[], false);
+  refreshSectionPicker();
 }
 
 $('f-steward')?.addEventListener('change', e=>{
   const idx = (SETUP.Steward||[]).indexOf(e.target.value);
   $('stewardEmailBox').textContent = idx>=0 ? (SETUP.StewardEmail||[])[idx] : "Select a steward";
+});
+
+/* ---------- Section picker: cascades off the selected CBA Article ---------- */
+let CONTRACT_SECTIONS = {};
+fetch('/data/contract-sections.json').then(r=>r.ok?r.json():{}).then(data=>{ CONTRACT_SECTIONS = data||{}; refreshSectionPicker(); }).catch(()=>{});
+
+function refreshSectionPicker(){
+  const picker = $('f-section-picker');
+  if(!picker) return;
+  const articleValue = $('f-article').value;
+  const options = CONTRACT_SECTIONS[articleValue] || [];
+  picker.innerHTML = '<option value="">— Pick a section from the contract (optional) —</option>' +
+    options.map(s => `<option value="${escapeHtml(s)}">${escapeHtml(s)}</option>`).join('');
+  if(articleValue && options.length === 0){
+    picker.innerHTML = '<option value="">— No numbered sections parsed for this article — type below —</option>';
+  }
+  picker.value = '';
+}
+
+$('f-article')?.addEventListener('change', refreshSectionPicker);
+$('f-section-picker')?.addEventListener('change', e=>{
+  if(e.target.value) $('f-section').value = e.target.value;
 });
 
 function recalcDeadlines(){
@@ -1380,6 +1409,7 @@ function loadIntoForm(rec){
   $('f-bu').value = rec.bu||'';
   $('f-gtype').value = rec.gtype||'';
   $('f-article').value = rec.article||'';
+  $('f-article').dispatchEvent(new Event('change'));
   $('f-section').value = rec.section||'';
   $('f-remedy').value = rec.remedy||'';
   $('f-steward').value = rec.steward||'';
@@ -1416,6 +1446,7 @@ $('menuToggle').addEventListener('click', ()=>$('tabs').classList.toggle('open')
 let draftbotMessages = [];
 let draftbotLatestDraft = null;
 let draftbotBusy = false;
+let draftbotChunkIds = null; // remembered after the first response, resent so the server doesn't re-classify (and doesn't accidentally change the excerpt set, which would break prompt caching)
 
 function draftbotRenderThread(){
   const thread = $('draftbotThread');
@@ -1433,13 +1464,15 @@ function draftbotRenderDraftCard(){
   const d = draftbotLatestDraft;
   $('draftbotDraftSummary').innerHTML = [
     d.article ? `<div><b>CBA article:</b> ${escapeHtml(d.article)}</div>` : '',
+    d.type ? `<div><b>Grievance type:</b> ${escapeHtml(d.type)}</div>` : '',
     d.section ? `<div><b>Section:</b> ${escapeHtml(d.section)}</div>` : '',
     d.quote ? `<div style="margin-top:6px;"><b>Contract language (verbatim — check this against the real contract):</b><br>"${escapeHtml(d.quote)}"</div>` : '',
-    d.description ? `<div style="margin-top:6px;"><b>Description:</b> ${escapeHtml(d.description)}</div>` : '',
-    d.remedy ? `<div style="margin-top:6px;"><b>Remedy sought:</b> ${escapeHtml(d.remedy)}</div>` : ''
+    d.statement ? `<div style="margin-top:6px;"><b>Statement of Grievance:</b><div style="white-space:pre-wrap;margin-top:2px;">${escapeHtml(d.statement)}</div></div>` : (d.description ? `<div style="margin-top:6px;"><b>Description:</b> ${escapeHtml(d.description)}</div>` : ''),
+    d.remedy ? `<div style="margin-top:6px;"><b>Relief sought:</b><div style="white-space:pre-wrap;margin-top:2px;">${escapeHtml(d.remedy)}</div></div>` : ''
   ].join('');
   $('draftbotDocText').value = draftbotFormatAsDocument(d);
   $('copyDraftNote').classList.add('hidden');
+  $('useDraftWarning').classList.add('hidden');
 }
 
 function draftbotFormatAsDocument(d){
@@ -1453,9 +1486,12 @@ function draftbotFormatAsDocument(d){
     ''
   ];
   if(d.article || d.section) lines.push(`CBA Provision Cited: ${[d.article, d.section].filter(Boolean).join(', ')}`, '');
-  if(d.description) lines.push('Statement of Facts:', d.description, '');
-  if(d.quote) lines.push('Contract Language Relied Upon (verbatim — verify against the official contract text):', `"${d.quote}"`, '');
-  if(d.remedy) lines.push('Remedy Sought:', d.remedy, '');
+  if(d.type) lines.push(`Grievance Type: ${d.type}`, '');
+  lines.push('STATEMENT OF GRIEVANCE:');
+  lines.push(d.statement || d.description || '(no statement drafted yet)', '');
+  if(d.quote) lines.push('Key Contract Language Relied Upon (verbatim — verify against the official contract text):', `"${d.quote}"`, '');
+  lines.push('RELIEF SOUGHT:');
+  lines.push(d.remedy || '(no relief drafted yet)', '');
   lines.push('— Drafted with the FCRC Grievance Tracker assistant; verify all facts, dates, and citations before filing.');
   return lines.join('\n');
 }
@@ -1487,12 +1523,13 @@ $('draftbotForm').addEventListener('submit', async (e)=>{
     const res = await fetch('/api/grievance-draft/chat', {
       method:'POST',
       headers:{ 'Content-Type':'application/json' },
-      body: JSON.stringify({ messages: draftbotMessages.map(m=>({ role:m.role, content:m.content })) })
+      body: JSON.stringify({ messages: draftbotMessages.map(m=>({ role:m.role, content:m.content })), chunkIds: draftbotChunkIds })
     });
     const data = await res.json();
     if(!res.ok) throw new Error(data.error || 'The drafting assistant is unavailable right now.');
 
     draftbotMessages.push({ role:'assistant', content:data.reply });
+    if(data.chunkIds) draftbotChunkIds = data.chunkIds;
     if(data.draft){
       draftbotLatestDraft = data.draft;
       draftbotRenderDraftCard();
@@ -1513,6 +1550,7 @@ $('draftbotForm').addEventListener('submit', async (e)=>{
 $('clearDraftBtn').addEventListener('click', ()=>{
   draftbotMessages = [];
   draftbotLatestDraft = null;
+  draftbotChunkIds = null;
   $('draftbotArticlesUsed').textContent = '';
   $('draftbotError').classList.add('hidden');
   draftbotRenderThread();
@@ -1526,14 +1564,47 @@ $('useDraftBtn').addEventListener('click', ()=>{
   if(d.description) $('f-description').value = d.description;
   if(d.remedy) $('f-remedy').value = d.remedy;
   if(d.section) $('f-section').value = d.section;
-  if(d.article){
-    const sel = $('f-article');
-    const match = Array.from(sel.options).find(o =>
-      o.value.toLowerCase().includes(d.article.toLowerCase()) ||
-      d.article.toLowerCase().includes(o.value.toLowerCase().replace(/^article\s*/,''))
-    );
-    if(match) sel.value = match.value;
+
+  function fillSelectFromDraft(selectId, value){
+    const sel = $(selectId);
+    const options = Array.from(sel.options);
+    if(!value) return { attempted:false };
+    if(options.length === 0) return { attempted:true, matched:false, reason:'empty-list' };
+    // Exact match first (this is what the bot is instructed to return, since
+    // it's given this local's real dropdown list). Fuzzy substring match as
+    // a fallback in case the model still deviated a little.
+    let match = options.find(o => o.value === value);
+    if(!match){
+      match = options.find(o =>
+        o.value.toLowerCase().includes(value.toLowerCase()) ||
+        value.toLowerCase().includes(o.value.toLowerCase().replace(/^article\s*/,''))
+      );
+    }
+    if(match){ sel.value = match.value; return { attempted:true, matched:true }; }
+    return { attempted:true, matched:false, reason:'no-match', value };
   }
+
+  const articleResult = fillSelectFromDraft('f-article', d.article);
+  refreshSectionPicker();
+  const typeResult = fillSelectFromDraft('f-gtype', d.type);
+
+  const warnings = [];
+  [['CBA article', articleResult], ['Grievance type', typeResult]].forEach(([label, r])=>{
+    if(!r.attempted || r.matched) return;
+    if(r.reason === 'empty-list'){
+      warnings.push(`${label}: the dropdown has no options set up yet — add some under Settings, then re-run "Use this draft."`);
+    } else {
+      warnings.push(`${label}: couldn't match "${r.value}" to a dropdown option — pick manually.`);
+    }
+  });
+  const warnBox = $('useDraftWarning');
+  if(warnings.length){
+    warnBox.innerHTML = warnings.map(w => `&#9888;&#65039; ${escapeHtml(w)}`).join('<br>');
+    warnBox.classList.remove('hidden');
+  } else {
+    warnBox.classList.add('hidden');
+  }
+
   recalcDeadlines();
 });
 
