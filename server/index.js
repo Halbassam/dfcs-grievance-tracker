@@ -287,6 +287,18 @@ const server = http.createServer(async (req, res) => {
       return sendJson(res, 200, result);
     }
 
+    if (pathname === "/api/location-details" && req.method === "GET") {
+      if (!isAdmin(currentUser)) return sendJson(res, 403, { error: "Only admins can view location details." });
+      return sendJson(res, 200, { details: await db.getLocationDetails() });
+    }
+
+    if (pathname === "/api/location-details" && req.method === "POST") {
+      if (!isAdmin(currentUser)) return sendJson(res, 403, { error: "Only admins can edit location details." });
+      const body = await readBody(req);
+      const result = await db.updateLocationDetails(body.details || {});
+      return sendJson(res, 200, result);
+    }
+
     // User management (admin only)
     if (pathname === "/api/users" && req.method === "GET") {
       if (!isAdmin(currentUser)) return sendJson(res, 403, { error: "Only admins can view user accounts." });
