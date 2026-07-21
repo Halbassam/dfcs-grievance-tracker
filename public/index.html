@@ -437,6 +437,16 @@ footer.app-foot{text-align:center;color:var(--grey);font-size:11.5px;padding:30p
       <p style="font-size:13px;color:var(--grey);margin:0;">Each steward signs in with their own username and password. Currently <b id="userCount">0</b> account(s) set up.</p>
     </div>
 
+    <div class="panel panel-pad" style="margin-bottom:24px;" id="locationContactsPanel">
+      <div style="margin-bottom:12px;">
+        <h3 style="font-family:var(--serif);color:var(--green-1);margin:0 0 4px;font-size:17px;">Location contact details</h3>
+        <p style="font-size:13px;color:var(--grey);margin:0;">Bureau / program unit and management email for each office. The management email is used for courtesy reminder notices — each location gets its own separate email address.</p>
+      </div>
+      <div id="locationContactsGrid" style="display:flex;flex-direction:column;gap:12px;margin-bottom:14px;"></div>
+      <button class="btn btn-primary" id="locationContactsSaveBtn">Save all location contacts</button>
+      <span id="locationContactsStatus" style="margin-left:12px;font-size:13px;color:var(--green-2);"></span>
+    </div>
+
     <div class="panel panel-pad" style="margin-bottom:24px;" id="locationBackfillPanel">
       <div style="display:flex;justify-content:space-between;align-items:baseline;flex-wrap:wrap;gap:10px;margin-bottom:14px;">
         <h3 style="font-family:var(--serif);color:var(--green-1);margin:0;font-size:17px;">Location assignment check</h3>
@@ -1822,6 +1832,7 @@ function renderAll(){
   renderWorkload();
   renderArchive();
   renderLocationBackfillPanel();
+  renderLocationContactsPanel();
 }
 
 /* ---------- Manage Stewards modal ---------- */
@@ -2186,6 +2197,7 @@ function renderSettingsCounts(isBackgroundPoll){
   $('locationCount').textContent = (SETUP.Location||[]).length;
   $('userCount').textContent = (window._userListCache||[]).length;
   if(typeof renderOtherListsButtons === 'function') renderOtherListsButtons();
+  renderLocationContactsPanel();
 
   // Org settings fields — don't overwrite while an admin is mid-typing
   // during a silent background poll. Location is now a <select>, not a
@@ -2264,7 +2276,61 @@ $('orgSettingsSaveBtn').addEventListener('click', async ()=>{
   }
 });
 
-/* ---------- Settings tab: Change my password (all logged-in users) ---------- */
+/* ---------- Settings tab: Location contact details (admin only) ---------- */
+
+function renderLocationContactsPanel(){
+  const grid = $('locationContactsGrid');
+  if(!grid) return;
+  const locations = SETUP.Location || [];
+  if(!locations.length){
+    grid.innerHTML = '<p style="font-size:13px;color:var(--grey);">No locations set up yet — add some under Settings → Edit locations first.</p>';
+    return;
+  }
+  grid.innerHTML = locations.map(loc => {
+    const cfg = LOCATION_DETAILS[loc] || {};
+    return `<div style="border:1px solid var(--green-line);border-radius:var(--radius);padding:12px;">
+      <div style="font-weight:600;font-size:13.5px;margin-bottom:8px;">${escapeHtml(loc)}</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+        <div class="field" style="margin:0;">
+          <label style="font-size:12px;">Bureau / program unit</label>
+          <input type="text" class="loc-bureau" data-loc="${escapeHtml(loc)}" value="${escapeHtml(cfg.bureau||'')}" placeholder="e.g. Bureau of Family &amp; Community Programs">
+        </div>
+        <div class="field" style="margin:0;">
+          <label style="font-size:12px;">Management contact email(s) <span style="font-weight:400;color:var(--grey);">(for courtesy reminders)</span></label>
+          <input type="text" class="loc-email" data-loc="${escapeHtml(loc)}" value="${escapeHtml(cfg.email||'')}" placeholder="e.g. supervisor@illinois.gov">
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+$('locationContactsSaveBtn')?.addEventListener('click', async ()=>{
+  const btn = $('locationContactsSaveBtn');
+  const status = $('locationContactsStatus');
+  btn.disabled = true; btn.textContent = 'Saving…'; status.textContent = '';
+  try{
+    const updated = Object.assign({}, LOCATION_DETAILS);
+    document.querySelectorAll('.loc-bureau').forEach(input => {
+      const loc = input.dataset.loc;
+      if(!updated[loc]) updated[loc] = { bureau:'', email:'' };
+      updated[loc].bureau = input.value.trim();
+    });
+    document.querySelectorAll('.loc-email').forEach(input => {
+      const loc = input.dataset.loc;
+      if(!updated[loc]) updated[loc] = { bureau:'', email:'' };
+      updated[loc].email = input.value.trim();
+    });
+    await apiPost('/api/location-details', { details: updated });
+    LOCATION_DETAILS = updated;
+    status.textContent = '✓ Saved';
+    setTimeout(()=>{ if(status) status.textContent=''; }, 3000);
+    toast('Location contact details saved.');
+  }catch(err){
+    toast(err.message || 'Could not save location contacts.', 'err');
+  }finally{
+    btn.disabled = false; btn.textContent = 'Save all location contacts';
+  }
+});
 $('cpSaveBtn').addEventListener('click', async ()=>{
   const currentPw = $('cpCurrentPw').value;
   const newPw = $('cpNewPw').value;
@@ -2346,6 +2412,8 @@ function applyRoleVisibility(user){
   if(userPanel) userPanel.style.display = admin ? '' : 'none';
   const backfillPanel = $('locationBackfillPanel');
   if(backfillPanel) backfillPanel.style.display = admin ? '' : 'none';
+  const locationContactsPanel = $('locationContactsPanel');
+  if(locationContactsPanel) locationContactsPanel.style.display = admin ? '' : 'none';
   const otherListsPanel = $('otherListsPanel');
   if(otherListsPanel) otherListsPanel.style.display = admin ? '' : 'none';
   // Change-password is available to every logged-in user
