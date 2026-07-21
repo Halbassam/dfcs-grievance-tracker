@@ -1262,57 +1262,97 @@ $('actSaveBtn').addEventListener('click', async ()=>{
 
 function renderWorkload(){
   const grid = $('stewardGrid');
-  const stewards = SETUP.Steward || [];
-  grid.innerHTML = stewards.map(name=>{
-    const mine = getScopedGrievances().filter(g=>g.steward===name);
-    const active = mine.filter(g=>!isResolved(g));
-    const overdue = active.filter(isOverdue);
-    const resolved = mine.filter(isResolved);
-    const atStep1 = active.filter(g=>currentStep(g).startsWith('Step 1')).length;
-    const atStep2 = active.filter(g=>currentStep(g).startsWith('Step 2')).length;
-    const atStep3 = active.filter(g=>currentStep(g).startsWith('Step 3')).length;
-    const atArb = mine.filter(g=>g.status==='Pending Arbitration'||g.status==='Arbitration Scheduled').length;
+  const isAdminUser = !!(CURRENT_USER && (CURRENT_USER.role === 'admin' || !CURRENT_USER.username));
+  const userLocs = new Set((CURRENT_USER && Array.isArray(CURRENT_USER.locations)) ? CURRENT_USER.locations : []);
 
-    let alertHtml;
-    if(overdue.length>0) alertHtml = `<span class="s-alert alert-overdue">${overdue.length} overdue</span>`;
-    else if(active.length>10) alertHtml = `<span class="s-alert alert-highload">High load</span>`;
-    else alertHtml = `<span class="s-alert alert-ok">On track</span>`;
+  // Build a lookup of steward displayName → their assigned locations so we
+  // can filter the workload list to only stewards at the current user's
+  // location(s). A name in SETUP.Steward with no matching login account
+  // (or an account with no locations set) is shown only to admins -- we
+  // can't tell where they work, so we fail safe and don't expose them to
+  // stewards from other locations.
+  const locationsByName = new Map((STATE.users||[]).map(u=>[u.displayName, u.locations||[]]));
 
-    return `<div class="steward-card ${overdue.length>0?'has-overdue':''}">
-      <div class="s-name">${escapeHtml(name)}</div>
-      <div class="s-stats">
-        <div class="s-stat"><b>${active.length}</b><span>Active</span></div>
-        <div class="s-stat"><b>${atStep1}</b><span>Step 1</span></div>
-        <div class="s-stat"><b>${atStep2}</b><span>Step 2</span></div>
-        <div class="s-stat"><b>${atStep3}</b><span>Step 3</span></div>
-        <div class="s-stat"><b>${atArb}</b><span>Arb</span></div>
-        <div class="s-stat"><b>${resolved.length}</b><span>Resolved</span></div>
-      </div>${alertHtml}
-    </div>`;
-  }).join('');
+  const allStewards = SETUP.Steward || [];
+  const visibleStewards = isAdminUser
+    ? (ADMIN_LOCATION_FILTER
+        ? allStewards.filter(name=>{
+            const locs = locationsByName.get(name);
+            return !locs || locs.length === 0
+              ? false // unknown location -- only show for unfiltered admin
+              : locs.includes(ADMIN_LOCATION_FILTER);
+          })
+        : allStewards)
+    : allStewards.filter(name=>{
+        const locs = locationsByName.get(name);
+        if(!locs || locs.length === 0) return false; // unknown location -- hide from stewards
+        return locs.some(l => userLocs.has(l));
+      });
 
-  // Location heading uses the local number from Settings when set
+  if(!visibleStewards.length){
+    grid.innerHTML = `<div class="empty-state" style="grid-column:1/-1;"><div class="icon">&#128101;</div><h3>${isAdminUser?'No stewards configured yet':'No stewards at your location yet'}</h3><p>${isAdminUser?'Add stewards in Settings → Manage users.':'Ask an admin to assign your location in Manage users.'}</p></div>`;
+  } else {
+    grid.innerHTML = visibleStewards.map(name=>{
+      const mine = getScopedGrievances().filter(g=>g.steward===name);
+      const active = mine.filter(g=>!isResolved(g));
+      const overdue = active.filter(isOverdue);
+      const resolved = mine.filter(isResolved);
+      const atStep1 = active.filter(g=>currentStep(g).startsWith('Step 1')).length;
+      const atStep2 = active.filter(g=>currentStep(g).startsWith('Step 2')).length;
+      const atStep3 = active.filter(g=>currentStep(g).startsWith('Step 3')).length;
+      const atArb = mine.filter(g=>g.status==='Pending Arbitration'||g.status==='Arbitration Scheduled').length;
+      const stewardLocs = locationsByName.get(name) || [];
+
+      let alertHtml;
+      if(overdue.length>0) alertHtml = `<span class="s-alert alert-overdue">${overdue.length} overdue</span>`;
+      else if(active.length>10) alertHtml = `<span class="s-alert alert-highload">High load</span>`;
+      else alertHtml = `<span class="s-alert alert-ok">On track</span>`;
+
+      const locTag = isAdminUser && stewardLocs.length
+        ? `<div style="font-size:11px;color:var(--grey);margin-top:4px;">${escapeHtml(stewardLocs.join(', '))}</div>`
+        : '';
+
+      return `<div class="steward-card ${overdue.length>0?'has-overdue':''}">
+        <div class="s-name">${escapeHtml(name)}</div>${locTag}
+        <div class="s-stats">
+          <div class="s-stat"><b>${active.length}</b><span>Active</span></div>
+          <div class="s-stat"><b>${atStep1}</b><span>Step 1</span></div>
+          <div class="s-stat"><b>${atStep2}</b><span>Step 2</span></div>
+          <div class="s-stat"><b>${atStep3}</b><span>Step 3</span></div>
+          <div class="s-stat"><b>${atArb}</b><span>Arb</span></div>
+          <div class="s-stat"><b>${resolved.length}</b><span>Resolved</span></div>
+        </div>${alertHtml}
+      </div>`;
+    }).join('');
+  }
+
+  // Location heading
   const locHeading = $('workloadLocationHeading');
   if(locHeading){
     const localNo = ORG_SETTINGS && ORG_SETTINGS.localNo ? ORG_SETTINGS.localNo.trim() : '';
     locHeading.textContent = localNo ? 'By Local ' + localNo : 'By location';
   }
 
+  // Location breakdown table — scoped to this user's visible locations.
+  // Admin sees all locations (filtered by ADMIN_LOCATION_FILTER if set);
+  // stewards see only their own location(s).
   const locBody = $('locationBody');
-  const orgLoc = ORG_SETTINGS && ORG_SETTINGS.location ? ORG_SETTINGS.location : '';
-  if(orgLoc){
-    // Location is an org-wide setting now — one row for the whole local
-    const active = STATE.grievances.filter(g=>!isResolved(g));
-    const overdue = active.filter(isOverdue);
-    locBody.innerHTML = `<tr><td>${escapeHtml(orgLoc)}</td><td>${active.length}</td><td>${overdue.length}</td></tr>`;
+  const visibleLocs = isAdminUser
+    ? (ADMIN_LOCATION_FILTER ? [ADMIN_LOCATION_FILTER] : (SETUP.Location||[]))
+    : Array.from(userLocs);
+
+  const locsWithData = visibleLocs.filter(loc =>
+    STATE.grievances.some(g => g.location === loc)
+  );
+
+  if(!locsWithData.length){
+    locBody.innerHTML = `<tr><td colspan="3" style="color:var(--grey);text-align:center;">No grievances filed yet${!isAdminUser?' at your location':''}</td></tr>`;
   } else {
-    // Fallback for older data where location was stored per grievance
-    const activeLocs = (SETUP.Location||[]).filter(loc => STATE.grievances.some(g=>g.location===loc && !isResolved(g)));
-    locBody.innerHTML = activeLocs.map(loc=>{
-      const active = STATE.grievances.filter(g=>g.location===loc && !isResolved(g));
+    locBody.innerHTML = locsWithData.map(loc=>{
+      const active = getScopedGrievances().filter(g=>g.location===loc && !isResolved(g));
       const overdue = active.filter(isOverdue);
       return `<tr><td>${escapeHtml(loc)}</td><td>${active.length}</td><td>${overdue.length}</td></tr>`;
-    }).join('') || `<tr><td colspan="3" style="color:var(--grey);text-align:center;">No data</td></tr>`;
+    }).join('');
   }
 }
 
