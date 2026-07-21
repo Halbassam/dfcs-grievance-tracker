@@ -85,6 +85,42 @@ function isAdmin(currentUser) {
 function canUseBot(currentUser) {
   return !!(currentUser && (currentUser.role === "admin" || currentUser.role === "steward_plus"));
 }
+function userLocations(currentUser) {
+  return Array.isArray(currentUser && currentUser.locations) ? currentUser.locations : [];
+}
+function canAccessLocation(currentUser, location) {
+  if (isAdmin(currentUser)) return true;
+  if (!location) return false; // no location on the record -> admin-only until backfilled
+  return userLocations(currentUser).includes(location);
+}
+
+/**
+ * Filters the full getAll() payload down to what this user is allowed to
+ * see. Admins see everything, unfiltered. A steward/steward_plus account
+ * sees only grievances/activity/archive entries whose location is one of
+ * their assigned locations -- a record with NO location set (e.g. filed
+ * before this feature existed) is admin-only until backfilled, which is
+ * the safe default rather than showing it to everyone.
+ *
+ * This has to happen here, server-side, not just be hidden in the UI --
+ * the whole point is that a steward's browser should never even receive
+ * another location's data in the first place.
+ */
+function scopeDataToUser(data, currentUser) {
+  if (isAdmin(currentUser)) return data;
+
+  const locations = new Set(userLocations(currentUser));
+  const grievances = data.grievances.filter(g => g.location && locations.has(g.location));
+  const archive = data.archive.filter(a => a.location && locations.has(a.location));
+
+  // Activity entries don't carry their own location -- look it up via the
+  // grievance id they reference (checking both the live and archived sets,
+  // since activity can reference either).
+  const visibleGids = new Set([...grievances, ...archive].map(g => g.id));
+  const activity = data.activity.filter(a => visibleGids.has(a.gid));
+
+  return { ...data, grievances, activity, archive };
+}
 
 const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, `http://localhost`);
@@ -125,12 +161,42 @@ const server = http.createServer(async (req, res) => {
 
     if (pathname === "/api/data" && req.method === "GET") {
       const data = await db.getAll();
-      return sendJson(res, 200, data);
+      return sendJson(res, 200, scopeDataToUser(data, currentUser));
     }
 
     if (pathname === "/api/grievance" && req.method === "POST") {
       const body = await readBody(req);
       body.actingUser = currentUser.displayName || currentUser.username;
+
+      // Enforce location server-side -- never trust whatever the client
+      // sent for this. A single-location user can't file anywhere but
+      // their own location (their submitted value, if any, is ignored and
+      // overridden); a multi-location ("super steward") user must submit
+      // one of their own assigned locations; admins can set anything.
+      if (!isAdmin(currentUser)) {
+        const locations = userLocations(currentUser);
+        if (locations.length === 0) {
+          return sendJson(res, 403, { error: "You don't have a location assigned yet. Ask an admin to assign one in Manage Users before filing a grievance." });
+        }
+
+        // If this is an edit to an EXISTING grievance, also check the
+        // record's CURRENT location -- otherwise a steward could craft a
+        // direct request with someone else's grievance id and either edit
+        // it or reassign it to their own location, even though they'd
+        // never see it in their own list. A brand-new id (existingLocation
+        // === null) has no current location to check yet.
+        const existingLocation = body.id ? await db.getGrievanceLocationById(String(body.id).trim()) : null;
+        if (existingLocation !== null && !canAccessLocation(currentUser, existingLocation)) {
+          return sendJson(res, 403, { error: "You don't have access to this grievance." });
+        }
+
+        if (locations.length === 1) {
+          body.location = locations[0];
+        } else if (!body.location || !locations.includes(body.location)) {
+          return sendJson(res, 400, { error: "Select one of your assigned locations for this grievance." });
+        }
+      }
+
       const result = await db.submitGrievance(body);
 
       // Fire-and-forget: notify the grievant of any step(s) newly filed
@@ -230,6 +296,12 @@ const server = http.createServer(async (req, res) => {
     if (pathname === "/api/users" && req.method === "POST") {
       if (!isAdmin(currentUser)) return sendJson(res, 403, { error: "Only admins can manage user accounts." });
       const body = await readBody(req);
+      if (body.role === "admin") {
+        body.locations = []; // meaningless for admins -- they see every location regardless
+      } else if (Array.isArray(body.locations)) {
+        const validLocations = await db.getSetupList("Location");
+        body.locations = body.locations.filter(l => validLocations.includes(l));
+      }
       const result = await db.upsertUser(body);
       return sendJson(res, 200, result);
     }
@@ -295,4 +367,4 @@ server.listen(PORT, () => {
 // Exported for unit testing only (see __selftest__/run_bot_permission_test.js).
 // index.js still starts listening immediately on require, same as before —
 // these exports don't change runtime behavior.
-module.exports = { isAdmin, canUseBot };
+module.exports = { isAdmin, canUseBot, userLocations, canAccessLocation, scopeDataToUser };
