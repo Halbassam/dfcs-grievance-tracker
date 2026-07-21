@@ -239,6 +239,7 @@ footer.app-foot{text-align:center;color:var(--grey);font-size:11.5px;padding:30p
     <button class="tab-btn" data-tab="settings">Settings</button>
     <span id="currentUserBadge" class="hidden" style="display:flex;align-items:center;gap:10px;padding:10px 14px;color:rgba(255,255,255,0.85);font-size:12.5px;white-space:nowrap;">
       <span id="currentUserName"></span>
+      <span id="locationScopeBadge" class="hidden" style="background:rgba(255,255,255,0.12);padding:3px 9px;border-radius:10px;font-size:11px;"></span>
       <button id="logoutBtn" style="background:rgba(255,255,255,0.12);border:none;color:#fff;padding:5px 10px;border-radius:3px;font-size:11.5px;cursor:pointer;">Log out</button>
     </span>
   </nav>
@@ -263,6 +264,11 @@ footer.app-foot{text-align:center;color:var(--grey);font-size:11.5px;padding:30p
           <div class="field"><label for="f-grievant-email">Grievant email <span style="font-weight:400;color:var(--grey);">(optional &mdash; for progress updates)</span></label><input type="text" id="f-grievant-email" placeholder="employee@illinois.gov (or several, comma-separated, for group grievances)"></div>
           <div class="field"><label for="f-job">Job classification</label><select id="f-job"></select></div>
           <div class="field"><label for="f-bu">Bargaining unit</label><select id="f-bu"></select></div>
+          <div class="field">
+            <label for="f-location">Location</label>
+            <select id="f-location"></select>
+            <input type="text" id="f-location-locked" readonly style="background:var(--paper-2);display:none;">
+          </div>
 
           <div class="section-divider"><span class="label">Contractual authority &mdash; Art. V Sec. 1</span><span class="line"></span></div>
           <div class="field wide"><label for="f-description">Brief description <span style="font-weight:400;color:var(--grey);">(optional)</span></label><textarea id="f-description" placeholder="A sentence or two describing what happened, in your own words." style="min-height:56px;"></textarea></div>
@@ -344,7 +350,7 @@ footer.app-foot{text-align:center;color:var(--grey);font-size:11.5px;padding:30p
 
   <!-- DASHBOARD -->
   <section id="tab-dashboard" class="hidden">
-    <div class="section-head"><div><h2>Priority Case Monitor</h2><div class="sub">Active grievances ranked by next contractual deadline</div></div></div>
+    <div class="section-head"><div><h2>Priority Case Monitor</h2><div class="sub">Active grievances ranked by next contractual deadline</div></div><select id="adminLocationFilter" class="hidden" style="height:34px;"><option value="">All locations</option></select></div>
     <div class="kpi-row">
       <div class="kpi"><div class="num" id="kpiPending">0</div><div class="lbl">Total pending</div></div>
       <div class="kpi red"><div class="num" id="kpiOverdue">0</div><div class="lbl">Response overdue</div></div>
@@ -425,6 +431,15 @@ footer.app-foot{text-align:center;color:var(--grey);font-size:11.5px;padding:30p
         <button class="btn btn-secondary" id="manageUsersBtn">Manage users</button>
       </div>
       <p style="font-size:13px;color:var(--grey);margin:0;">Each steward signs in with their own username and password. Currently <b id="userCount">0</b> account(s) set up.</p>
+    </div>
+
+    <div class="panel panel-pad" style="margin-bottom:24px;" id="locationBackfillPanel">
+      <div style="display:flex;justify-content:space-between;align-items:baseline;flex-wrap:wrap;gap:10px;margin-bottom:14px;">
+        <h3 style="font-family:var(--serif);color:var(--green-1);margin:0;font-size:17px;">Location assignment check</h3>
+      </div>
+      <p style="font-size:13px;color:var(--grey);margin:0 0 10px;">Records and accounts with no location assigned are only visible to admins until this is fixed — stewards won't see them. Use this to do a quick sweep instead of hunting through individual records.</p>
+      <div id="unassignedGrievancesList" style="margin-bottom:12px;"></div>
+      <div id="unassignedUsersList"></div>
     </div>
 
     <div class="panel panel-pad" style="margin-bottom:24px;">
@@ -639,7 +654,17 @@ function daysBetween(a,b){ return Math.round((b-a)/86400000); }
 function uid(){ return 'a'+Math.random().toString(36).slice(2,10)+Date.now().toString(36); }
 
 let SETUP = {};
-let STATE = { grievances: [], activity: [], archive: [], holidays: [] };
+let STATE = { grievances: [], activity: [], archive: [], holidays: [], users: [] };
+
+// Admin-only convenience filter: admins receive every location's data
+// unfiltered (unlike stewards, who are already scoped server-side), so this
+// just narrows what THEY are looking at in the Dashboard/Workload views. Not
+// a security boundary -- just a viewing convenience, defaulting to "All".
+let ADMIN_LOCATION_FILTER = '';
+function getScopedGrievances(){
+  if(!ADMIN_LOCATION_FILTER) return STATE.grievances;
+  return STATE.grievances.filter(g => g.location === ADMIN_LOCATION_FILTER);
+}
 let ORG_SETTINGS = { agency: '', localNo: '', bureau: '', location: '', county: '', shift: '', managementEmail: '' };
 
 const $ = id => document.getElementById(id);
@@ -690,6 +715,7 @@ async function refresh(isBackgroundPoll){
     STATE.activity = data.activity || [];
     STATE.archive = data.archive || [];
     STATE.holidays = data.holidays || [];
+    STATE.users = data.users || [];
     ORG_SETTINGS = data.orgSettings || { agency: '', localNo: '', bureau: '', location: '', county: '', shift: '', managementEmail: '' };
     updatePageTitle();
     $('connBanner').innerHTML = '';
@@ -723,6 +749,72 @@ function populateDropdowns(){
   fillSelect($('actSteward'), SETUP.Steward||[], false);
   fillSelect($('actType'), SETUP.ActivityType||[], false);
   refreshSectionPicker();
+  refreshLocationField();
+  const adminFilter = $('adminLocationFilter');
+  if(adminFilter){
+    const prevValue = adminFilter.value;
+    adminFilter.innerHTML = '<option value="">All locations</option>' + (SETUP.Location||[]).map(l=>`<option value="${escapeHtml(l)}">${escapeHtml(l)}</option>`).join('');
+    if((SETUP.Location||[]).includes(prevValue)) adminFilter.value = prevValue;
+  }
+}
+
+/**
+ * The intake form's Location field behaves differently depending on who's
+ * logged in:
+ * - Admin, or a steward assigned to MORE than one location ("super
+ *   steward"): a dropdown, scoped to their own locations (or all, for
+ *   admin).
+ * - A steward assigned to exactly one location: locked/pre-filled, since
+ *   there's nothing to choose.
+ * - A steward with no location assigned yet: a disabled dropdown with a
+ *   clear message, since the server will reject a submission anyway.
+ * This is convenience UI only -- the server independently re-derives and
+ * enforces the actual value on save (see /api/grievance in server/index.js),
+ * so nothing here is a real security boundary.
+ */
+function refreshLocationField(){
+  const sel = $('f-location');
+  const locked = $('f-location-locked');
+  if(!sel || !locked) return;
+  const user = CURRENT_USER;
+  const isAdminUser = !!(user && (user.role === 'admin' || !user.username));
+  const userLocs = (user && Array.isArray(user.locations)) ? user.locations : [];
+
+  sel.disabled = false;
+  if(isAdminUser || userLocs.length > 1){
+    const options = isAdminUser ? (SETUP.Location||[]) : userLocs;
+    sel.style.display = '';
+    locked.style.display = 'none';
+    const prevValue = sel.value;
+    sel.innerHTML = '<option value="">— Select —</option>' + options.map(l=>`<option value="${escapeHtml(l)}">${escapeHtml(l)}</option>`).join('');
+    if(options.includes(prevValue)) sel.value = prevValue;
+  } else if(userLocs.length === 1){
+    sel.style.display = 'none';
+    locked.style.display = '';
+    locked.value = userLocs[0];
+  } else {
+    sel.style.display = '';
+    locked.style.display = 'none';
+    sel.innerHTML = '<option value="">No location assigned — ask an admin</option>';
+    sel.disabled = true;
+  }
+  refreshStewardScope();
+}
+function getLocationFieldValue(){
+  const sel = $('f-location');
+  if(sel && sel.style.display !== 'none') return sel.value;
+  const locked = $('f-location-locked');
+  return locked ? locked.value : '';
+}
+function setLocationFieldValue(loc){
+  const sel = $('f-location');
+  const locked = $('f-location-locked');
+  if(sel && sel.style.display !== 'none'){
+    if(Array.from(sel.options).some(o=>o.value===loc)) sel.value = loc;
+  } else if(locked){
+    // Single-location users only ever see their own value here regardless
+    // (matching server-side enforcement), so nothing to set for them.
+  }
 }
 
 $('f-steward')?.addEventListener('change', e=>{
@@ -750,6 +842,37 @@ function refreshSectionPicker(){
 $('f-article')?.addEventListener('change', refreshSectionPicker);
 $('f-section-picker')?.addEventListener('change', e=>{
   if(e.target.value) $('f-section').value = e.target.value;
+});
+
+/**
+ * Scopes the "Steward name" dropdown on intake to only stewards assigned
+ * to the selected Location, so an admin filing at Location A isn't
+ * offered a steward who only covers Location C. This is matched by
+ * display name against real login accounts (STATE.users) -- the "Steward"
+ * setup list itself is just a flat list of names/emails used for
+ * notifications and predates per-account location assignment, so a name
+ * with no matching login account (or a login account with no locations
+ * set) is shown regardless rather than silently hidden -- fail-open, since
+ * we genuinely don't know their location in that case.
+ */
+function refreshStewardScope(){
+  const sel = $('f-steward');
+  if(!sel) return;
+  const loc = getLocationFieldValue();
+  const allNames = SETUP.Steward || [];
+  if(!loc){ fillSelect(sel, allNames); return; }
+  const locationsByName = new Map((STATE.users||[]).map(u => [u.displayName, u.locations||[]]));
+  const scoped = allNames.filter(name => {
+    const userLocs = locationsByName.get(name);
+    return !userLocs || userLocs.length === 0 || userLocs.includes(loc);
+  });
+  fillSelect(sel, scoped);
+}
+$('f-location')?.addEventListener('change', refreshStewardScope);
+$('adminLocationFilter')?.addEventListener('change', e=>{
+  ADMIN_LOCATION_FILTER = e.target.value;
+  renderDashboard();
+  renderWorkload();
 });
 
 function recalcDeadlines(){
@@ -857,6 +980,7 @@ async function submitAndClear(){
 
   const record = {
     id: gid, employee: name, grievantEmail: $('f-grievant-email').value.trim(), jobClass: $('f-job').value, bu: $('f-bu').value,
+    location: getLocationFieldValue(),
     description: $('f-description').value.trim(),
     steward: $('f-steward').value, stewardEmail, gtype: $('f-gtype').value, article: $('f-article').value,
     section: $('f-section').value, remedy: $('f-remedy').value, status: $('f-status').value || 'Pending',
@@ -1000,10 +1124,10 @@ function cbaRef(rec){
 }
 
 function renderDashboard(){
-  const active = STATE.grievances.filter(g=>!isResolved(g));
+  const active = getScopedGrievances().filter(g=>!isResolved(g));
   const overdue = active.filter(isOverdue);
   const soon = active.filter(g=>{ const nd=nextDeadline(g); if(!nd) return false; const diff=daysBetween(today(),nd); return diff>=0 && diff<=7; });
-  const arb = STATE.grievances.filter(g=>g.status==='Pending Arbitration'||g.status==='Arbitration Scheduled');
+  const arb = getScopedGrievances().filter(g=>g.status==='Pending Arbitration'||g.status==='Arbitration Scheduled');
 
   $('kpiPending').textContent = active.length;
   $('kpiOverdue').textContent = overdue.length;
@@ -1126,7 +1250,7 @@ function renderWorkload(){
   const grid = $('stewardGrid');
   const stewards = SETUP.Steward || [];
   grid.innerHTML = stewards.map(name=>{
-    const mine = STATE.grievances.filter(g=>g.steward===name);
+    const mine = getScopedGrievances().filter(g=>g.steward===name);
     const active = mine.filter(g=>!isResolved(g));
     const overdue = active.filter(isOverdue);
     const resolved = mine.filter(isResolved);
@@ -1407,6 +1531,7 @@ function loadIntoForm(rec){
   $('f-description').value = rec.description||'';
   $('f-job').value = rec.jobClass||'';
   $('f-bu').value = rec.bu||'';
+  setLocationFieldValue(rec.location||'');
   $('f-gtype').value = rec.gtype||'';
   $('f-article').value = rec.article||'';
   $('f-article').dispatchEvent(new Event('change'));
@@ -1609,12 +1734,40 @@ $('useDraftBtn').addEventListener('click', ()=>{
 });
 
 
+function renderLocationBackfillPanel(){
+  const el1 = $('unassignedGrievancesList');
+  const el2 = $('unassignedUsersList');
+  if(!el1 || !el2) return;
+
+  const unassignedG = STATE.grievances.filter(g => !g.location);
+  if(!unassignedG.length){
+    el1.innerHTML = '<p style="font-size:13px;color:var(--green-2);">&#10003; Every grievance has a location assigned.</p>';
+  } else {
+    el1.innerHTML = `<p style="font-size:13px;font-weight:600;margin-bottom:6px;">${unassignedG.length} grievance(s) with no location:</p>` +
+      '<div style="display:flex;flex-wrap:wrap;gap:6px;">' +
+      unassignedG.map(g => `<a class="row-link" data-gid="${escapeHtml(g.id)}" style="border:1px solid var(--green-line);padding:3px 8px;border-radius:10px;font-size:12.5px;">${escapeHtml(g.id)} — ${escapeHtml(g.employee||'')}</a>`).join('') +
+      '</div>';
+    el1.querySelectorAll('.row-link').forEach(a=>a.addEventListener('click', ()=>openDetail(a.dataset.gid)));
+  }
+
+  const unassignedU = (STATE.users||[]).filter(u => u.role !== 'admin' && (!u.locations || u.locations.length===0));
+  if(!unassignedU.length){
+    el2.innerHTML = '<p style="font-size:13px;color:var(--green-2);">&#10003; Every steward account has a location assigned.</p>';
+  } else {
+    el2.innerHTML = `<p style="font-size:13px;font-weight:600;margin-bottom:6px;">${unassignedU.length} account(s) with no location:</p>` +
+      '<div style="display:flex;flex-wrap:wrap;gap:6px;">' +
+      unassignedU.map(u => `<span style="border:1px solid var(--red);color:var(--red);padding:3px 8px;border-radius:10px;font-size:12.5px;">${escapeHtml(u.displayName)}</span>`).join('') +
+      '</div><p class="field-note" style="margin-top:6px;">Fix these in Settings → Manage users.</p>';
+  }
+}
+
 function renderAll(){
   renderDashboard();
   renderLog();
   renderActivity();
   renderWorkload();
   renderArchive();
+  renderLocationBackfillPanel();
 }
 
 /* ---------- Manage Stewards modal ---------- */
@@ -2094,8 +2247,12 @@ function applyRoleVisibility(user){
   });
   const orgSettingsPanel = $('orgSettingsPanel');
   if(orgSettingsPanel) orgSettingsPanel.style.display = admin ? '' : 'none';
+  const adminFilterEl = $('adminLocationFilter');
+  if(adminFilterEl) adminFilterEl.classList.toggle('hidden', !admin);
   const userPanel = $('userAccountsPanel');
   if(userPanel) userPanel.style.display = admin ? '' : 'none';
+  const backfillPanel = $('locationBackfillPanel');
+  if(backfillPanel) backfillPanel.style.display = admin ? '' : 'none';
   const otherListsPanel = $('otherListsPanel');
   if(otherListsPanel) otherListsPanel.style.display = admin ? '' : 'none';
   // Change-password is available to every logged-in user
@@ -2109,6 +2266,25 @@ function applyRoleVisibility(user){
   if(draftTabBtn){
     draftTabBtn.style.display = botAllowed ? '' : 'none';
     if(!botAllowed && draftTabBtn.classList.contains('active')) switchTab('intake');
+  }
+
+  refreshLocationField();
+
+  // A small, always-visible reminder of which location(s) a non-admin
+  // account is scoped to — the filtering itself is automatic and
+  // invisible, so without this a steward covering multiple locations has
+  // no way to tell what scope they're currently looking at, and "why can't
+  // I find grievance X" becomes a support question instead of answering
+  // itself.
+  const badge = $('locationScopeBadge');
+  if(badge){
+    const locs = (user && Array.isArray(user.locations)) ? user.locations : [];
+    if(!admin && user && user.username && locs.length){
+      badge.textContent = 'Viewing: ' + locs.join(', ');
+      badge.classList.remove('hidden');
+    } else {
+      badge.classList.add('hidden');
+    }
   }
 }
 
@@ -2169,14 +2345,27 @@ async function loadUserList(){
     window._userListCache = [];
   }
 }
-function userRowHtml(idx, username, displayName, isExisting, role){
+function userRowHtml(idx, username, displayName, isExisting, role, locations){
   const r = (role === 'admin' || role === 'steward_plus') ? role : 'steward';
-  return `<div class="user-row" data-idx="${idx}" data-existing="${isExisting?'1':'0'}" style="display:grid;grid-template-columns:1fr 1fr 1fr auto auto;gap:10px;align-items:center;">
-    <input type="text" class="ur-username" placeholder="username" value="${escapeHtml(username)}" ${isExisting?'readonly style="background:var(--paper-2);"':''}>
-    <input type="text" class="ur-displayname" placeholder="Full name" value="${escapeHtml(displayName)}">
-    <input type="password" class="ur-password" placeholder="${isExisting?'(unchanged)':'Set password'}" autocomplete="new-password">
-    <select class="ur-role" title="Account role"><option value="steward" ${r==='steward'?'selected':''}>Steward</option><option value="steward_plus" ${r==='steward_plus'?'selected':''}>Steward Plus (can use AI bot)</option><option value="admin" ${r==='admin'?'selected':''}>Admin</option></select>
-    <button type="button" class="btn-tiny ur-remove" title="${isExisting?'Delete this account':'Remove this row'}">&#10005;</button>
+  const userLocs = Array.isArray(locations) ? locations : [];
+  const allLocations = SETUP.Location || [];
+  const locsHidden = r === 'admin' ? 'display:none;' : '';
+  return `<div class="user-row" data-idx="${idx}" data-existing="${isExisting?'1':'0'}">
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr auto auto;gap:10px;align-items:center;">
+      <input type="text" class="ur-username" placeholder="username" value="${escapeHtml(username)}" ${isExisting?'readonly style="background:var(--paper-2);"':''}>
+      <input type="text" class="ur-displayname" placeholder="Full name" value="${escapeHtml(displayName)}">
+      <input type="password" class="ur-password" placeholder="${isExisting?'(unchanged)':'Set password'}" autocomplete="new-password">
+      <select class="ur-role" title="Account role"><option value="steward" ${r==='steward'?'selected':''}>Steward</option><option value="steward_plus" ${r==='steward_plus'?'selected':''}>Steward Plus (can use AI bot)</option><option value="admin" ${r==='admin'?'selected':''}>Admin</option></select>
+      <button type="button" class="btn-tiny ur-remove" title="${isExisting?'Delete this account':'Remove this row'}">&#10005;</button>
+    </div>
+    <div class="ur-locations-wrap" style="margin-top:8px;${locsHidden}">
+      <label style="font-size:12px;color:var(--grey);">Locations (check one, or several for a steward covering multiple sites — none checked means they see nothing until assigned)</label>
+      <div class="ur-locations-list" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:4px;">
+        ${allLocations.length ? allLocations.map(loc => `<label style="display:flex;align-items:center;gap:4px;font-size:12.5px;border:1px solid var(--green-line);padding:3px 8px;border-radius:12px;cursor:pointer;">
+          <input type="checkbox" class="ur-location-cb" value="${escapeHtml(loc)}" ${userLocs.includes(loc)?'checked':''}> ${escapeHtml(loc)}
+        </label>`).join('') : '<span style="font-size:12.5px;color:var(--grey);">No locations set up yet — add some under Settings first.</span>'}
+      </div>
+    </div>
   </div>`;
 }
 function attachUserRowHandlers(){
@@ -2206,6 +2395,12 @@ function attachUserRowHandlers(){
       }
     });
   });
+  $('userRows').querySelectorAll('.ur-role').forEach(sel=>{
+    sel.addEventListener('change', ()=>{
+      const wrap = sel.closest('.user-row').querySelector('.ur-locations-wrap');
+      if(wrap) wrap.style.display = sel.value === 'admin' ? 'none' : '';
+    });
+  });
 }
 async function renderUserRows(){
   await loadUserList();
@@ -2214,7 +2409,7 @@ async function renderUserRows(){
   if(!list.length){
     container.innerHTML = userRowHtml(0, '', '', false);
   } else {
-    container.innerHTML = list.map((u,i)=>userRowHtml(i, u.username, u.displayName, true, u.role)).join('');
+    container.innerHTML = list.map((u,i)=>userRowHtml(i, u.username, u.displayName, true, u.role, u.locations)).join('');
   }
   attachUserRowHandlers();
 }
@@ -2243,6 +2438,7 @@ $('usersSaveBtn').addEventListener('click', async ()=>{
       const password = row.querySelector('.ur-password').value;
       const roleSel = row.querySelector('.ur-role');
       const role = roleSel ? roleSel.value : 'steward';
+      const locations = Array.from(row.querySelectorAll('.ur-location-cb:checked')).map(cb => cb.value);
       const isExisting = row.dataset.existing === '1';
 
       if(!username && !displayName) continue; // skip fully empty rows
@@ -2250,7 +2446,7 @@ $('usersSaveBtn').addEventListener('click', async ()=>{
       if(!displayName){ errorMsg = 'Every user needs a display name.'; continue; }
       if(!isExisting && !password){ errorMsg = `"${username}" needs a password since it's a new account.`; continue; }
 
-      await apiPost('/api/users', { username, displayName, password: password || undefined, role });
+      await apiPost('/api/users', { username, displayName, password: password || undefined, role, locations });
       savedCount++;
     }
     if(errorMsg && savedCount === 0){
