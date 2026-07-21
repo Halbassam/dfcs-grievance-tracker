@@ -417,7 +417,11 @@ footer.app-foot{text-align:center;color:var(--grey);font-size:11.5px;padding:30p
         <div class="field" style="margin:0;"><label for="orgAgencyInput">Agency</label><input type="text" id="orgAgencyInput" placeholder="e.g. DHS"></div>
         <div class="field" style="margin:0;"><label for="orgLocalNoInput">AFSCME Local No.</label><input type="text" id="orgLocalNoInput" placeholder="e.g. 2858"></div>
         <div class="field" style="margin:0;"><label for="orgBureauInput">Bureau / program unit</label><input type="text" id="orgBureauInput" placeholder="e.g. Bureau of Family &amp; Community Programs"></div>
-        <div class="field" style="margin:0;"><label for="orgLocationInput">FCRC / work location</label><input type="text" id="orgLocationInput" placeholder="e.g. North Suburban FCRC"></div>
+        <div class="field" style="margin:0;">
+          <label for="orgLocationInput">Primary / default FCRC location</label>
+          <select id="orgLocationInput"></select>
+          <div class="field-note">Each grievance now carries its own location (set on the Intake Form). This default is used only as a fallback on old grievance records that predate per-record location tracking, and on printed forms where no specific location was recorded.</div>
+        </div>
         <div class="field" style="margin:0;"><label for="orgCountyInput">County</label><input type="text" id="orgCountyInput" placeholder="e.g. Cook R1N"></div>
         <div class="field" style="margin:0;"><label for="orgShiftInput">Shift</label><input type="text" id="orgShiftInput" placeholder="e.g. Day (1st Shift)"></div>
         <div class="field" style="margin:0;"><label for="orgManagementEmailInput">Management contact email(s) <span style="font-weight:400;color:var(--grey);">(for courtesy reminders)</span></label><input type="text" id="orgManagementEmailInput" placeholder="e.g. supervisor@illinois.gov, hr@illinois.gov (comma-separated for multiple)"></div>
@@ -748,6 +752,12 @@ function populateDropdowns(){
   fillSelect($('f-status'), SETUP.Status||[]);
   fillSelect($('actSteward'), SETUP.Steward||[], false);
   fillSelect($('actType'), SETUP.ActivityType||[], false);
+  const orgLocSel = $('orgLocationInput');
+  if(orgLocSel && orgLocSel.tagName === 'SELECT'){
+    const prevLoc = ORG_SETTINGS.location || '';
+    orgLocSel.innerHTML = '<option value="">— Select primary location —</option>' +
+      (SETUP.Location||[]).map(l=>`<option value="${escapeHtml(l)}"${l===prevLoc?' selected':''}>${escapeHtml(l)}</option>`).join('');
+  }
   refreshSectionPicker();
   refreshLocationField();
   const adminFilter = $('adminLocationFilter');
@@ -1409,7 +1419,7 @@ function printGrievance(gid){
       <div class="gf-row">
         <div class="gf-cell" style="flex:1.6;"><span class="gf-label">Job Title</span><span class="gf-value">${escapeHtml(rec.jobClass||'')}</span></div>
         <div class="gf-cell"><span class="gf-label">RC</span><span class="gf-value">${escapeHtml(rec.bu||'')}</span></div>
-        <div class="gf-cell" style="flex:1.6;"><span class="gf-label">Facility or Office</span><span class="gf-value">${escapeHtml(ORG_SETTINGS.location||'')}</span></div>
+        <div class="gf-cell" style="flex:1.6;"><span class="gf-label">Facility or Office</span><span class="gf-value">${escapeHtml(rec.location || ORG_SETTINGS.location||'')}</span></div>
       </div>
       <div class="gf-section">
         <div class="gf-section-title">STEP 1 &mdash; Oral Step</div>
@@ -2134,14 +2144,24 @@ function renderSettingsCounts(isBackgroundPoll){
   if(typeof renderOtherListsButtons === 'function') renderOtherListsButtons();
 
   // Org settings fields — don't overwrite while an admin is mid-typing
-  // during a silent background poll.
+  // during a silent background poll. Location is now a <select>, not a
+  // free-text input, so .value still works the same way -- no special
+  // handling needed -- but focus-check on it still works too.
   const orgFields = ['orgAgencyInput','orgLocalNoInput','orgBureauInput','orgLocationInput','orgCountyInput','orgShiftInput','orgManagementEmailInput'];
   const anyFocused = orgFields.some(id => document.activeElement === $(id));
   if(!isBackgroundPoll || !anyFocused){
     $('orgAgencyInput')   && ($('orgAgencyInput').value   = ORG_SETTINGS.agency   || '');
     $('orgLocalNoInput')  && ($('orgLocalNoInput').value  = ORG_SETTINGS.localNo  || '');
     $('orgBureauInput')   && ($('orgBureauInput').value   = ORG_SETTINGS.bureau   || '');
-    $('orgLocationInput') && ($('orgLocationInput').value = ORG_SETTINGS.location || '');
+    // Location is now a <select> populated from the Location list --
+    // populateDropdowns() handles setting its options AND the selected value,
+    // so we only need to set it here when populateDropdowns() wasn't just called
+    // (i.e. background polls that skipped it due to a form being open).
+    const orgLocSel = $('orgLocationInput');
+    if(orgLocSel && orgLocSel.tagName === 'SELECT'){
+      if(Array.from(orgLocSel.options).some(o => o.value === (ORG_SETTINGS.location || '')))
+        orgLocSel.value = ORG_SETTINGS.location || '';
+    }
     $('orgCountyInput')   && ($('orgCountyInput').value   = ORG_SETTINGS.county   || '');
     $('orgShiftInput')    && ($('orgShiftInput').value    = ORG_SETTINGS.shift    || '');
     $('orgManagementEmailInput') && ($('orgManagementEmailInput').value = ORG_SETTINGS.managementEmail || '');
