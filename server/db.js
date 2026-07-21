@@ -29,7 +29,7 @@ async function getAll() {
     query("select data from grievances order by created_at asc"),
     query("select data from activity order by row_id asc"),
     query("select data from archive order by created_at asc"),
-    query("select username, display_name, role, created_at, password_hash from users"),
+    query("select username, display_name, role, locations, created_at, password_hash from users"),
     query("select token, username, expires_at from sessions"),
     query("select date, name from holidays order by date asc"),
     query("select key, items from setup_lists"),
@@ -44,8 +44,12 @@ async function getAll() {
     username: r.username,
     displayName: r.display_name,
     role: r.role || "steward",
-    createdAt: r.created_at instanceof Date ? r.created_at.toISOString() : r.created_at,
-    passwordHash: r.password_hash
+    locations: Array.isArray(r.locations) ? r.locations : [],
+    createdAt: r.created_at instanceof Date ? r.created_at.toISOString() : r.created_at
+    // NOTE: password_hash is deliberately NOT included here. This response
+    // goes to every logged-in user regardless of role (unlike /api/users,
+    // which is admin-gated) -- sending hashes here would let any steward
+    // read every account's password hash straight out of the network tab.
   }));
 
   const sessions = sessionsRes.rows.map(r => ({
@@ -80,6 +84,11 @@ async function getAll() {
 
 async function readRaw() { return getAll(); }
 
+async function getGrievanceLocationById(id) {
+  const res = await query("select data->>'location' as location from grievances where id = $1", [id]);
+  return res.rows.length ? (res.rows[0].location || "") : null; // null = doesn't exist yet (a new grievance)
+}
+
 async function submitGrievance(record) {
   const id = String(record.id || "").trim();
   if (!id) throw new Error("Grievance ID is required.");
@@ -104,6 +113,7 @@ async function submitGrievance(record) {
     target.description  = record.description  || "";
     target.jobClass     = record.jobClass     || "";
     target.bu           = record.bu           || "";
+    target.location     = record.location     || target.location || "";
     target.steward      = record.steward      || "";
     target.stewardEmail = record.stewardEmail || "";
     target.gtype        = record.gtype        || "";
@@ -520,21 +530,25 @@ async function hasAnyUsers() {
 
 async function listUsersSafe() {
   const res = await query(
-    "select username, display_name, role, created_at from users order by created_at asc"
+    "select username, display_name, role, locations, created_at from users order by created_at asc"
   );
   return res.rows.map(r => ({
     username: r.username, displayName: r.display_name, role: r.role || "steward",
+    locations: Array.isArray(r.locations) ? r.locations : [],
     createdAt: r.created_at instanceof Date ? r.created_at.toISOString() : r.created_at
   }));
 }
 
 const VALID_ROLES = ["admin", "steward_plus", "steward"];
 
-async function upsertUser({ username, displayName, password, role }) {
+async function upsertUser({ username, displayName, password, role, locations }) {
   const uname = normalizeUsername(username);
   if (!uname) throw new Error("Username is required.");
   if (!displayName || !String(displayName).trim()) throw new Error("Display name is required.");
   let requestedRole = role && VALID_ROLES.includes(role) ? role : null;
+  const cleanLocations = Array.isArray(locations)
+    ? [...new Set(locations.map(l => String(l || "").trim()).filter(l => l !== ""))]
+    : null; // null means "not provided" -- leave existing value alone on update
 
   return withTransaction(async (client) => {
     const existing = await client.query(
@@ -549,8 +563,8 @@ async function upsertUser({ username, displayName, password, role }) {
       const isFirstEver = countRes.rows[0].n === 0;
       const finalRole = isFirstEver ? "admin" : (requestedRole || "steward");
       await client.query(
-        `insert into users (username, display_name, password_hash, role, created_at) values ($1,$2,$3,$4,now())`,
-        [uname, String(displayName).trim(), passwordHash, finalRole]
+        `insert into users (username, display_name, password_hash, role, locations, created_at) values ($1,$2,$3,$4,$5::jsonb,now())`,
+        [uname, String(displayName).trim(), passwordHash, finalRole, JSON.stringify(cleanLocations || [])]
       );
       return { ok: true, isNew, role: finalRole };
     }
@@ -567,13 +581,21 @@ async function upsertUser({ username, displayName, password, role }) {
     if (password) {
       const passwordHash = hashPassword(password);
       await client.query(
-        `update users set display_name=$2, password_hash=$3, role=$4 where username=$1`,
-        [uname, String(displayName).trim(), passwordHash, finalRole]
+        cleanLocations === null
+          ? `update users set display_name=$2, password_hash=$3, role=$4 where username=$1`
+          : `update users set display_name=$2, password_hash=$3, role=$4, locations=$5::jsonb where username=$1`,
+        cleanLocations === null
+          ? [uname, String(displayName).trim(), passwordHash, finalRole]
+          : [uname, String(displayName).trim(), passwordHash, finalRole, JSON.stringify(cleanLocations)]
       );
     } else {
       await client.query(
-        `update users set display_name=$2, role=$3 where username=$1`,
-        [uname, String(displayName).trim(), finalRole]
+        cleanLocations === null
+          ? `update users set display_name=$2, role=$3 where username=$1`
+          : `update users set display_name=$2, role=$3, locations=$4::jsonb where username=$1`,
+        cleanLocations === null
+          ? [uname, String(displayName).trim(), finalRole]
+          : [uname, String(displayName).trim(), finalRole, JSON.stringify(cleanLocations)]
       );
     }
     return { ok: true, isNew, role: finalRole };
@@ -599,12 +621,15 @@ async function deleteUser(username) {
 async function verifyLogin(username, password) {
   const uname = normalizeUsername(username);
   const res = await query(
-    "select username, display_name, role, password_hash from users where username=$1", [uname]
+    "select username, display_name, role, locations, password_hash from users where username=$1", [uname]
   );
   if (res.rows.length === 0) return null;
   const user = res.rows[0];
   if (!verifyPassword(password, user.password_hash)) return null;
-  return { username: user.username, displayName: user.display_name, role: user.role || "steward" };
+  return {
+    username: user.username, displayName: user.display_name, role: user.role || "steward",
+    locations: Array.isArray(user.locations) ? user.locations : []
+  };
 }
 
 const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000;
@@ -626,7 +651,7 @@ async function createSession(username) {
 async function getSessionUser(token) {
   if (!token) return null;
   const res = await query(
-    `select u.username, u.display_name, u.role
+    `select u.username, u.display_name, u.role, u.locations
        from sessions s join users u on u.username=s.username
       where s.token=$1 and s.expires_at>now()`,
     [token]
@@ -635,7 +660,8 @@ async function getSessionUser(token) {
   return {
     username: res.rows[0].username,
     displayName: res.rows[0].display_name,
-    role: res.rows[0].role || "steward"
+    role: res.rows[0].role || "steward",
+    locations: Array.isArray(res.rows[0].locations) ? res.rows[0].locations : []
   };
 }
 
@@ -694,7 +720,7 @@ module.exports = {
   getAll, readRaw, writeRawAtomic, withLock, logEmailAttempt,
   submitGrievance, logActivity, archiveClosed, sendCourtesyNotice,
   updateStewards, updateSetupList, getSetupList, updateHolidays, updateOrgSettings,
-  findUpcomingDeadlines, SIMPLE_SETUP_KEYS,
+  findUpcomingDeadlines, SIMPLE_SETUP_KEYS, getGrievanceLocationById,
   hasAnyUsers, listUsersSafe, upsertUser, deleteUser,
   verifyLogin, createSession, getSessionUser, destroySession
 };
