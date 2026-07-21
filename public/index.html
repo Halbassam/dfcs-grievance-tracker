@@ -412,7 +412,7 @@ footer.app-foot{text-align:center;color:var(--grey);font-size:11.5px;padding:30p
 
         <div class="panel panel-pad" style="margin-bottom:24px;" id="orgSettingsPanel">
       <h3 style="font-family:var(--serif);color:var(--green-1);margin:0 0 6px;font-size:17px;">Local chapter info</h3>
-      <p style="font-size:13px;color:var(--grey);margin:6px 0 16px;">These values are used for every grievance — set them once here instead of entering them on every Intake Form.</p>
+      <p style="font-size:13px;color:var(--grey);margin:6px 0 16px;">Select a location to auto-fill its bureau and management email — then hit Save. Each location remembers its own bureau and email, so you can configure each office by selecting it here in turn.</p>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px 14px;margin-bottom:14px;">
         <div class="field" style="margin:0;"><label for="orgAgencyInput">Agency</label><input type="text" id="orgAgencyInput" placeholder="e.g. DHS"></div>
         <div class="field" style="margin:0;"><label for="orgLocalNoInput">AFSCME Local No.</label><input type="text" id="orgLocalNoInput" placeholder="e.g. 2858"></div>
@@ -659,6 +659,7 @@ function uid(){ return 'a'+Math.random().toString(36).slice(2,10)+Date.now().toS
 
 let SETUP = {};
 let STATE = { grievances: [], activity: [], archive: [], holidays: [], users: [] };
+let LOCATION_DETAILS = {}; // per-location { bureau, email } config, keyed by location name
 
 // Admin-only convenience filter: admins receive every location's data
 // unfiltered (unlike stewards, who are already scoped server-side), so this
@@ -720,6 +721,7 @@ async function refresh(isBackgroundPoll){
     STATE.archive = data.archive || [];
     STATE.holidays = data.holidays || [];
     STATE.users = data.users || [];
+    LOCATION_DETAILS = data.locationDetails || {};
     ORG_SETTINGS = data.orgSettings || { agency: '', localNo: '', bureau: '', location: '', county: '', shift: '', managementEmail: '' };
     updatePageTitle();
     $('connBanner').innerHTML = '';
@@ -757,6 +759,8 @@ function populateDropdowns(){
     const prevLoc = ORG_SETTINGS.location || '';
     orgLocSel.innerHTML = '<option value="">— Select primary location —</option>' +
       (SETUP.Location||[]).map(l=>`<option value="${escapeHtml(l)}"${l===prevLoc?' selected':''}>${escapeHtml(l)}</option>`).join('');
+    // cascade bureau and email fields for whichever location is selected
+    orgCascadeFromLocation(orgLocSel.value);
   }
   refreshSectionPicker();
   refreshLocationField();
@@ -1508,7 +1512,7 @@ function openDetail(gid){
   $('detailBody').innerHTML = `
     <p><b>Employee:</b> ${escapeHtml(rec.employee||'')} &middot; <b>Job class:</b> ${escapeHtml(rec.jobClass||'')}</p>
     ${rec.description ? `<p style="background:var(--paper-2);border-radius:6px;padding:8px 10px;margin:8px 0;font-size:13.5px;line-height:1.5;">${escapeHtml(rec.description)}</p>` : ''}
-    <p><b>Bureau:</b> ${escapeHtml(ORG_SETTINGS.bureau||rec.bureau||'')} &middot; <b>Location:</b> ${escapeHtml(ORG_SETTINGS.location||rec.location||'')} &middot; <b>County:</b> ${escapeHtml(ORG_SETTINGS.county||rec.county||'')}</p>
+    <p><b>Bureau:</b> ${escapeHtml((rec.location && LOCATION_DETAILS[rec.location] && LOCATION_DETAILS[rec.location].bureau) || ORG_SETTINGS.bureau||rec.bureau||'')} &middot; <b>Location:</b> ${escapeHtml(rec.location||ORG_SETTINGS.location||'')} &middot; <b>County:</b> ${escapeHtml(ORG_SETTINGS.county||rec.county||'')}</p>
     <p><b>Steward:</b> ${escapeHtml(rec.steward||'')} (${escapeHtml(rec.stewardEmail||'')})</p>
     <p><b>Type:</b> ${escapeHtml(rec.gtype||'')}</p>
     <p><b>CBA reference:</b> ${escapeHtml(cbaRef(rec))}</p>
@@ -2152,7 +2156,7 @@ function renderSettingsCounts(isBackgroundPoll){
   if(!isBackgroundPoll || !anyFocused){
     $('orgAgencyInput')   && ($('orgAgencyInput').value   = ORG_SETTINGS.agency   || '');
     $('orgLocalNoInput')  && ($('orgLocalNoInput').value  = ORG_SETTINGS.localNo  || '');
-    $('orgBureauInput')   && ($('orgBureauInput').value   = ORG_SETTINGS.bureau   || '');
+    $('orgBureauInput')   && ($('orgBureauInput').value   = (ORG_SETTINGS.location && LOCATION_DETAILS[ORG_SETTINGS.location] && LOCATION_DETAILS[ORG_SETTINGS.location].bureau) || ORG_SETTINGS.bureau || '');
     // Location is now a <select> populated from the Location list --
     // populateDropdowns() handles setting its options AND the selected value,
     // so we only need to set it here when populateDropdowns() wasn't just called
@@ -2164,24 +2168,53 @@ function renderSettingsCounts(isBackgroundPoll){
     }
     $('orgCountyInput')   && ($('orgCountyInput').value   = ORG_SETTINGS.county   || '');
     $('orgShiftInput')    && ($('orgShiftInput').value    = ORG_SETTINGS.shift    || '');
-    $('orgManagementEmailInput') && ($('orgManagementEmailInput').value = ORG_SETTINGS.managementEmail || '');
+    $('orgManagementEmailInput') && ($('orgManagementEmailInput').value = (ORG_SETTINGS.location && LOCATION_DETAILS[ORG_SETTINGS.location] && LOCATION_DETAILS[ORG_SETTINGS.location].email) || ORG_SETTINGS.managementEmail || '');
   }
 }
 
 /* ---------- Settings tab: Local chapter info (org-wide values) ---------- */
+
+/**
+ * When a location is selected in the Local chapter info panel, auto-fill
+ * Bureau and Management Email from LOCATION_DETAILS (the per-location config).
+ * The fields stay editable -- the cascade just pre-populates them as a
+ * convenience; the admin can still override before saving.
+ */
+function orgCascadeFromLocation(loc){
+  const cfg = (loc && LOCATION_DETAILS[loc]) || {};
+  const bureauEl = $('orgBureauInput');
+  const emailEl  = $('orgManagementEmailInput');
+  if(bureauEl) bureauEl.value = cfg.bureau || '';
+  if(emailEl)  emailEl.value  = cfg.email  || '';
+}
+$('orgLocationInput')?.addEventListener('change', e => orgCascadeFromLocation(e.target.value));
+
 $('orgSettingsSaveBtn').addEventListener('click', async ()=>{
   const agency   = $('orgAgencyInput').value.trim();
   const localNo  = $('orgLocalNoInput').value.trim();
   const bureau   = $('orgBureauInput').value.trim();
-  const location = $('orgLocationInput').value.trim();
+  const location = $('orgLocationInput').value;
   const county   = $('orgCountyInput').value.trim();
   const shift    = $('orgShiftInput').value.trim();
   const managementEmail = $('orgManagementEmailInput').value.trim();
   const btn = $('orgSettingsSaveBtn');
   btn.disabled = true; btn.textContent = 'Saving…';
   try{
+    // Save the org-wide settings as before
     await apiPost('/api/org-settings', { agency, localNo, bureau, location, county, shift, managementEmail });
     ORG_SETTINGS = { agency, localNo, bureau, location, county, shift, managementEmail };
+
+    // Also update LOCATION_DETAILS for the selected location with
+    // whatever bureau/email the admin just confirmed for it -- this way
+    // the Local chapter info panel doubles as the editor for per-location
+    // values: pick a location, fill in bureau + email, hit Save.
+    if(location && (bureau || managementEmail)){
+      const updated = Object.assign({}, LOCATION_DETAILS);
+      updated[location] = { bureau, email: managementEmail };
+      await apiPost('/api/location-details', { details: updated });
+      LOCATION_DETAILS = updated;
+    }
+
     updatePageTitle();
     toast('Local chapter info updated.');
   }catch(err){
