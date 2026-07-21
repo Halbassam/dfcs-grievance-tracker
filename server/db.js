@@ -78,7 +78,10 @@ async function getAll() {
       county:   metaMap.orgCounty   || "",
       shift:    metaMap.orgShift    || "",
       managementEmail: metaMap.orgManagementEmail || ""
-    }
+    },
+    locationDetails: (() => {
+      try { return JSON.parse(metaMap.orgLocationDetails || "{}") || {}; } catch { return {}; }
+    })()
   };
 }
 
@@ -198,7 +201,22 @@ async function sendCourtesyNotice(gid, step) {
     const metaRes = await client.query("select key, value from app_meta");
     const metaMap = {};
     for (const row of metaRes.rows) metaMap[row.key] = row.value;
-    const recipients = parseEmailList(metaMap.orgManagementEmail || "");
+    const recipients = (() => {
+      // Prefer the per-location management email if one is configured for
+      // this grievance's location -- falls back to the org-wide email so
+      // existing setups without per-location config still work.
+      const rec = rows[0];
+      let locationEmail = "";
+      try {
+        const detailsRes = metaRes.rows.find(r => r.key === "orgLocationDetails");
+        const details = detailsRes ? JSON.parse(detailsRes.value || "{}") : {};
+        const loc = rec && rec.location;
+        if (loc && details[loc] && details[loc].email) {
+          locationEmail = details[loc].email;
+        }
+      } catch { /* fall through */ }
+      return parseEmailList(locationEmail || metaMap.orgManagementEmail || "");
+    })();
     if (recipients.length === 0) {
       throw new Error("No management contact email is set. Go to Settings \u2192 Local chapter info to add one.");
     }
@@ -403,6 +421,41 @@ async function updateOrgSettings({ agency, localNo, bureau, location, county, sh
     location: clean.orgLocation, county: clean.orgCounty, shift: clean.orgShift,
     managementEmail: clean.orgManagementEmail
   };
+}
+
+/**
+ * Per-location bureau and management email configuration.
+ * Stored as a single JSON blob in app_meta under the key "orgLocationDetails".
+ * Shape: { "Location Name": { bureau: "...", email: "..." }, ... }
+ *
+ * This lets each FCRC office have its own bureau/program unit label and
+ * management contact(s) for courtesy reminder emails, without needing a
+ * new DB table -- the existing app_meta key-value store handles it fine
+ * since this is a small, rarely-updated config blob.
+ */
+async function getLocationDetails() {
+  const res = await query("select value from app_meta where key = 'orgLocationDetails'");
+  if (!res.rows.length) return {};
+  try { return JSON.parse(res.rows[0].value) || {}; } catch { return {}; }
+}
+
+async function updateLocationDetails(details) {
+  if (typeof details !== "object" || Array.isArray(details)) throw new Error("details must be an object");
+  const clean = {};
+  for (const [loc, cfg] of Object.entries(details)) {
+    const l = String(loc).trim();
+    if (!l) continue;
+    clean[l] = {
+      bureau: String((cfg && cfg.bureau) || "").trim(),
+      email:  String((cfg && cfg.email)  || "").trim()
+    };
+  }
+  await query(
+    `insert into app_meta (key, value) values ('orgLocationDetails', $1)
+     on conflict (key) do update set value = excluded.value`,
+    [JSON.stringify(clean)]
+  );
+  return { ok: true, details: clean };
 }
 
 // Deadline calculation
@@ -720,6 +773,7 @@ module.exports = {
   getAll, readRaw, writeRawAtomic, withLock, logEmailAttempt,
   submitGrievance, logActivity, archiveClosed, sendCourtesyNotice,
   updateStewards, updateSetupList, getSetupList, updateHolidays, updateOrgSettings,
+  getLocationDetails, updateLocationDetails,
   findUpcomingDeadlines, SIMPLE_SETUP_KEYS, getGrievanceLocationById,
   hasAnyUsers, listUsersSafe, upsertUser, deleteUser,
   verifyLogin, createSession, getSessionUser, destroySession
