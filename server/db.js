@@ -769,6 +769,190 @@ async function writeRawAtomic(data) {
   });
 }
 
+// ============================================================
+// INVESTIGATION WORKFLOW
+// ============================================================
+
+const crypto_inv = require("crypto");
+
+/** Generate the next sequential investigation ID (INV-YYYY-NNNN). */
+async function nextInvestigationId() {
+  const year = new Date().getFullYear();
+  const res = await query(
+    `insert into app_meta (key, value) values ('investigationSeq_${year}', '1')
+     on conflict (key) do update set value = (cast(app_meta.value as int) + 1)::text
+     returning value`
+  );
+  const seq = String(res.rows[0].value).padStart(4, "0");
+  return `INV-${year}-${seq}`;
+}
+
+async function createInvestigation({ location, steward, actingUser }) {
+  const id = await nextInvestigationId();
+  const now = new Date().toISOString();
+  const data = {
+    id, location: location || "", steward: steward || "", status: "open",
+    createdAt: now, createdBy: actingUser || steward || "",
+    employee: "", contactEmail: "", contactPhone: "",
+    incidentDescription: "", incidentDates: "",
+    closeReason: null, closeNotes: "", convertedGrievanceId: null,
+    logbook: [], witnessStatements: [], grievantSubmission: null
+  };
+  await query(
+    "insert into investigations (id, data, created_at) values ($1, $2::jsonb, now())",
+    [id, JSON.stringify(data)]
+  );
+  return data;
+}
+
+async function getInvestigation(id) {
+  const res = await query("select data from investigations where id = $1", [id]);
+  return res.rows.length ? res.rows[0].data : null;
+}
+
+async function getAllInvestigations() {
+  const res = await query("select data from investigations order by created_at desc");
+  return res.rows.map(r => r.data);
+}
+
+async function updateInvestigation(id, patch) {
+  const res = await query("select data from investigations where id = $1", [id]);
+  if (!res.rows.length) throw new Error(`Investigation ${id} not found.`);
+  const current = res.rows[0].data;
+  const merged = Object.assign({}, current, patch, { id }); // id is immutable
+  await query(
+    "update investigations set data = $2::jsonb where id = $1",
+    [id, JSON.stringify(merged)]
+  );
+  return merged;
+}
+
+async function addInvestigationLogEntry(id, { date, steward, entry }) {
+  const inv = await getInvestigation(id);
+  if (!inv) throw new Error(`Investigation ${id} not found.`);
+  if (inv.status !== "open") throw new Error("Investigation is closed — no new logbook entries.");
+  const logEntry = {
+    id: crypto_inv.randomBytes(6).toString("hex"),
+    date: date || new Date().toISOString().slice(0, 10),
+    steward: steward || "",
+    entry: String(entry || "").trim(),
+    createdAt: new Date().toISOString()
+  };
+  const logbook = [...(inv.logbook || []), logEntry];
+  await updateInvestigation(id, { logbook });
+  return logEntry;
+}
+
+async function closeInvestigation(id, { reason, notes }) {
+  const VALID_REASONS = ["no_violation", "resolved", "withdrew", "other"];
+  if (!VALID_REASONS.includes(reason)) throw new Error(`Invalid close reason: ${reason}`);
+  return updateInvestigation(id, {
+    status: "closed",
+    closeReason: reason,
+    closeNotes: String(notes || "").trim(),
+    closedAt: new Date().toISOString()
+  });
+}
+
+/** Converts an investigation to a formal grievance. Returns the new grievance's
+ *  pre-filled record so the caller can route the steward into the intake form. */
+async function convertInvestigationToGrievance(id, grievanceId, actingUser) {
+  const inv = await getInvestigation(id);
+  if (!inv) throw new Error(`Investigation ${id} not found.`);
+  if (inv.status === "converted") throw new Error("Already converted.");
+  const sub = inv.grievantSubmission && inv.grievantSubmission.data;
+  // Build a pre-filled grievance record from investigation data
+  const pre = {
+    id: grievanceId,
+    employee: sub ? (sub.name || inv.employee) : inv.employee,
+    grievantEmail: sub ? (sub.email || inv.contactEmail) : inv.contactEmail,
+    description: sub ? (sub.description || inv.incidentDescription) : inv.incidentDescription,
+    location: inv.location,
+    steward: inv.steward,
+    status: "Pending",
+    investigationId: id,
+    actingUser: actingUser || inv.steward
+  };
+  await updateInvestigation(id, {
+    status: "converted",
+    convertedGrievanceId: grievanceId,
+    convertedAt: new Date().toISOString()
+  });
+  return pre;
+}
+
+/** Creates a public-facing token for the grievant intake form or a witness statement.
+ *  Tokens expire after 7 days. Each investigation gets at most one active grievant
+ *  token (re-issuing replaces old ones); witness tokens are unlimited. */
+async function createInvestigationToken(investigationId, type, witnessName) {
+  if (!["grievant", "witness"].includes(type)) throw new Error("Invalid token type.");
+  const inv = await getInvestigation(investigationId);
+  if (!inv) throw new Error(`Investigation ${investigationId} not found.`);
+
+  if (type === "grievant") {
+    // Expire any existing, unused grievant token for this investigation
+    await query(
+      `update investigation_tokens set expires_at = now()
+       where investigation_id = $1 and type = 'grievant' and submitted_at is null`,
+      [investigationId]
+    );
+    // If there's already a submitted grievant form, don't allow a second one
+    if (inv.grievantSubmission) throw new Error("The grievant has already submitted their intake form for this investigation.");
+  }
+
+  const token = crypto_inv.randomBytes(24).toString("hex");
+  const expiresAt = new Date(Date.now() + 7 * 24 * 3600 * 1000).toISOString();
+  await query(
+    `insert into investigation_tokens (token, investigation_id, type, witness_name, expires_at)
+     values ($1, $2, $3, $4, $5)`,
+    [token, investigationId, type, witnessName || null, expiresAt]
+  );
+  return { token, expiresAt };
+}
+
+/** Looks up a token and returns the token row + its investigation (or null if invalid/expired/used). */
+async function getInvestigationByToken(token) {
+  const res = await query(
+    `select t.token, t.investigation_id, t.type, t.witness_name,
+            t.expires_at, t.submitted_at, i.data
+     from investigation_tokens t
+     join investigations i on i.id = t.investigation_id
+     where t.token = $1`,
+    [token]
+  );
+  if (!res.rows.length) return null;
+  const row = res.rows[0];
+  const isExpired = new Date(row.expires_at) < new Date();
+  const isUsed = !!row.submitted_at;
+  return { tokenRow: row, investigation: row.data, isExpired, isUsed };
+}
+
+/** Marks a token as used and writes the submission into the investigation record. */
+async function submitInvestigationForm(token, formData) {
+  const found = await getInvestigationByToken(token);
+  if (!found) throw new Error("Invalid or expired link.");
+  if (found.isExpired) throw new Error("This link has expired — ask the steward to send a new one.");
+  if (found.isUsed) throw new Error("This form has already been submitted.");
+
+  const { tokenRow, investigation } = found;
+  const submittedAt = new Date().toISOString();
+
+  await query(
+    "update investigation_tokens set submitted_at = now() where token = $1",
+    [token]
+  );
+
+  const submission = { submittedAt, data: formData };
+
+  if (tokenRow.type === "grievant") {
+    await updateInvestigation(investigation.id, { grievantSubmission: submission });
+  } else {
+    throw new Error("Unknown token type.");
+  }
+
+  return { ok: true };
+}
+
 module.exports = {
   getAll, readRaw, writeRawAtomic, withLock, logEmailAttempt,
   submitGrievance, logActivity, archiveClosed, sendCourtesyNotice,
@@ -776,5 +960,9 @@ module.exports = {
   getLocationDetails, updateLocationDetails,
   findUpcomingDeadlines, SIMPLE_SETUP_KEYS, getGrievanceLocationById,
   hasAnyUsers, listUsersSafe, upsertUser, deleteUser,
-  verifyLogin, createSession, getSessionUser, destroySession
+  verifyLogin, createSession, getSessionUser, destroySession,
+  // Investigation workflow
+  createInvestigation, getInvestigation, getAllInvestigations, updateInvestigation,
+  addInvestigationLogEntry, closeInvestigation, convertInvestigationToGrievance,
+  createInvestigationToken, getInvestigationByToken, submitInvestigationForm
 };
