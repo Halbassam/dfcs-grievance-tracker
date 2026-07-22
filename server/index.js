@@ -10,6 +10,7 @@ const db = require("./db");
 const scheduler = require("./scheduler");
 const grievantNotify = require("./grievantNotify");
 const grievanceDraftBot = require("./grievanceDraftBot");
+const investigationForms = require("./investigationForms");
 
 const PORT = process.env.PORT || 3000;
 const PUBLIC_DIR = path.join(__dirname, "../public");
@@ -127,6 +128,41 @@ const server = http.createServer(async (req, res) => {
   const pathname = url.pathname;
 
   try {
+    // ── PUBLIC FORM ROUTES (no authentication required) ────────────────────
+    // Served at /intake/:token and /witness/:token — these are the mobile-
+    // friendly forms sent to grievants and witnesses via link.
+
+    const intakeMatch = pathname.match(/^\/intake\/([a-f0-9]{48})$/);
+    if (intakeMatch) {
+      const token = intakeMatch[1];
+      if (req.method === "GET") {
+        const found = await db.getInvestigationByToken(token);
+        if (!found || found.tokenRow.type !== "grievant") {
+          res.writeHead(404, { "Content-Type": "text/html; charset=utf-8" });
+          return res.end(investigationForms.errorPage({ title: "Link not found", message: "This link is not valid or has already expired." }));
+        }
+        if (found.isExpired) {
+          res.writeHead(410, { "Content-Type": "text/html; charset=utf-8" });
+          return res.end(investigationForms.errorPage({ title: "Link expired", message: "This link has expired. Ask your steward to send a new one." }));
+        }
+        if (found.isUsed) {
+          res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
+          return res.end(investigationForms.errorPage({ title: "Already submitted", message: "This form has already been submitted. Contact your steward if you need to make a correction." }));
+        }
+        res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
+        return res.end(investigationForms.grievantIntakeForm({ investigation: found.investigation, token }));
+      }
+      if (req.method === "POST") {
+        const body = await readBody(req);
+        try {
+          await db.submitInvestigationForm(token, body);
+          return sendJson(res, 200, { ok: true });
+        } catch (err) {
+          return sendJson(res, 400, { error: err.message });
+        }
+      }
+    }
+
     // Auth routes (no session required)
     if (pathname === "/api/auth/login" && req.method === "POST") {
       const body = await readBody(req);
@@ -361,6 +397,142 @@ const server = http.createServer(async (req, res) => {
     if (pathname === "/api/email/run-now" && req.method === "POST") {
       const summary = await scheduler.runDeadlineCheck();
       return sendJson(res, 200, summary);
+    }
+
+    // ── INVESTIGATION WORKFLOW API ROUTES ──────────────────────────────────
+
+    if (pathname === "/api/investigations" && req.method === "GET") {
+      const all = await db.getAllInvestigations();
+      // Scope to user's locations (same rule as grievances)
+      const visible = isAdmin(currentUser)
+        ? all
+        : all.filter(inv => canAccessLocation(currentUser, inv.location));
+      return sendJson(res, 200, { investigations: visible });
+    }
+
+    if (pathname === "/api/investigation" && req.method === "POST") {
+      const body = await readBody(req);
+      if (!isAdmin(currentUser)) {
+        const locs = userLocations(currentUser);
+        if (!locs.length) return sendJson(res, 403, { error: "No location assigned — ask an admin." });
+        if (locs.length === 1) body.location = locs[0];
+        else if (!body.location || !locs.includes(body.location))
+          return sendJson(res, 400, { error: "Select one of your assigned locations." });
+      }
+      body.actingUser = currentUser.displayName || currentUser.username;
+      const inv = await db.createInvestigation(body);
+      return sendJson(res, 200, { investigation: inv });
+    }
+
+    if (pathname === "/api/investigation/update" && req.method === "POST") {
+      const body = await readBody(req);
+      const id = body.id;
+      const inv = await db.getInvestigation(id);
+      if (!inv) return sendJson(res, 404, { error: "Investigation not found." });
+      if (!canAccessLocation(currentUser, inv.location)) return sendJson(res, 403, { error: "Access denied." });
+      const SAFE_FIELDS = ["employee", "contactEmail", "contactPhone", "incidentDescription", "incidentDates", "steward"];
+      const patch = {};
+      for (const f of SAFE_FIELDS) if (body[f] !== undefined) patch[f] = body[f];
+      const updated = await db.updateInvestigation(id, patch);
+      return sendJson(res, 200, { investigation: updated });
+    }
+
+    if (pathname === "/api/investigation/logbook" && req.method === "POST") {
+      const body = await readBody(req);
+      const inv = await db.getInvestigation(body.id);
+      if (!inv) return sendJson(res, 404, { error: "Investigation not found." });
+      if (!canAccessLocation(currentUser, inv.location)) return sendJson(res, 403, { error: "Access denied." });
+      const entry = await db.addInvestigationLogEntry(body.id, {
+        date: body.date, entry: body.entry,
+        steward: currentUser.displayName || currentUser.username
+      });
+      return sendJson(res, 200, { entry });
+    }
+
+    if (pathname === "/api/investigation/close" && req.method === "POST") {
+      const body = await readBody(req);
+      const inv = await db.getInvestigation(body.id);
+      if (!inv) return sendJson(res, 404, { error: "Investigation not found." });
+      if (!canAccessLocation(currentUser, inv.location)) return sendJson(res, 403, { error: "Access denied." });
+      const updated = await db.closeInvestigation(body.id, { reason: body.reason, notes: body.notes });
+      return sendJson(res, 200, { investigation: updated });
+    }
+
+    if (pathname === "/api/investigation/convert" && req.method === "POST") {
+      const body = await readBody(req);
+      const inv = await db.getInvestigation(body.id);
+      if (!inv) return sendJson(res, 404, { error: "Investigation not found." });
+      if (!canAccessLocation(currentUser, inv.location)) return sendJson(res, 403, { error: "Access denied." });
+      const pre = await db.convertInvestigationToGrievance(
+        body.id, body.grievanceId, currentUser.displayName || currentUser.username
+      );
+      return sendJson(res, 200, { preFilledGrievance: pre });
+    }
+
+    if (pathname === "/api/investigation/grievant-link" && req.method === "POST") {
+      const body = await readBody(req);
+      const inv = await db.getInvestigation(body.id);
+      if (!inv) return sendJson(res, 404, { error: "Investigation not found." });
+      if (!canAccessLocation(currentUser, inv.location)) return sendJson(res, 403, { error: "Access denied." });
+      const { token, expiresAt } = await db.createInvestigationToken(body.id, "grievant");
+      return sendJson(res, 200, { token, expiresAt });
+    }
+
+    if (pathname === "/api/investigation/draft-chat" && req.method === "POST") {
+      if (!canUseBot(currentUser)) return sendJson(res, 403, { error: "No bot access." });
+      const body = await readBody(req);
+      // If an investigationId is provided, inject the investigation facts as
+      // the first user message so the bot has all the context it needs
+      let messages = body.messages || [];
+      if (body.investigationId) {
+        const inv = await db.getInvestigation(body.investigationId);
+        if (inv && canAccessLocation(currentUser, inv.location)) {
+          const sub = inv.grievantSubmission && inv.grievantSubmission.data;
+          const witnesses = (inv.witnessStatements || []).filter(w => w.statement);
+          let context = `[Investigation context — carry this into the grievance draft]
+Investigation ID: ${inv.id}
+Employee: ${inv.employee || "(not yet known)"}
+Location: ${inv.location || "(not set)"}
+Steward: ${inv.steward || "(not set)"}`;
+          if (sub) {
+            context += `\n\nEmployee's own statement (submitted via intake form on ${sub.submittedAt ? sub.submittedAt.slice(0,10) : "unknown date"}):
+Name: ${sub.name || ""}
+Email: ${sub.email || ""}
+Incident date: ${sub.incidentDate || ""}
+Description: ${sub.description || ""}
+Witnesses mentioned: ${sub.witnesses || "(none)"}
+Additional details: ${sub.otherDetails || ""}`;
+          } else if (inv.incidentDescription) {
+            context += `\n\nIncident description (entered by steward): ${inv.incidentDescription}`;
+          }
+          if (witnesses.length) {
+            context += `\n\nWitness statement(s):`;
+            witnesses.forEach((w, i) => {
+              context += `\n${i+1}. ${w.witnessName}: ${w.statement}`;
+            });
+          }
+          const logEntries = (inv.logbook || []).slice(-5); // last 5 entries
+          if (logEntries.length) {
+            context += `\n\nSteward logbook (most recent entries):`;
+            logEntries.forEach(l => { context += `\n[${l.date}] ${l.entry}`; });
+          }
+          // Prepend the investigation context as the first message if this is a new conversation
+          if (!messages.length || messages[0].role !== "user" || !messages[0].content.startsWith("[Investigation context")) {
+            messages = [{ role: "user", content: context }, ...messages];
+          }
+        }
+      }
+      try {
+        const [articleOptions, grievanceTypeOptions] = await Promise.all([
+          db.getSetupList("Article"), db.getSetupList("GrievanceType")
+        ]);
+        const result = await grievanceDraftBot.chat(messages, {
+          articleOptions, grievanceTypeOptions, chunkIds: body.chunkIds
+        });
+        return sendJson(res, 200, result);
+      } catch (err) {
+        return sendJson(res, 502, { error: err.message || "The drafting assistant is unavailable right now." });
+      }
     }
 
     return sendJson(res, 404, { error: "Unknown API route" });
