@@ -464,6 +464,8 @@ footer.app-foot{text-align:center;color:var(--grey);font-size:11.5px;padding:30p
     <div class="modal-overlay" id="newInvModalOverlay">
       <div class="modal" style="max-width:420px;">
         <h3 style="font-family:var(--serif);color:var(--green-1);margin-bottom:16px;">New investigation</h3>
+        <div class="field"><label for="newInvEmployee">Employee name <span style="color:var(--red);">*</span></label><input type="text" id="newInvEmployee" placeholder="Full name of the employee raising the concern"></div>
+        <div class="field"><label for="newInvContactEmail">Employee email</label><input type="email" id="newInvContactEmail" placeholder="For the grievant intake form link (optional now)"></div>
         <div class="field"><label for="newInvSteward">Assigned steward</label><select id="newInvSteward"></select></div>
         <div class="field" id="newInvLocationField"><label for="newInvLocation">Location</label><select id="newInvLocation"></select></div>
         <div style="display:flex;gap:10px;justify-content:flex-end;">
@@ -836,8 +838,8 @@ function toast(msg, type='ok'){
   setTimeout(()=>{ el.style.opacity='0'; el.style.transition='opacity 0.3s'; setTimeout(()=>el.remove(),300); }, 3400);
 }
 
-async function apiGet(){
-  const res = await fetch('/api/data');
+async function apiGet(url){
+  const res = await fetch(url || '/api/data');
   if(!res.ok) throw new Error('Server returned ' + res.status);
   return res.json();
 }
@@ -2694,17 +2696,22 @@ $('newInvestigationBtn').addEventListener('click',()=>{
   else $('newInvLocationField').style.display='';
   locSel.innerHTML = opts.map(l=>`<option value="${escapeHtml(l)}">${escapeHtml(l)}</option>`).join('');
   fillSelect($('newInvSteward'), SETUP.Steward||[]);
+  $('newInvEmployee').value = '';
+  $('newInvContactEmail').value = '';
   $('newInvModalOverlay').classList.add('show');
 });
 $('newInvCancelBtn').addEventListener('click',()=>$('newInvModalOverlay').classList.remove('show'));
 $('newInvConfirmBtn').addEventListener('click', async ()=>{
+  const employee = $('newInvEmployee').value.trim();
+  if(!employee){ toast('Enter the employee name.','err'); return; }
   const locSel = $('newInvLocation');
   const userLocs = (CURRENT_USER&&Array.isArray(CURRENT_USER.locations))?CURRENT_USER.locations:[];
   const isAdminUser = !!(CURRENT_USER&&(CURRENT_USER.role==='admin'||!CURRENT_USER.username));
   const location = isAdminUser||userLocs.length>1 ? locSel.value : (userLocs[0]||'');
   const steward = $('newInvSteward').value;
+  const contactEmail = $('newInvContactEmail').value.trim();
   try{
-    const data = await apiPost('/api/investigation', { location, steward });
+    const data = await apiPost('/api/investigation', { location, steward, employee, contactEmail });
     $('newInvModalOverlay').classList.remove('show');
     await loadInvestigations();
     const fresh = INV_STATE.investigations.find(i=>i.id===data.investigation.id);
