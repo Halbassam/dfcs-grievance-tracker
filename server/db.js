@@ -787,13 +787,13 @@ async function nextInvestigationId() {
   return `INV-${year}-${seq}`;
 }
 
-async function createInvestigation({ location, steward, actingUser }) {
+async function createInvestigation({ location, steward, employee, contactEmail, actingUser }) {
   const id = await nextInvestigationId();
   const now = new Date().toISOString();
   const data = {
     id, location: location || "", steward: steward || "", status: "open",
     createdAt: now, createdBy: actingUser || steward || "",
-    employee: "", contactEmail: "", contactPhone: "",
+    employee: employee || "", contactEmail: contactEmail || "", contactPhone: "",
     incidentDescription: "", incidentDates: "",
     closeReason: null, closeNotes: "", convertedGrievanceId: null,
     logbook: [], witnessStatements: [], grievantSubmission: null

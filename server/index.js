@@ -420,7 +420,13 @@ const server = http.createServer(async (req, res) => {
           return sendJson(res, 400, { error: "Select one of your assigned locations." });
       }
       body.actingUser = currentUser.displayName || currentUser.username;
-      const inv = await db.createInvestigation(body);
+      const inv = await db.createInvestigation({
+        location: body.location,
+        steward: body.steward,
+        employee: body.employee,
+        contactEmail: body.contactEmail,
+        actingUser: body.actingUser
+      });
       return sendJson(res, 200, { investigation: inv });
     }
 
