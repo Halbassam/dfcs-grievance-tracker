@@ -355,7 +355,10 @@ footer.app-foot{text-align:center;color:var(--grey);font-size:11.5px;padding:30p
   <section id="tab-investigations" class="hidden">
     <div class="section-head">
       <div><h2>Investigations</h2><div class="sub">Pre-grievance fact-finding cases</div></div>
-      <button class="btn btn-primary" id="newInvestigationBtn">+ New investigation</button>
+      <div style="display:flex;gap:8px;align-items:center;">
+        <button class="btn btn-ghost" id="invShowArchivedBtn" style="font-size:13px;">Show archived</button>
+        <button class="btn btn-primary" id="newInvestigationBtn">+ New investigation</button>
+      </div>
     </div>
 
     <!-- Split: list left, detail right -->
@@ -2489,6 +2492,7 @@ $('cpSaveBtn').addEventListener('click', async ()=>{
    =================================================================== */
 
 let INV_STATE = { investigations: [], current: null };
+let invShowArchived = false;
 let invBotMessages = [];
 let invBotChunkIds = null;
 let invBotLatestDraft = null;
@@ -2520,17 +2524,34 @@ function invStatusPill(status, closeReason){
 
 function renderInvestigationList(){
   const container = $('investigationsList');
-  const invs = INV_STATE.investigations;
+  const allInvs = INV_STATE.investigations;
+  const archivedCount = allInvs.filter(i => i.archived).length;
+
+  // Update the toggle button label
+  const toggleBtn = $('invShowArchivedBtn');
+  if(toggleBtn){
+    toggleBtn.textContent = invShowArchived
+      ? 'Hide archived'
+      : `Show archived${archivedCount ? ` (${archivedCount})` : ''}`;
+    toggleBtn.style.opacity = archivedCount ? '1' : '0.45';
+  }
+
+  const invs = invShowArchived
+    ? allInvs
+    : allInvs.filter(i => !i.archived);
   if(!invs.length){
     container.innerHTML = '<div style="font-size:13px;color:var(--grey);padding:12px 0;">No investigations yet. Click "+ New investigation" to start one.</div>';
     return;
   }
   container.innerHTML = invs.map(inv=>{
     const isSelected = INV_STATE.current && INV_STATE.current.id === inv.id;
-    return `<div class="inv-list-card${isSelected?' inv-list-selected':''}" data-inv-id="${escapeHtml(inv.id)}" style="border:1.5px solid ${isSelected?'var(--green-2)':'var(--green-line)'};border-radius:var(--radius);background:${isSelected?'var(--green-soft)':'#fff'};padding:12px;cursor:pointer;">
+    return `<div class="inv-list-card${isSelected?' inv-list-selected':''}" data-inv-id="${escapeHtml(inv.id)}" style="border:1.5px solid ${isSelected?'var(--green-2)':'var(--green-line)'};border-radius:var(--radius);background:${isSelected?'var(--green-soft)':'#fff'};padding:12px;cursor:pointer;opacity:${inv.archived?'0.6':'1'};">
       <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;">
         <span style="font-weight:700;font-size:13.5px;color:var(--green-1);">${escapeHtml(inv.id)}</span>
-        ${invStatusPill(inv.status, inv.closeReason)}
+        <div style="display:flex;gap:4px;flex-wrap:wrap;align-items:center;">
+          ${inv.archived?'<span style="font-size:11px;color:var(--grey);border:1px solid var(--green-line);border-radius:8px;padding:1px 7px;">archived</span>':''}
+          ${invStatusPill(inv.status, inv.closeReason)}
+        </div>
       </div>
       <div style="font-size:12.5px;color:var(--grey);margin-top:4px;">${escapeHtml(inv.employee||'Employee TBD')} &middot; ${escapeHtml(inv.location||'')}</div>
       <div style="font-size:12px;color:var(--grey);margin-top:2px;">${escapeHtml(inv.steward||'')} &middot; ${inv.createdAt?inv.createdAt.slice(0,10):''}</div>
@@ -2572,14 +2593,21 @@ function renderInvestigationDetail(inv){
     actions.innerHTML = `
       <button class="btn btn-secondary" id="invCloseBtn" style="font-size:13px;padding:7px 12px;">Close case</button>
       <button class="btn btn-primary" id="invConvertBtn" style="font-size:13px;padding:7px 12px;">Convert ➜ Grievance</button>`;
-    $('invCloseBtn').addEventListener('click',()=>{
-      $('closeInvModalOverlay').classList.add('show');
-    });
-    $('invConvertBtn').addEventListener('click',()=>{
-      $('convertInvModalOverlay').classList.add('show');
-    });
+    $('invCloseBtn').addEventListener('click',()=>{ $('closeInvModalOverlay').classList.add('show'); });
+    $('invConvertBtn').addEventListener('click',()=>{ $('convertInvModalOverlay').classList.add('show'); });
   } else {
-    actions.innerHTML = `<span style="font-size:12.5px;color:var(--grey);">Case ${inv.status}</span>`;
+    const archiveLabel = inv.archived ? 'Unarchive' : 'Archive';
+    actions.innerHTML = `
+      <span style="font-size:12.5px;color:var(--grey);">Case ${inv.status}</span>
+      <button class="btn btn-ghost" id="invArchiveBtn" style="font-size:13px;padding:7px 12px;">${archiveLabel}</button>`;
+    $('invArchiveBtn').addEventListener('click', async ()=>{
+      try{
+        const route = inv.archived ? '/api/investigation/unarchive' : '/api/investigation/archive';
+        await apiPost(route, { id: inv.id });
+        toast(inv.archived ? 'Investigation unarchived.' : 'Investigation archived.');
+        await loadInvestigations();
+      }catch(err){ toast(err.message||'Could not archive.','err'); }
+    });
   }
 
   // Grievant intake
@@ -2613,6 +2641,11 @@ function renderInvestigationDetail(inv){
   $('invBotPanel').style.display = botAllowed ? '' : 'none';
   if(botAllowed){ renderInvBotThread(); renderInvBotDraft(); }
 }
+
+$('invShowArchivedBtn')?.addEventListener('click', ()=>{
+  invShowArchived = !invShowArchived;
+  renderInvestigationList();
+});
 
 // ── Grievant link generation ──
 $('invSendGrievantBtn').addEventListener('click', async ()=>{
