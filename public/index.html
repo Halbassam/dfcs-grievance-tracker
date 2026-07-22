@@ -231,6 +231,7 @@ footer.app-foot{text-align:center;color:var(--grey);font-size:11.5px;padding:30p
   <nav class="tabs" id="tabs">
     <button class="tab-btn active" data-tab="intake">Intake Form</button>
     <button class="tab-btn" data-tab="draftbot" id="draftbotTabBtn">Draft a Grievance</button>
+    <button class="tab-btn" data-tab="investigations">Investigations</button>
     <button class="tab-btn" data-tab="dashboard">Priority Dashboard <span class="count" id="navOverdueCount">0</span></button>
     <button class="tab-btn" data-tab="log">Grievance Log</button>
     <button class="tab-btn" data-tab="activity">Activity Log</button>
@@ -345,6 +346,131 @@ footer.app-foot{text-align:center;color:var(--grey);font-size:11.5px;padding:30p
         <button type="submit" class="btn btn-primary btn-lg" id="draftbotSendBtn">Send</button>
       </form>
       <div id="draftbotArticlesUsed" class="field-note" style="margin-top:8px;"></div>
+    </div>
+  </section>
+
+  </section>
+
+  <!-- INVESTIGATIONS -->
+  <section id="tab-investigations" class="hidden">
+    <div class="section-head">
+      <div><h2>Investigations</h2><div class="sub">Pre-grievance fact-finding cases</div></div>
+      <button class="btn btn-primary" id="newInvestigationBtn">+ New investigation</button>
+    </div>
+
+    <!-- Split: list left, detail right -->
+    <div id="investigationsLayout" style="display:grid;grid-template-columns:340px 1fr;gap:16px;align-items:start;">
+
+      <!-- LEFT: list -->
+      <div>
+        <div id="investigationsList" style="display:flex;flex-direction:column;gap:8px;"></div>
+      </div>
+
+      <!-- RIGHT: detail panel (empty state until one is selected) -->
+      <div id="investigationDetail" style="display:none;">
+        <div class="panel panel-pad" style="margin-bottom:12px;">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:10px;margin-bottom:12px;">
+            <div>
+              <div id="invDetailId" style="font-family:var(--serif);font-size:19px;font-weight:700;color:var(--green-1);"></div>
+              <div id="invDetailStatus" style="font-size:12.5px;margin-top:3px;"></div>
+            </div>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;" id="invDetailActions"></div>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px 14px;font-size:13px;" id="invDetailMeta"></div>
+        </div>
+
+        <!-- Grievant intake link -->
+        <div class="panel panel-pad" style="margin-bottom:12px;" id="invGrievantCard">
+          <div style="font-weight:600;font-size:14px;color:var(--green-1);margin-bottom:8px;">&#128222; Grievant intake form</div>
+          <div id="invGrievantSubmission" style="margin-bottom:10px;"></div>
+          <button class="btn btn-secondary" id="invSendGrievantBtn" style="width:auto;padding:7px 14px;font-size:13px;">Generate &amp; copy grievant link</button>
+          <div id="invGrievantLinkBox" style="display:none;margin-top:8px;"></div>
+        </div>
+
+        <!-- Logbook -->
+        <div class="panel panel-pad" style="margin-bottom:12px;">
+          <div style="font-weight:600;font-size:14px;color:var(--green-1);margin-bottom:10px;">&#128218; Steward logbook</div>
+          <div id="invLogbookEntries" style="margin-bottom:12px;max-height:240px;overflow-y:auto;display:flex;flex-direction:column;gap:10px;"></div>
+          <div style="display:flex;gap:8px;align-items:flex-end;" id="invLogbookForm">
+            <div class="field" style="margin:0;flex:1;"><textarea id="invLogEntryText" placeholder="Log a note, observation, or next step…" style="min-height:56px;"></textarea></div>
+            <button class="btn btn-secondary" id="invAddLogBtn" style="width:auto;padding:8px 14px;font-size:13px;white-space:nowrap;">Add entry</button>
+          </div>
+        </div>
+
+        <!-- AI draft bot (for bot-enabled users) -->
+        <div class="panel panel-pad" id="invBotPanel" style="margin-bottom:12px;display:none;">
+          <div style="font-weight:600;font-size:14px;color:var(--green-1);margin-bottom:8px;">&#129302; Draft a Grievance from this investigation</div>
+          <div class="notice-box notice-amber" style="margin-bottom:12px;">The bot will use all investigation facts — employee statement, witness statements, and your logbook — as context. Verify citations before filing.</div>
+          <div id="invBotThread" style="display:flex;flex-direction:column;gap:10px;max-height:40vh;overflow-y:auto;margin-bottom:10px;"></div>
+          <div id="invBotDraftCard" class="hidden" style="border:1.5px solid var(--green-line);border-radius:var(--radius);background:var(--green-soft);padding:12px;margin-bottom:10px;">
+            <div style="font-family:var(--serif);color:var(--green-1);font-weight:600;margin-bottom:6px;">Draft</div>
+            <div id="invBotDraftSummary" style="font-size:13px;line-height:1.55;white-space:pre-wrap;"></div>
+            <textarea id="invBotDocText" readonly style="width:100%;margin-top:8px;min-height:140px;font-family:var(--mono);font-size:12px;line-height:1.55;"></textarea>
+            <button class="btn btn-secondary" id="invBotCopyBtn" style="margin-top:6px;width:auto;padding:7px 14px;font-size:13px;">Copy as document</button>
+          </div>
+          <form id="invBotForm" style="display:flex;gap:8px;align-items:flex-end;">
+            <div class="field" style="margin:0;flex:1;"><textarea id="invBotInput" placeholder="Describe the situation or ask a question…" style="min-height:48px;"></textarea></div>
+            <button type="submit" class="btn btn-primary" id="invBotSendBtn">Send</button>
+          </form>
+          <button class="btn btn-ghost" id="invBotClearBtn" style="margin-top:6px;font-size:12.5px;">Clear chat</button>
+        </div>
+
+        <!-- Close / convert actions -->
+        <div id="invCloseConvertPanel" style="display:flex;gap:10px;flex-wrap:wrap;"></div>
+      </div>
+
+      <!-- Empty state when no investigation selected -->
+      <div id="investigationEmptyState" style="padding:40px;text-align:center;color:var(--grey);">
+        <div style="font-size:40px;margin-bottom:12px;">&#128269;</div>
+        <div style="font-size:14px;">Select an investigation from the list to view details, or start a new one.</div>
+      </div>
+    </div>
+
+    <!-- Close investigation modal -->
+    <div class="modal-overlay" id="closeInvModalOverlay">
+      <div class="modal" style="max-width:420px;">
+        <h3 style="font-family:var(--serif);color:var(--green-1);margin-bottom:16px;">Close investigation</h3>
+        <div class="field"><label for="closeInvReason">Reason <span style="color:var(--red);">*</span></label>
+          <select id="closeInvReason">
+            <option value="">— Select —</option>
+            <option value="no_violation">No Violation — no contract violation found</option>
+            <option value="resolved">Resolved — settled informally</option>
+            <option value="withdrew">Withdrew — grievant chose to withdraw</option>
+            <option value="other">Other</option>
+          </select>
+        </div>
+        <div class="field"><label for="closeInvNotes">Notes</label><textarea id="closeInvNotes" placeholder="Any additional context…" style="min-height:70px;"></textarea></div>
+        <div style="display:flex;gap:10px;justify-content:flex-end;">
+          <button class="btn btn-ghost" id="closeInvCancelBtn">Cancel</button>
+          <button class="btn btn-primary" id="closeInvConfirmBtn">Close investigation</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Convert modal -->
+    <div class="modal-overlay" id="convertInvModalOverlay">
+      <div class="modal" style="max-width:420px;">
+        <h3 style="font-family:var(--serif);color:var(--green-1);margin-bottom:10px;">Convert to formal grievance</h3>
+        <p style="font-size:13px;color:var(--grey);margin-bottom:16px;">All investigation data — the employee's statement, witness statements, and your logbook — will carry over. You'll be taken to the Intake Form with it pre-filled.</p>
+        <div class="field"><label for="convertGrievanceId">Grievance ID <span style="color:var(--red);">*</span></label><input type="text" id="convertGrievanceId" placeholder="e.g. G-2026-047"></div>
+        <div style="display:flex;gap:10px;justify-content:flex-end;">
+          <button class="btn btn-ghost" id="convertInvCancelBtn">Cancel</button>
+          <button class="btn btn-primary" id="convertInvConfirmBtn">Convert &amp; open intake form</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- New investigation modal -->
+    <div class="modal-overlay" id="newInvModalOverlay">
+      <div class="modal" style="max-width:420px;">
+        <h3 style="font-family:var(--serif);color:var(--green-1);margin-bottom:16px;">New investigation</h3>
+        <div class="field"><label for="newInvSteward">Assigned steward</label><select id="newInvSteward"></select></div>
+        <div class="field" id="newInvLocationField"><label for="newInvLocation">Location</label><select id="newInvLocation"></select></div>
+        <div style="display:flex;gap:10px;justify-content:flex-end;">
+          <button class="btn btn-ghost" id="newInvCancelBtn">Cancel</button>
+          <button class="btn btn-primary" id="newInvConfirmBtn">Create investigation</button>
+        </div>
+      </div>
     </div>
   </section>
 
@@ -2357,8 +2483,306 @@ $('cpSaveBtn').addEventListener('click', async ()=>{
 });
 
 /* ===================================================================
-   AUTHENTICATION — login screen, session check, logout
+   INVESTIGATIONS
    =================================================================== */
+
+let INV_STATE = { investigations: [], current: null };
+let invBotMessages = [];
+let invBotChunkIds = null;
+let invBotLatestDraft = null;
+let invBotBusy = false;
+
+async function loadInvestigations(){
+  try{
+    const data = await apiGet('/api/investigations');
+    INV_STATE.investigations = data.investigations || [];
+    renderInvestigationList();
+    if(INV_STATE.current){
+      const updated = INV_STATE.investigations.find(i=>i.id===INV_STATE.current.id);
+      if(updated) selectInvestigation(updated, false);
+    }
+  }catch(err){ console.error('[investigations] load error:', err); }
+}
+
+function invStatusPill(status, closeReason){
+  const map = {
+    open: ['pill-pending','Open'],
+    closed: ['pill-resolved','Closed'],
+    converted: ['pill-resolved','Converted ➜ Grievance']
+  };
+  const [cls, label] = map[status] || ['pill-pending', status];
+  const extra = status==='closed' && closeReason
+    ? ` (${closeReason.replace('_',' ')})`:'';
+  return `<span class="pill ${cls}">${label}${extra}</span>`;
+}
+
+function renderInvestigationList(){
+  const container = $('investigationsList');
+  const invs = INV_STATE.investigations;
+  if(!invs.length){
+    container.innerHTML = '<div style="font-size:13px;color:var(--grey);padding:12px 0;">No investigations yet. Click "+ New investigation" to start one.</div>';
+    return;
+  }
+  container.innerHTML = invs.map(inv=>{
+    const isSelected = INV_STATE.current && INV_STATE.current.id === inv.id;
+    return `<div class="inv-list-card${isSelected?' inv-list-selected':''}" data-inv-id="${escapeHtml(inv.id)}" style="border:1.5px solid ${isSelected?'var(--green-2)':'var(--green-line)'};border-radius:var(--radius);background:${isSelected?'var(--green-soft)':'#fff'};padding:12px;cursor:pointer;">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;">
+        <span style="font-weight:700;font-size:13.5px;color:var(--green-1);">${escapeHtml(inv.id)}</span>
+        ${invStatusPill(inv.status, inv.closeReason)}
+      </div>
+      <div style="font-size:12.5px;color:var(--grey);margin-top:4px;">${escapeHtml(inv.employee||'Employee TBD')} &middot; ${escapeHtml(inv.location||'')}</div>
+      <div style="font-size:12px;color:var(--grey);margin-top:2px;">${escapeHtml(inv.steward||'')} &middot; ${inv.createdAt?inv.createdAt.slice(0,10):''}</div>
+    </div>`;
+  }).join('');
+  container.querySelectorAll('[data-inv-id]').forEach(el=>{
+    el.addEventListener('click', ()=>{
+      const inv = INV_STATE.investigations.find(i=>i.id===el.dataset.invId);
+      if(inv) selectInvestigation(inv);
+    });
+  });
+}
+
+function selectInvestigation(inv, resetBot=true){
+  INV_STATE.current = inv;
+  if(resetBot){ invBotMessages=[]; invBotChunkIds=null; invBotLatestDraft=null; }
+  renderInvestigationList(); // update selection highlight
+  renderInvestigationDetail(inv);
+  $('investigationDetail').style.display = '';
+  $('investigationEmptyState').style.display = 'none';
+}
+
+function renderInvestigationDetail(inv){
+  $('invDetailId').textContent = inv.id;
+  $('invDetailStatus').innerHTML = invStatusPill(inv.status, inv.closeReason) +
+    (inv.convertedGrievanceId ? ` <span style="font-size:12px;color:var(--grey);">Grievance: ${escapeHtml(inv.convertedGrievanceId)}</span>` : '');
+
+  $('invDetailMeta').innerHTML = [
+    `<div><span style="color:var(--grey);font-size:12px;">Employee</span><div>${escapeHtml(inv.employee||'(not set)')}</div></div>`,
+    `<div><span style="color:var(--grey);font-size:12px;">Location</span><div>${escapeHtml(inv.location||'(not set)')}</div></div>`,
+    `<div><span style="color:var(--grey);font-size:12px;">Steward</span><div>${escapeHtml(inv.steward||'(not set)')}</div></div>`,
+    `<div><span style="color:var(--grey);font-size:12px;">Opened</span><div>${inv.createdAt?inv.createdAt.slice(0,10):''}</div></div>`,
+    inv.incidentDates?`<div><span style="color:var(--grey);font-size:12px;">Incident date(s)</span><div>${escapeHtml(inv.incidentDates)}</div></div>`:'',
+  ].join('');
+
+  // Actions
+  const actions = $('invDetailActions');
+  if(inv.status==='open'){
+    actions.innerHTML = `
+      <button class="btn btn-secondary" id="invCloseBtn" style="font-size:13px;padding:7px 12px;">Close case</button>
+      <button class="btn btn-primary" id="invConvertBtn" style="font-size:13px;padding:7px 12px;">Convert ➜ Grievance</button>`;
+    $('invCloseBtn').addEventListener('click',()=>{
+      $('closeInvModalOverlay').classList.add('show');
+    });
+    $('invConvertBtn').addEventListener('click',()=>{
+      $('convertInvModalOverlay').classList.add('show');
+    });
+  } else {
+    actions.innerHTML = `<span style="font-size:12.5px;color:var(--grey);">Case ${inv.status}</span>`;
+  }
+
+  // Grievant intake
+  const sub = inv.grievantSubmission;
+  if(sub && sub.data){
+    $('invGrievantSubmission').innerHTML = `<div style="font-size:13px;background:var(--green-soft);border-radius:8px;padding:10px;line-height:1.6;">
+      <b>&#10003; Statement received</b> (${sub.submittedAt?sub.submittedAt.slice(0,10):''})<br>
+      <span style="color:var(--grey);">From:</span> ${escapeHtml(sub.data.name||'')} &lt;${escapeHtml(sub.data.email||'')}&gt;<br>
+      <span style="color:var(--grey);">Incident:</span> ${escapeHtml(sub.data.incidentDate||'')} — ${escapeHtml(sub.data.description||'').slice(0,160)}${(sub.data.description||'').length>160?'…':''}
+    </div>`;
+    $('invSendGrievantBtn').style.display = 'none';
+  } else {
+    $('invGrievantSubmission').textContent = '';
+    $('invSendGrievantBtn').style.display = inv.status==='open' ? '' : 'none';
+  }
+
+  // Logbook
+  const entries = inv.logbook || [];
+  $('invLogbookEntries').innerHTML = entries.length
+    ? entries.map(e=>`<div style="border-left:3px solid var(--green-line);padding:6px 10px;font-size:13px;">
+        <div style="font-size:11.5px;color:var(--grey);margin-bottom:3px;">${escapeHtml(e.date)} &middot; ${escapeHtml(e.steward)}</div>
+        <div style="white-space:pre-wrap;">${escapeHtml(e.entry)}</div>
+      </div>`).join('')
+    : '<div style="color:var(--grey);font-size:12.5px;">No logbook entries yet.</div>';
+
+  // Show/hide logbook form and bot panel based on status
+  const isOpen = inv.status==='open';
+  $('invLogbookForm').style.display = isOpen ? '' : 'none';
+
+  const botAllowed = CURRENT_USER && (CURRENT_USER.role==='admin'||CURRENT_USER.role==='steward_plus');
+  $('invBotPanel').style.display = botAllowed ? '' : 'none';
+  if(botAllowed){ renderInvBotThread(); renderInvBotDraft(); }
+}
+
+// ── Grievant link generation ──
+$('invSendGrievantBtn').addEventListener('click', async ()=>{
+  if(!INV_STATE.current) return;
+  try{
+    const data = await apiPost('/api/investigation/grievant-link', { id: INV_STATE.current.id });
+    const link = `${location.origin}/intake/${data.token}`;
+    const box = $('invGrievantLinkBox');
+    box.innerHTML = `<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+      <input type="text" value="${escapeHtml(link)}" readonly style="flex:1;font-family:var(--mono);font-size:12px;">
+      <button class="btn btn-secondary" id="copyGrievantLinkBtn" style="width:auto;padding:6px 12px;font-size:13px;">Copy link</button>
+    </div>
+    <div class="field-note">Send this link to the grievant. It expires in 7 days and can only be submitted once.</div>`;
+    box.style.display = '';
+    $('copyGrievantLinkBtn').addEventListener('click', async ()=>{
+      try{ await navigator.clipboard.writeText(link); }catch(e){ document.querySelector('#invGrievantLinkBox input').select(); document.execCommand('copy'); }
+      toast('Grievant link copied.');
+    });
+  }catch(err){ toast(err.message||'Could not generate link.','err'); }
+});
+
+// ── Add logbook entry ──
+$('invAddLogBtn').addEventListener('click', async ()=>{
+  if(!INV_STATE.current) return;
+  const text = $('invLogEntryText').value.trim();
+  if(!text){ toast('Enter a log entry first.','err'); return; }
+  try{
+    await apiPost('/api/investigation/logbook', { id: INV_STATE.current.id, entry: text });
+    $('invLogEntryText').value = '';
+    await loadInvestigations();
+    toast('Log entry added.');
+  }catch(err){ toast(err.message||'Could not add entry.','err'); }
+});
+
+// ── Close investigation modal ──
+$('closeInvCancelBtn').addEventListener('click',()=>$('closeInvModalOverlay').classList.remove('show'));
+$('closeInvConfirmBtn').addEventListener('click', async ()=>{
+  const reason = $('closeInvReason').value;
+  if(!reason){ toast('Select a close reason.','err'); return; }
+  const notes = $('closeInvNotes').value.trim();
+  try{
+    await apiPost('/api/investigation/close', { id: INV_STATE.current.id, reason, notes });
+    $('closeInvModalOverlay').classList.remove('show');
+    toast('Investigation closed.');
+    await loadInvestigations();
+  }catch(err){ toast(err.message||'Could not close.','err'); }
+});
+
+// ── Convert to grievance modal ──
+$('convertInvCancelBtn').addEventListener('click',()=>$('convertInvModalOverlay').classList.remove('show'));
+$('convertInvConfirmBtn').addEventListener('click', async ()=>{
+  const gid = $('convertGrievanceId').value.trim();
+  if(!gid){ toast('Enter a grievance ID.','err'); return; }
+  try{
+    const data = await apiPost('/api/investigation/convert', { id: INV_STATE.current.id, grievanceId: gid });
+    const pre = data.preFilledGrievance;
+    $('convertInvModalOverlay').classList.remove('show');
+    // Pre-fill the formal intake form and switch to it
+    resetForm();
+    $('f-gid').value = pre.id;
+    $('f-name').value = pre.employee||'';
+    $('f-grievant-email').value = pre.grievantEmail||'';
+    $('f-description').value = pre.description||'';
+    setLocationFieldValue(pre.location||'');
+    if(pre.steward){ const sel=$('f-steward'); if(sel) sel.value=pre.steward; }
+    recalcDeadlines();
+    switchTab('intake');
+    toast(`Investigation ${INV_STATE.current.id} converted — intake form pre-filled. Review and submit to formally file.`);
+    await loadInvestigations();
+  }catch(err){ toast(err.message||'Could not convert.','err'); }
+});
+
+// ── New investigation modal ──
+$('newInvestigationBtn').addEventListener('click',()=>{
+  const locSel = $('newInvLocation');
+  const allLocs = SETUP.Location||[];
+  const userLocs = (CURRENT_USER&&Array.isArray(CURRENT_USER.locations))?CURRENT_USER.locations:[];
+  const isAdminUser = !!(CURRENT_USER&&(CURRENT_USER.role==='admin'||!CURRENT_USER.username));
+  const opts = isAdminUser ? allLocs : userLocs;
+  if(opts.length<=1) $('newInvLocationField').style.display='none';
+  else $('newInvLocationField').style.display='';
+  locSel.innerHTML = opts.map(l=>`<option value="${escapeHtml(l)}">${escapeHtml(l)}</option>`).join('');
+  fillSelect($('newInvSteward'), SETUP.Steward||[]);
+  $('newInvModalOverlay').classList.add('show');
+});
+$('newInvCancelBtn').addEventListener('click',()=>$('newInvModalOverlay').classList.remove('show'));
+$('newInvConfirmBtn').addEventListener('click', async ()=>{
+  const locSel = $('newInvLocation');
+  const userLocs = (CURRENT_USER&&Array.isArray(CURRENT_USER.locations))?CURRENT_USER.locations:[];
+  const isAdminUser = !!(CURRENT_USER&&(CURRENT_USER.role==='admin'||!CURRENT_USER.username));
+  const location = isAdminUser||userLocs.length>1 ? locSel.value : (userLocs[0]||'');
+  const steward = $('newInvSteward').value;
+  try{
+    const data = await apiPost('/api/investigation', { location, steward });
+    $('newInvModalOverlay').classList.remove('show');
+    await loadInvestigations();
+    const fresh = INV_STATE.investigations.find(i=>i.id===data.investigation.id);
+    if(fresh) selectInvestigation(fresh);
+    toast(`Investigation ${data.investigation.id} created.`);
+  }catch(err){ toast(err.message||'Could not create.','err'); }
+});
+
+// ── Investigation AI draft bot ──
+function renderInvBotThread(){
+  const thread = $('invBotThread');
+  if(!thread) return;
+  thread.innerHTML = invBotMessages.map(m=>{
+    const cls = m.role==='user'?'user':(m.error?'bot error':'bot');
+    return `<div class="chat-bubble ${cls}">${escapeHtml(m.content)}</div>`;
+  }).join('') + (invBotBusy?`<div class="chat-bubble bot pending">Thinking…</div>`:'');
+  thread.scrollTop = thread.scrollHeight;
+}
+function renderInvBotDraft(){
+  const card = $('invBotDraftCard');
+  if(!card) return;
+  if(!invBotLatestDraft){ card.classList.add('hidden'); return; }
+  card.classList.remove('hidden');
+  const d = invBotLatestDraft;
+  $('invBotDraftSummary').textContent = [
+    d.article?`CBA article: ${d.article}`:'',
+    d.section?`Section: ${d.section}`:'',
+    d.description?`Description: ${d.description}`:'',
+  ].filter(Boolean).join('\n');
+  const doc = [
+    'STATEMENT OF GRIEVANCE',
+    'AFSCME Council 31 — Master Contract 2023–2027','',
+    `Employee: __________________________     Date: ${new Date().toLocaleDateString('en-US',{year:'numeric',month:'long',day:'numeric'})}`,
+    `Steward: __________________________`,'',
+    d.article||d.section?`CBA Provision Cited: ${[d.article,d.section].filter(Boolean).join(', ')}`:'',
+    d.type?`Grievance Type: ${d.type}`:'',
+    '','STATEMENT OF GRIEVANCE:',
+    d.statement||d.description||'',
+    '',d.quote?`Contract Language Relied Upon (verbatim — verify):\n"${d.quote}"`:'',
+    '','RELIEF SOUGHT:',d.remedy||'',
+    '','— Drafted from Investigation '+((INV_STATE.current&&INV_STATE.current.id)||''),
+    '— Verify all facts, dates, and citations before filing.'
+  ].filter(l=>l!==undefined).join('\n');
+  $('invBotDocText').value = doc;
+}
+$('invBotCopyBtn')?.addEventListener('click', async ()=>{
+  const text = $('invBotDocText').value;
+  try{ await navigator.clipboard.writeText(text); }catch(e){ $('invBotDocText').select(); document.execCommand('copy'); }
+  toast('Draft copied.');
+});
+$('invBotClearBtn')?.addEventListener('click',()=>{
+  invBotMessages=[]; invBotChunkIds=null; invBotLatestDraft=null;
+  renderInvBotThread(); renderInvBotDraft();
+});
+$('invBotForm')?.addEventListener('submit', async (e)=>{
+  e.preventDefault();
+  if(invBotBusy||!INV_STATE.current) return;
+  const input = $('invBotInput');
+  const text = input.value.trim();
+  if(!text) return;
+  input.value='';
+  invBotMessages.push({role:'user',content:text});
+  invBotBusy=true; renderInvBotThread();
+  try{
+    const data = await apiPost('/api/investigation/draft-chat', {
+      messages: invBotMessages.map(m=>({role:m.role,content:m.content})),
+      investigationId: INV_STATE.current.id,
+      chunkIds: invBotChunkIds
+    });
+    invBotMessages.push({role:'assistant',content:data.reply});
+    if(data.chunkIds) invBotChunkIds = data.chunkIds;
+    if(data.draft){ invBotLatestDraft=data.draft; renderInvBotDraft(); }
+  }catch(err){
+    invBotMessages.push({role:'assistant',content:'Error: '+(err.message||'unavailable'),error:true});
+  }finally{
+    invBotBusy=false; renderInvBotThread();
+  }
+});
 
 let CURRENT_USER = null;
 
@@ -2647,6 +3071,7 @@ async function bootApp(){
   recalcDeadlines();
   await loadUserList();
   await refresh();
+  await loadInvestigations();
   await refreshEmailStatus();
   renderSettingsCounts();
   $('f-gid').focus();
@@ -2656,7 +3081,7 @@ let pollingStarted = false;
 function startBackgroundPolling(){
   if(pollingStarted) return;
   pollingStarted = true;
-  setInterval(()=>refresh(true), 15000); // keep all stewards' views in sync (background poll — preserves in-progress form data)
+  setInterval(()=>{ refresh(true); loadInvestigations(); }, 15000);
   setInterval(()=>refreshEmailStatus(), 60000);
 }
 
