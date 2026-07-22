@@ -953,6 +953,19 @@ async function submitInvestigationForm(token, formData) {
   return { ok: true };
 }
 
+async function archiveInvestigation(id) {
+  const inv = await getInvestigation(id);
+  if (!inv) throw new Error(`Investigation ${id} not found.`);
+  if (inv.status === "open") throw new Error("Cannot archive an open investigation — close or convert it first.");
+  return updateInvestigation(id, { archived: true, archivedAt: new Date().toISOString() });
+}
+
+async function unarchiveInvestigation(id) {
+  const inv = await getInvestigation(id);
+  if (!inv) throw new Error(`Investigation ${id} not found.`);
+  return updateInvestigation(id, { archived: false, archivedAt: null });
+}
+
 module.exports = {
   getAll, readRaw, writeRawAtomic, withLock, logEmailAttempt,
   submitGrievance, logActivity, archiveClosed, sendCourtesyNotice,
@@ -964,5 +977,6 @@ module.exports = {
   // Investigation workflow
   createInvestigation, getInvestigation, getAllInvestigations, updateInvestigation,
   addInvestigationLogEntry, closeInvestigation, convertInvestigationToGrievance,
-  createInvestigationToken, getInvestigationByToken, submitInvestigationForm
+  createInvestigationToken, getInvestigationByToken, submitInvestigationForm,
+  archiveInvestigation, unarchiveInvestigation
 };

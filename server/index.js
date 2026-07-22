@@ -484,6 +484,24 @@ const server = http.createServer(async (req, res) => {
       return sendJson(res, 200, { token, expiresAt });
     }
 
+    if (pathname === "/api/investigation/archive" && req.method === "POST") {
+      const body = await readBody(req);
+      const inv = await db.getInvestigation(body.id);
+      if (!inv) return sendJson(res, 404, { error: "Investigation not found." });
+      if (!canAccessLocation(currentUser, inv.location)) return sendJson(res, 403, { error: "Access denied." });
+      const updated = await db.archiveInvestigation(body.id);
+      return sendJson(res, 200, { investigation: updated });
+    }
+
+    if (pathname === "/api/investigation/unarchive" && req.method === "POST") {
+      const body = await readBody(req);
+      const inv = await db.getInvestigation(body.id);
+      if (!inv) return sendJson(res, 404, { error: "Investigation not found." });
+      if (!canAccessLocation(currentUser, inv.location)) return sendJson(res, 403, { error: "Access denied." });
+      const updated = await db.unarchiveInvestigation(body.id);
+      return sendJson(res, 200, { investigation: updated });
+    }
+
     if (pathname === "/api/investigation/draft-chat" && req.method === "POST") {
       if (!canUseBot(currentUser)) return sendJson(res, 403, { error: "No bot access." });
       const body = await readBody(req);
