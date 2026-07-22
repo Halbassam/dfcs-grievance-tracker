@@ -2334,22 +2334,18 @@ function renderSettingsCounts(isBackgroundPoll){
   $('locationCount').textContent = (SETUP.Location||[]).length;
   $('userCount').textContent = (window._userListCache||[]).length;
   if(typeof renderOtherListsButtons === 'function') renderOtherListsButtons();
-  renderLocationContactsPanel();
 
-  // Org settings fields — don't overwrite while an admin is mid-typing
-  // during a silent background poll. Location is now a <select>, not a
-  // free-text input, so .value still works the same way -- no special
-  // handling needed -- but focus-check on it still works too.
-  const orgFields = ['orgAgencyInput','orgLocalNoInput','orgBureauInput','orgLocationInput','orgCountyInput','orgShiftInput','orgManagementEmailInput'];
-  const anyFocused = orgFields.some(id => document.activeElement === $(id));
-  if(!isBackgroundPoll || !anyFocused){
+  // Skip re-rendering editable settings panels during background polls.
+  // Both panels completely replace their innerHTML, which destroys any
+  // unsaved text the admin is mid-typing -- the only safe rule is: during
+  // a background poll, leave every settings field exactly as it is.
+  if(!isBackgroundPoll){
+    renderLocationContactsPanel();
+
+    // Org settings fields
     $('orgAgencyInput')   && ($('orgAgencyInput').value   = ORG_SETTINGS.agency   || '');
     $('orgLocalNoInput')  && ($('orgLocalNoInput').value  = ORG_SETTINGS.localNo  || '');
     $('orgBureauInput')   && ($('orgBureauInput').value   = (ORG_SETTINGS.location && LOCATION_DETAILS[ORG_SETTINGS.location] && LOCATION_DETAILS[ORG_SETTINGS.location].bureau) || ORG_SETTINGS.bureau || '');
-    // Location is now a <select> populated from the Location list --
-    // populateDropdowns() handles setting its options AND the selected value,
-    // so we only need to set it here when populateDropdowns() wasn't just called
-    // (i.e. background polls that skipped it due to a form being open).
     const orgLocSel = $('orgLocationInput');
     if(orgLocSel && orgLocSel.tagName === 'SELECT'){
       if(Array.from(orgLocSel.options).some(o => o.value === (ORG_SETTINGS.location || '')))
