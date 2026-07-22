@@ -431,19 +431,21 @@ footer.app-foot{text-align:center;color:var(--grey);font-size:11.5px;padding:30p
 
     <!-- Close investigation modal -->
     <div class="modal-overlay" id="closeInvModalOverlay">
-      <div class="modal" style="max-width:420px;">
-        <h3 style="font-family:var(--serif);color:var(--green-1);margin-bottom:16px;">Close investigation</h3>
-        <div class="field"><label for="closeInvReason">Reason <span style="color:var(--red);">*</span></label>
-          <select id="closeInvReason">
-            <option value="">— Select —</option>
-            <option value="no_violation">No Violation — no contract violation found</option>
-            <option value="resolved">Resolved — settled informally</option>
-            <option value="withdrew">Withdrew — grievant chose to withdraw</option>
-            <option value="other">Other</option>
-          </select>
+      <div class="modal">
+        <div class="modal-head"><h3>Close investigation</h3></div>
+        <div class="modal-body">
+          <div class="field"><label for="closeInvReason">Reason <span style="color:#fca;">*</span></label>
+            <select id="closeInvReason">
+              <option value="">— Select —</option>
+              <option value="no_violation">No Violation — no contract violation found</option>
+              <option value="resolved">Resolved — settled informally</option>
+              <option value="withdrew">Withdrew — grievant chose to withdraw</option>
+              <option value="other">Other</option>
+            </select>
+          </div>
+          <div class="field"><label for="closeInvNotes">Notes</label><textarea id="closeInvNotes" placeholder="Any additional context…" style="min-height:80px;"></textarea></div>
         </div>
-        <div class="field"><label for="closeInvNotes">Notes</label><textarea id="closeInvNotes" placeholder="Any additional context…" style="min-height:70px;"></textarea></div>
-        <div style="display:flex;gap:10px;justify-content:flex-end;">
+        <div class="modal-foot">
           <button class="btn btn-ghost" id="closeInvCancelBtn">Cancel</button>
           <button class="btn btn-primary" id="closeInvConfirmBtn">Close investigation</button>
         </div>
@@ -452,11 +454,13 @@ footer.app-foot{text-align:center;color:var(--grey);font-size:11.5px;padding:30p
 
     <!-- Convert modal -->
     <div class="modal-overlay" id="convertInvModalOverlay">
-      <div class="modal" style="max-width:420px;">
-        <h3 style="font-family:var(--serif);color:var(--green-1);margin-bottom:10px;">Convert to formal grievance</h3>
-        <p style="font-size:13px;color:var(--grey);margin-bottom:16px;">All investigation data — the employee's statement, witness statements, and your logbook — will carry over. You'll be taken to the Intake Form with it pre-filled.</p>
-        <div class="field"><label for="convertGrievanceId">Grievance ID <span style="color:var(--red);">*</span></label><input type="text" id="convertGrievanceId" placeholder="e.g. G-2026-047"></div>
-        <div style="display:flex;gap:10px;justify-content:flex-end;">
+      <div class="modal">
+        <div class="modal-head"><h3>Convert to formal grievance</h3></div>
+        <div class="modal-body">
+          <p style="margin-bottom:16px;">All investigation data — the employee's statement and your logbook — will carry over. You'll be taken to the Intake Form with it pre-filled for review before formally submitting.</p>
+          <div class="field"><label for="convertGrievanceId">Grievance ID <span style="color:#fca;">*</span></label><input type="text" id="convertGrievanceId" placeholder="e.g. G-2026-047"></div>
+        </div>
+        <div class="modal-foot">
           <button class="btn btn-ghost" id="convertInvCancelBtn">Cancel</button>
           <button class="btn btn-primary" id="convertInvConfirmBtn">Convert &amp; open intake form</button>
         </div>
@@ -465,13 +469,15 @@ footer.app-foot{text-align:center;color:var(--grey);font-size:11.5px;padding:30p
 
     <!-- New investigation modal -->
     <div class="modal-overlay" id="newInvModalOverlay">
-      <div class="modal" style="max-width:420px;">
-        <h3 style="font-family:var(--serif);color:var(--green-1);margin-bottom:16px;">New investigation</h3>
-        <div class="field"><label for="newInvEmployee">Employee name <span style="color:var(--red);">*</span></label><input type="text" id="newInvEmployee" placeholder="Full name of the employee raising the concern"></div>
-        <div class="field"><label for="newInvContactEmail">Employee email</label><input type="email" id="newInvContactEmail" placeholder="For the grievant intake form link (optional now)"></div>
-        <div class="field"><label for="newInvSteward">Assigned steward</label><select id="newInvSteward"></select></div>
-        <div class="field" id="newInvLocationField"><label for="newInvLocation">Location</label><select id="newInvLocation"></select></div>
-        <div style="display:flex;gap:10px;justify-content:flex-end;">
+      <div class="modal">
+        <div class="modal-head"><h3>New investigation</h3></div>
+        <div class="modal-body">
+          <div class="field"><label for="newInvEmployee">Employee name <span style="color:#fca;">*</span></label><input type="text" id="newInvEmployee" placeholder="Full name of the employee raising the concern"></div>
+          <div class="field"><label for="newInvContactEmail">Employee email <span style="font-weight:400;color:rgba(255,255,255,0.6);"></span></label><input type="email" id="newInvContactEmail" placeholder="Optional — used when sending the grievant intake link"></div>
+          <div class="field"><label for="newInvSteward">Assigned steward</label><select id="newInvSteward"></select></div>
+          <div class="field" id="newInvLocationField"><label for="newInvLocation">Location</label><select id="newInvLocation"></select></div>
+        </div>
+        <div class="modal-foot">
           <button class="btn btn-ghost" id="newInvCancelBtn">Cancel</button>
           <button class="btn btn-primary" id="newInvConfirmBtn">Create investigation</button>
         </div>
