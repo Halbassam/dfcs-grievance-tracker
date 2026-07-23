@@ -32,11 +32,12 @@ const STEP_LABELS = {
   step3: "Step 3 (Agency Head)"
 };
 
-function buildStepEmailBody(rec, step) {
+function buildStepEmailBody(rec, step, localNo) {
+  const localTag = localNo ? `AFSCME Local ${localNo}` : "AFSCME Council 31";
   const lines = [];
   lines.push(`Dear ${rec.employee || "Grievant"},`);
   lines.push("");
-  lines.push(`This is an update on your grievance (Case ${rec.id}).`);
+  lines.push(`This is an update on your grievance (Case ${rec.id}) filed with ${localTag}.`);
   lines.push("");
 
   if (step === "step1") {
@@ -63,7 +64,7 @@ function buildStepEmailBody(rec, step) {
   lines.push("");
   lines.push("Your steward will keep you informed as your case progresses. If you have questions in the meantime, please reach out to your steward directly.");
   lines.push("");
-  lines.push("— AFSCME Council 31 FCRC Grievance Tracker (automated notification)");
+  lines.push(`— ${localTag} | FCRC Grievance Tracker (automated notification)`);
   return lines.join("\n");
 }
 
@@ -93,11 +94,14 @@ async function sendGrievantStepNotifications(rec, newlyFiledSteps) {
     return summary;
   }
 
+  const localNo = await db.getOrgLocalNo().catch(() => "");
+  const localTag = localNo ? `AFSCME Local ${localNo}` : "AFSCME Council 31";
+
   const stepsToNotify = ["step1", "step2", "step3"].filter(s => newlyFiledSteps && newlyFiledSteps[s]);
   for (const step of stepsToNotify) {
     summary.attempted.push(step);
-    const subject = `Grievance Update — ${rec.id} filed at ${STEP_LABELS[step]}`;
-    const text = buildStepEmailBody(rec, step);
+    const subject = `[${localTag}] Grievance Update — ${rec.id} filed at ${STEP_LABELS[step]}`;
+    const text = buildStepEmailBody(rec, step, localNo);
     for (const to of recipients) {
       try {
         await sendMail({ apiKey, senderEmail, to, subject, text });

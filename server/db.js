@@ -237,15 +237,19 @@ async function sendCourtesyNotice(gid, step) {
     const dueDateISO = toISODate(dueDate);
 
     const stepLabel = step === "step1" ? "Step 1 (Oral Grievance)" : "Step 2 (Written Grievance)";
-    const subject = `Courtesy Reminder: ${stepLabel} response due ${dueDateISO} — Grievance ${gid}`;
+    const localNo = await getOrgLocalNo().catch(() => "");
+    const localTag = localNo ? `AFSCME Local ${localNo}` : "AFSCME Council 31";
+    const subject = `[${localTag}] Courtesy Reminder: ${stepLabel} response due ${dueDateISO} — Grievance ${gid}`;
     const text = [
       `This is a courtesy reminder regarding Grievance ${gid} (${rec.employee || ""}).`,
+      "",
+      `${localTag} — FCRC Grievance Tracker`,
       "",
       `A response at ${stepLabel} is due by ${dueDateISO} under the Master Agreement.`,
       "",
       "This notice is sent as a courtesy and does not waive or extend any contractual deadline.",
       "",
-      `— AFSCME Council 31 FCRC${rec.steward ? ", " + rec.steward : ""}`
+      `— ${localTag} | FCRC${rec.steward ? ", " + rec.steward : ""}`
     ].join("\n");
 
     const { sendMail } = require("./mailer");
@@ -394,6 +398,13 @@ async function updateHolidays(holidays) {
       await client.query("insert into holidays (date, name) values ($1, $2)", [h.date, h.name]);
   });
   return { ok: true, count: clean.length };
+}
+
+/** Reads the AFSCME Local number from org settings for use in email
+ *  subjects and bodies. Returns a string like "2858", or "" if not set. */
+async function getOrgLocalNo() {
+  const res = await query("select value from app_meta where key = 'orgLocalNo'");
+  return (res.rows[0] && res.rows[0].value) ? res.rows[0].value.trim() : "";
 }
 
 async function updateOrgSettings({ agency, localNo, bureau, location, county, shift, managementEmail }) {
@@ -970,7 +981,7 @@ module.exports = {
   getAll, readRaw, writeRawAtomic, withLock, logEmailAttempt,
   submitGrievance, logActivity, archiveClosed, sendCourtesyNotice,
   updateStewards, updateSetupList, getSetupList, updateHolidays, updateOrgSettings,
-  getLocationDetails, updateLocationDetails,
+  getLocationDetails, updateLocationDetails, getOrgLocalNo,
   findUpcomingDeadlines, SIMPLE_SETUP_KEYS, getGrievanceLocationById,
   hasAnyUsers, listUsersSafe, upsertUser, deleteUser,
   verifyLogin, createSession, getSessionUser, destroySession,

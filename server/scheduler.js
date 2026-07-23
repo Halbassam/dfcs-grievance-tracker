@@ -28,7 +28,8 @@ function todayISO() {
   return `${map.year}-${map.month}-${map.day}`;
 }
 
-function buildEmailBody(stewardName, items) {
+function buildEmailBody(stewardName, items, localNo) {
+  const localTag = localNo ? `AFSCME Local ${localNo}` : "AFSCME Council 31";
   const overdue = items.filter(i => i.daysAway < 0).sort((a, b) => a.daysAway - b.daysAway);
   const upcoming = items.filter(i => i.daysAway >= 0).sort((a, b) => a.daysAway - b.daysAway);
 
@@ -62,7 +63,7 @@ function buildEmailBody(stewardName, items) {
   lines.push("Log in to the FCRC Grievance Tracker for full case details:");
   lines.push("https://dfcs-grievance-tracker.onrender.com");
   lines.push("");
-  lines.push("— AFSCME Council 31 FCRC Grievance Tracker (automated reminder)");
+  lines.push(`— ${localTag} | FCRC Grievance Tracker (automated reminder)`);
   return lines.join("\n");
 }
 
@@ -75,6 +76,9 @@ async function runDeadlineCheck() {
     summary.errors.push("BREVO_API_KEY or BREVO_SENDER_EMAIL not set — no emails sent. See server/mailer.js for setup steps.");
     return summary;
   }
+
+  const localNo = await db.getOrgLocalNo().catch(() => "");
+  const localTag = localNo ? `AFSCME Local ${localNo}` : "FCRC Grievance Tracker";
 
   const upcoming = await db.findUpcomingDeadlines(REMINDER_WINDOW_DAYS);
 
@@ -89,13 +93,13 @@ async function runDeadlineCheck() {
   for (const [email, group] of byEmail.entries()) {
     const overdueCount = group.items.filter(i => i.daysAway < 0).length;
     const subject = overdueCount
-      ? `\u26A0 FCRC Grievance Tracker — ${overdueCount} OVERDUE deadline${overdueCount > 1 ? "s" : ""}`
-      : `FCRC Grievance Tracker — ${group.items.length} upcoming deadline${group.items.length > 1 ? "s" : ""}`;
+      ? `\u26A0 [${localTag}] ${overdueCount} OVERDUE deadline${overdueCount > 1 ? "s" : ""}`
+      : `[${localTag}] ${group.items.length} upcoming deadline${group.items.length > 1 ? "s" : ""}`;
     try {
       await sendMail({
         apiKey, senderEmail, to: email,
         subject,
-        text: buildEmailBody(group.stewardName, group.items)
+        text: buildEmailBody(group.stewardName, group.items, localNo)
       });
       summary.sent++;
       summary.stewardsNotified.push({ steward: group.stewardName, email, count: group.items.length });
