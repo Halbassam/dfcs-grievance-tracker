@@ -1,0 +1,33 @@
+name: Keep app and database alive
+
+# Runs every 3 days, well inside Supabase's 7-day inactivity window and
+# Render's much shorter sleep timer -- so both stay awake even during a
+# quiet stretch with nobody actively using the app.
+#
+# What it does: hits the app's public /api/health endpoint, which wakes
+# Render's free web service if it's asleep (the request itself does
+# that), and performs a real database write inside the app -- that
+# write is what resets Supabase's inactivity clock. Just visiting the
+# URL in a browser wouldn't be enough on its own; the endpoint exists
+# specifically to guarantee a real database query happens.
+#
+# One-time setup: replace the placeholder URL below with your actual
+# Render URL (Render dashboard -> your service -> the URL at the top,
+# looks like https://your-app-name.onrender.com).
+#
+# You can also trigger it manually any time: this repo's GitHub page ->
+# Actions tab -> "Keep app and database alive" -> Run workflow.
+
+on:
+  schedule:
+    - cron: "0 13 */3 * *"  # 13:00 UTC every 3rd day
+  workflow_dispatch: {}
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping health endpoint
+        run: |
+          curl -fsS --retry 3 --retry-delay 10 --max-time 60 \
+            "https://dfcs-grievance-tracker.onrender.com/api/health"
