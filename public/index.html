@@ -265,7 +265,20 @@ footer.app-foot{text-align:center;color:var(--grey);font-size:11.5px;padding:30p
       <form id="intakeForm" autocomplete="off">
         <div class="form-grid">
           <div class="section-divider"><span class="label">Employee &amp; case identification</span><span class="line"></span></div>
-          <div class="field"><label for="f-gid">Grievance ID <span class="req">*</span></label><input type="text" id="f-gid" placeholder="FCRC-2025-001"><div class="field-note" id="gidNote"></div></div>
+          <div class="field" id="gidField">
+            <div style="display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;">
+              <label for="f-gid" style="margin:0;">Grievance ID <span class="req">*</span></label>
+              <span id="poolStatusBadge" style="font-size:11.5px;font-weight:600;padding:1px 7px;border-radius:10px;display:none;"></span>
+            </div>
+            <div style="display:flex;gap:8px;margin-top:6px;">
+              <input type="text" id="f-gid" placeholder="FCRC-2025-001" style="flex:1;">
+              <button type="button" id="assignNextBtn" class="btn btn-secondary" style="white-space:nowrap;padding:6px 12px;font-size:13px;display:none;">Assign next</button>
+            </div>
+            <div class="field-note" id="gidNote"></div>
+            <div id="poolWarningBanner" class="notice-box notice-amber" style="display:none;margin-top:8px;font-size:13px;">
+              &#9888;&#65039; <b>Low pool warning:</b> only <span id="poolWarningCount"></span> grievance number(s) remaining. Ask the union president for a new batch and add them in <b>Settings → Grievance number pool</b>.
+            </div>
+          </div>
           <div class="field"><label for="f-name">Employee name <span class="req">*</span></label><input type="text" id="f-name" placeholder="Full name"></div>
           <div class="field"><label for="f-grievant-email">Grievant email <span style="font-weight:400;color:var(--grey);">(optional &mdash; for progress updates)</span></label><input type="text" id="f-grievant-email" placeholder="employee@illinois.gov (or several, comma-separated, for group grievances)"></div>
           <div class="field"><label for="f-job">Job classification</label><select id="f-job"></select></div>
@@ -643,6 +656,28 @@ footer.app-foot{text-align:center;color:var(--grey);font-size:11.5px;padding:30p
 
           </div>
 
+    <div class="panel panel-pad" id="grievanceNumberPoolPanel" style="margin-bottom:24px;">
+      <h3 style="font-family:var(--serif);color:var(--green-1);margin:0 0 6px;font-size:17px;">Grievance number pool</h3>
+      <p style="font-size:13px;color:var(--grey);margin:6px 0 14px;">The union president assigns batches of preset grievance numbers. Paste them here and the Intake Form will auto-assign the next one automatically. When the pool is empty, stewards type a number manually.</p>
+
+      <div id="poolStatusDisplay" style="margin-bottom:16px;padding:12px 16px;border-radius:6px;background:var(--panel-alt,#f0f5f0);font-size:13.5px;"></div>
+
+      <div style="margin-bottom:16px;">
+        <label style="font-weight:600;font-size:13px;display:block;margin-bottom:6px;">Add numbers to pool</label>
+        <textarea id="poolNumbersInput" rows="4" style="width:100%;box-sizing:border-box;font-family:monospace;font-size:13px;padding:8px 10px;border:1px solid var(--green-line);border-radius:6px;resize:vertical;" placeholder="FCRC-2026-001&#10;FCRC-2026-002&#10;FCRC-2026-003&#10;(one per line, or comma-separated)"></textarea>
+        <div style="display:flex;gap:10px;margin-top:10px;flex-wrap:wrap;align-items:center;">
+          <button class="btn btn-primary" id="poolAddBtn">Add to pool</button>
+          <button class="btn btn-ghost" id="poolClearBtn" style="color:var(--red,#c0392b);">Clear pool</button>
+          <span id="poolAddStatus" style="font-size:13px;color:var(--green-2);"></span>
+        </div>
+      </div>
+
+      <div>
+        <label style="font-weight:600;font-size:13px;display:block;margin-bottom:6px;">Recent assignments</label>
+        <div id="poolLogTable" style="font-size:12.5px;"></div>
+      </div>
+    </div>
+
     <div class="panel panel-pad" id="changePasswordPanel">
       <h3 style="font-family:var(--serif);color:var(--green-1);margin:0 0 6px;font-size:17px;">Change my password</h3>
       <p style="font-size:13px;color:var(--grey);margin:6px 0 14px;">Change the password for your own account. You'll need to enter your current password to confirm.</p>
@@ -974,7 +1009,7 @@ function daysBetween(a,b){ return Math.round((b-a)/86400000); }
 function uid(){ return 'a'+Math.random().toString(36).slice(2,10)+Date.now().toString(36); }
 
 let SETUP = {};
-let STATE = { grievances: [], activity: [], archive: [], holidays: [], users: [], attachments: [] };
+let STATE = { grievances: [], activity: [], archive: [], holidays: [], users: [], attachments: [], grievancePool: { remaining: 0 } };
 let LOCATION_DETAILS = {}; // per-location { bureau, email } config, keyed by location name
 
 // Admin-only convenience filter: admins receive every location's data
@@ -1045,6 +1080,7 @@ async function refresh(isBackgroundPoll){
     STATE.holidays = data.holidays || [];
     STATE.users = data.users || [];
     LOCATION_DETAILS = data.locationDetails || {};
+    STATE.grievancePool = data.grievancePool || { remaining: 0 };
     ORG_SETTINGS = data.orgSettings || { agency: '', localNo: '', bureau: '', location: '', county: '', shift: '', managementEmail: '' };
     updatePageTitle();
     $('connBanner').innerHTML = '';
@@ -1356,6 +1392,10 @@ function clearForm(){
   $('stewardEmailBox').textContent = 'Select a steward';
   $('gidNote').textContent = '';
   recalcDeadlines();
+  // Reset GID field read-only state based on current pool (refresh() will update STATE.grievancePool)
+  const gidInput = $('f-gid');
+  if(gidInput) gidInput.readOnly = false;
+  updateIntakePoolUI();
   $('f-gid').focus();
 }
 $('clearFormBtn').addEventListener('click', clearForm);
@@ -2111,6 +2151,8 @@ function switchTab(tab){
   document.querySelectorAll('.tab-btn').forEach(b=>b.classList.toggle('active', b.dataset.tab===tab));
   $('tabs').classList.remove('open');
   window.scrollTo(0,0);
+  // Refresh pool UI when switching to intake
+  if(tab === 'intake') updateIntakePoolUI();
 }
 document.querySelectorAll('.tab-btn').forEach(btn=>{
   btn.addEventListener('click', ()=>switchTab(btn.dataset.tab));
@@ -2387,6 +2429,156 @@ $('stewardsSaveBtn').addEventListener('click', async ()=>{
     toast(err.message || 'Could not save steward list.', 'err');
   }finally{
     btn.disabled = false; btn.textContent = 'Save changes';
+  }
+});
+
+/* ---------- Settings tab: Grievance Number Pool ---------- */
+
+/** Updates the pool badge and warning on the Intake Form for all users. */
+function updateIntakePoolUI(){
+  const remaining = (STATE.grievancePool || {}).remaining || 0;
+  const badge = $('poolStatusBadge');
+  const assignBtn = $('assignNextBtn');
+  const warning = $('poolWarningBanner');
+  const warningCount = $('poolWarningCount');
+  if(!badge) return;
+
+  if(remaining === 0){
+    // Pool empty — badge hidden, Assign button hidden, manual entry
+    badge.style.display = 'none';
+    if(assignBtn) assignBtn.style.display = 'none';
+    if(warning) warning.style.display = 'none';
+    const gidInput = $('f-gid');
+    if(gidInput) { gidInput.readOnly = false; gidInput.placeholder = 'FCRC-2025-001'; }
+  } else {
+    // Pool has numbers — show badge, show Assign button, lock field until assigned
+    badge.style.display = 'inline-block';
+    badge.textContent = `${remaining} in pool`;
+    badge.style.background = remaining <= 3 ? 'var(--amber,#f0ad4e)' : 'var(--green-3,#27ae60)';
+    badge.style.color = remaining <= 3 ? '#7a4800' : '#fff';
+    if(assignBtn) assignBtn.style.display = 'inline-block';
+    // Show low-pool warning at 3 or fewer
+    if(remaining <= 3){
+      if(warning) warning.style.display = '';
+      if(warningCount) warningCount.textContent = remaining;
+    } else {
+      if(warning) warning.style.display = 'none';
+    }
+    // Only lock the field if it's currently empty (don't overwrite a pre-filled number)
+    const gidInput = $('f-gid');
+    if(gidInput && !gidInput.value.trim()){
+      gidInput.readOnly = true;
+      gidInput.placeholder = 'Click "Assign next" to get a number';
+    }
+  }
+}
+
+/** Renders the pool status and log table in the Settings panel (admin only). */
+async function renderPoolStatusPanel(){
+  const statusDiv = $('poolStatusDisplay');
+  if(!statusDiv) return;
+  try{
+    const data = await apiGet('/api/grievance-pool');
+    const remaining = data.remaining || 0;
+    const log = data.log || [];
+    // Status line
+    let statusHtml;
+    if(remaining === 0){
+      statusHtml = `<span style="color:var(--red,#c0392b);font-weight:600;">&#9888; Pool is empty.</span> Stewards will type grievance numbers manually until you add a new batch.`;
+    } else if(remaining <= 3){
+      statusHtml = `<span style="color:#b8660c;font-weight:600;">&#9888; Low: ${remaining} number(s) remaining.</span> Request a new batch from the union president soon.`;
+    } else {
+      statusHtml = `<span style="color:var(--green-2,#27ae60);font-weight:600;">&#10003; ${remaining} number(s) available</span> — intake form will auto-assign.`;
+    }
+    statusDiv.innerHTML = statusHtml;
+    // Log table
+    const logDiv = $('poolLogTable');
+    if(!logDiv) return;
+    if(log.length === 0){
+      logDiv.innerHTML = '<span style="color:var(--grey);font-size:12.5px;">No numbers have been assigned yet.</span>';
+    } else {
+      const rows = [...log].reverse().slice(0, 30).map(e =>
+        `<tr>
+          <td style="padding:4px 10px 4px 0;color:var(--green-1);font-weight:600;">${escapeHtml(e.number)}</td>
+          <td style="padding:4px 10px;">${escapeHtml(e.assignedBy || '')}</td>
+          <td style="padding:4px 0;color:var(--grey);">${e.assignedAt ? new Date(e.assignedAt).toLocaleDateString('en-US') : ''}</td>
+        </tr>`
+      ).join('');
+      logDiv.innerHTML = `<table style="width:100%;border-collapse:collapse;font-size:12.5px;">
+        <thead><tr style="border-bottom:1px solid var(--green-line);">
+          <th style="text-align:left;padding-bottom:4px;color:var(--grey);">Number</th>
+          <th style="text-align:left;padding-bottom:4px;color:var(--grey);">Assigned to</th>
+          <th style="text-align:left;padding-bottom:4px;color:var(--grey);">Date</th>
+        </tr></thead>
+        <tbody>${rows}</tbody>
+      </table>${log.length > 30 ? `<div style="color:var(--grey);font-size:12px;margin-top:6px;">Showing 30 most recent of ${log.length} total.</div>` : ''}`;
+    }
+  }catch(err){
+    if(statusDiv) statusDiv.textContent = 'Could not load pool status.';
+  }
+}
+
+// Add to pool button
+$('poolAddBtn')?.addEventListener('click', async ()=>{
+  const raw = ($('poolNumbersInput')?.value || '').trim();
+  if(!raw){ toast('Enter at least one grievance number.', 'err'); return; }
+  const statusEl = $('poolAddStatus');
+  const btn = $('poolAddBtn');
+  btn.disabled = true; btn.textContent = 'Adding…';
+  if(statusEl) statusEl.textContent = '';
+  try{
+    const result = await apiPost('/api/grievance-pool/add', { numbers: raw });
+    const msg = `Added ${result.added}${result.skipped ? `, skipped ${result.skipped} duplicate(s)` : ''}. Pool now has ${result.remaining} number(s).`;
+    if(statusEl) statusEl.textContent = msg;
+    toast(msg);
+    $('poolNumbersInput').value = '';
+    await refresh();
+    renderPoolStatusPanel();
+  }catch(err){
+    toast(err.message || 'Could not add numbers.', 'err');
+  }finally{
+    btn.disabled = false; btn.textContent = 'Add to pool';
+  }
+});
+
+// Clear pool button
+$('poolClearBtn')?.addEventListener('click', async ()=>{
+  if(!confirm('Clear the entire pool? All remaining (unassigned) numbers will be removed. This cannot be undone.')) return;
+  try{
+    await apiPost('/api/grievance-pool/clear', {});
+    toast('Pool cleared.');
+    await refresh();
+    renderPoolStatusPanel();
+  }catch(err){
+    toast(err.message || 'Could not clear pool.', 'err');
+  }
+});
+
+// Assign Next button on intake form
+$('assignNextBtn')?.addEventListener('click', async ()=>{
+  const btn = $('assignNextBtn');
+  btn.disabled = true; btn.textContent = 'Assigning…';
+  try{
+    const result = await apiPost('/api/grievance-pool/consume', {});
+    if(result.empty){
+      toast('The pool is empty — type a number manually.', 'err');
+      // Unlock the field so they can type
+      const gidInput = $('f-gid');
+      if(gidInput){ gidInput.readOnly = false; gidInput.value = ''; gidInput.placeholder = 'FCRC-2025-001'; gidInput.focus(); }
+      btn.style.display = 'none';
+    } else {
+      const gidInput = $('f-gid');
+      if(gidInput){ gidInput.readOnly = false; gidInput.value = result.number; gidInput.readOnly = false; }
+      $('gidNote').textContent = '';
+      toast(`Assigned: ${result.number}${result.remaining <= 3 ? ` — only ${result.remaining} number(s) left in pool!` : ''}`);
+      // Refresh pool count in STATE so badge updates
+      STATE.grievancePool = { remaining: result.remaining };
+      updateIntakePoolUI();
+    }
+  }catch(err){
+    toast(err.message || 'Could not assign number.', 'err');
+  }finally{
+    btn.disabled = false; btn.textContent = 'Assign next';
   }
 });
 
@@ -2688,8 +2880,12 @@ function renderSettingsCounts(isBackgroundPoll){
   // Both panels completely replace their innerHTML, which destroys any
   // unsaved text the admin is mid-typing -- the only safe rule is: during
   // a background poll, leave every settings field exactly as it is.
+  // Update intake form pool badge (visible to all roles)
+  updateIntakePoolUI();
+
   if(!isBackgroundPoll){
     renderLocationContactsPanel();
+    renderPoolStatusPanel();
 
     // Org settings fields
     $('orgAgencyInput')   && ($('orgAgencyInput').value   = ORG_SETTINGS.agency   || '');
@@ -3231,6 +3427,8 @@ function applyRoleVisibility(user){
   if(locationContactsPanel) locationContactsPanel.style.display = admin ? '' : 'none';
   const otherListsPanel = $('otherListsPanel');
   if(otherListsPanel) otherListsPanel.style.display = admin ? '' : 'none';
+  const poolPanel = $('grievanceNumberPoolPanel');
+  if(poolPanel) poolPanel.style.display = admin ? '' : 'none';
   // Change-password is available to every logged-in user
   const changePasswordPanel = $('changePasswordPanel');
   if(changePasswordPanel) changePasswordPanel.style.display = (user && user.username) ? '' : 'none';

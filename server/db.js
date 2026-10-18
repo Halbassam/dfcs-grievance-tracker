@@ -83,6 +83,12 @@ async function getAll() {
     },
     locationDetails: (() => {
       try { return JSON.parse(metaMap.orgLocationDetails || "{}") || {}; } catch { return {}; }
+    })(),
+    grievancePool: (() => {
+      try {
+        const pool = JSON.parse(metaMap.grievanceNumberPool || '[]');
+        return { remaining: Array.isArray(pool) ? pool.length : 0 };
+      } catch { return { remaining: 0 }; }
     })()
   };
 }
@@ -1071,6 +1077,83 @@ async function deleteAttachmentRecord(id) {
   await query(`delete from attachments where id = $1`, [id]);
 }
 
+/* -----------------------------------------------------------------------
+ * Grievance Number Pool
+ * -----------------------------------------------------------------------
+ * The union president pre-assigns batches of grievance IDs (e.g. "FCRC-2026-001").
+ * Admins paste them into Settings; intake form auto-assigns the next one.
+ * Storage: two keys in app_meta --
+ *   grievanceNumberPool  : JSON array of remaining (unused) numbers, FIFO
+ *   grievanceNumberPoolLog: JSON array of {number, assignedBy, assignedAt}
+ * There is ONE shared pool for all locations.
+ * ----------------------------------------------------------------------- */
+
+/** Returns the current pool state: { pool: string[], log: object[] } */
+async function getGrievanceNumberPool() {
+  const res = await query(
+    `select key, value from app_meta where key in ('grievanceNumberPool','grievanceNumberPoolLog')`
+  );
+  const map = {};
+  for (const row of res.rows) map[row.key] = row.value;
+  let pool = [];
+  let log  = [];
+  try { pool = JSON.parse(map.grievanceNumberPool  || '[]'); } catch {}
+  try { log  = JSON.parse(map.grievanceNumberPoolLog || '[]'); } catch {}
+  return { pool, log };
+}
+
+/** Admin adds numbers to the pool. Duplicates (already in pool or already used) are silently skipped. */
+async function addToGrievanceNumberPool(numbers, addedBy) {
+  return withLock(async () => {
+    const { pool, log } = await getGrievanceNumberPool();
+    const usedSet = new Set(log.map(e => e.number));
+    const poolSet = new Set(pool);
+    const newOnes = numbers.filter(n => n && !poolSet.has(n) && !usedSet.has(n));
+    const updated = [...pool, ...newOnes];
+    await query(
+      `insert into app_meta (key, value) values ('grievanceNumberPool', $1)
+       on conflict (key) do update set value = excluded.value`,
+      [JSON.stringify(updated)]
+    );
+    return { added: newOnes.length, skipped: numbers.length - newOnes.length, remaining: updated.length };
+  });
+}
+
+/** Removes all numbers from the pool (admin reset). */
+async function clearGrievanceNumberPool() {
+  return withLock(async () => {
+    await query(
+      `insert into app_meta (key, value) values ('grievanceNumberPool', '[]')
+       on conflict (key) do update set value = excluded.value`
+    );
+    return { ok: true };
+  });
+}
+
+/**
+ * Takes the next number from the pool and records it in the log.
+ * Returns { number: string } or { empty: true } if pool is exhausted.
+ */
+async function consumeNextGrievanceNumber(assignedBy) {
+  return withLock(async () => {
+    const { pool, log } = await getGrievanceNumberPool();
+    if (pool.length === 0) return { empty: true };
+    const [next, ...rest] = pool;
+    const newLog = [...log, { number: next, assignedBy, assignedAt: new Date().toISOString() }];
+    await query(
+      `insert into app_meta (key, value) values ('grievanceNumberPool', $1)
+       on conflict (key) do update set value = excluded.value`,
+      [JSON.stringify(rest)]
+    );
+    await query(
+      `insert into app_meta (key, value) values ('grievanceNumberPoolLog', $1)
+       on conflict (key) do update set value = excluded.value`,
+      [JSON.stringify(newLog)]
+    );
+    return { number: next, remaining: rest.length };
+  });
+}
+
 module.exports = {
   getAll, readRaw, writeRawAtomic, withLock, logEmailAttempt, pingKeepAlive,
   submitGrievance, logActivity, archiveClosed, sendCourtesyNotice,
@@ -1085,5 +1168,7 @@ module.exports = {
   createInvestigationToken, getInvestigationByToken, submitInvestigationForm,
   archiveInvestigation, unarchiveInvestigation,
   // Attachments
-  listAttachments, createAttachmentRecord, getAttachmentRecord, deleteAttachmentRecord
+  listAttachments, createAttachmentRecord, getAttachmentRecord, deleteAttachmentRecord,
+  // Grievance number pool
+  getGrievanceNumberPool, addToGrievanceNumberPool, clearGrievanceNumberPool, consumeNextGrievanceNumber
 };

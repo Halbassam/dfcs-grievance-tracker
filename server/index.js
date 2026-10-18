@@ -714,6 +714,47 @@ Additional details: ${sub.otherDetails || ""}`;
       }
     }
 
+    /* ------------------------------------------------------------------ */
+    /* Grievance Number Pool (admin-only management + any-steward consume) */
+    /* ------------------------------------------------------------------ */
+
+    // GET  /api/grievance-pool        — pool status (remaining count + log)
+    if (pathname === "/api/grievance-pool" && req.method === "GET") {
+      if (!isAdmin(currentUser)) return sendJson(res, 403, { error: "Only admins can view the number pool." });
+      const result = await db.getGrievanceNumberPool();
+      return sendJson(res, 200, { remaining: result.pool.length, log: result.log });
+    }
+
+    // POST /api/grievance-pool/add    — admin adds a batch of numbers
+    if (pathname === "/api/grievance-pool/add" && req.method === "POST") {
+      if (!isAdmin(currentUser)) return sendJson(res, 403, { error: "Only admins can add numbers to the pool." });
+      const body = await readBody(req);
+      // Accept either an array or a newline/comma-delimited string
+      let numbers = body.numbers || [];
+      if (typeof numbers === "string") {
+        numbers = numbers.split(/[\n,]+/).map(s => s.trim()).filter(Boolean);
+      }
+      if (!Array.isArray(numbers) || numbers.length === 0) {
+        return sendJson(res, 400, { error: "Provide at least one grievance number." });
+      }
+      const result = await db.addToGrievanceNumberPool(numbers, currentUser.username);
+      return sendJson(res, 200, result);
+    }
+
+    // POST /api/grievance-pool/clear  — admin empties the pool
+    if (pathname === "/api/grievance-pool/clear" && req.method === "POST") {
+      if (!isAdmin(currentUser)) return sendJson(res, 403, { error: "Only admins can clear the number pool." });
+      const result = await db.clearGrievanceNumberPool();
+      return sendJson(res, 200, result);
+    }
+
+    // POST /api/grievance-pool/consume — intake form claims the next number
+    if (pathname === "/api/grievance-pool/consume" && req.method === "POST") {
+      // Any logged-in steward may claim a number; no extra role check needed.
+      const result = await db.consumeNextGrievanceNumber(currentUser.username);
+      return sendJson(res, 200, result);
+    }
+
     return sendJson(res, 404, { error: "Unknown API route" });
 
   } catch (err) {
