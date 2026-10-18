@@ -1102,12 +1102,22 @@ async function getGrievanceNumberPool() {
   return { pool, log };
 }
 
-/** Admin adds numbers to the pool. Duplicates (already in pool or already used) are silently skipped. */
+/** Admin adds numbers to the pool. Duplicates are silently skipped.
+ *  Checks against: pool queue, pool assignment log, live grievances, and archive. */
 async function addToGrievanceNumberPool(numbers, addedBy) {
   return withLock(async () => {
     const { pool, log } = await getGrievanceNumberPool();
     const usedSet = new Set(log.map(e => e.number));
     const poolSet = new Set(pool);
+
+    // Also exclude IDs already present in live grievances or archive
+    const [liveRes, archiveRes] = await Promise.all([
+      query(`select id from grievances`),
+      query(`select data->>'id' as id from archive`)
+    ]);
+    for (const row of liveRes.rows)    usedSet.add(row.id);
+    for (const row of archiveRes.rows) if (row.id) usedSet.add(row.id);
+
     const newOnes = numbers.filter(n => n && !poolSet.has(n) && !usedSet.has(n));
     const updated = [...pool, ...newOnes];
     await query(
@@ -1133,18 +1143,43 @@ async function clearGrievanceNumberPool() {
 /**
  * Takes the next number from the pool and records it in the log.
  * Returns { number: string } or { empty: true } if pool is exhausted.
+ * Skips any number that already exists in live grievances or archive
+ * (safety net against manual entries that happened after the pool was loaded).
  */
 async function consumeNextGrievanceNumber(assignedBy) {
   return withLock(async () => {
     const { pool, log } = await getGrievanceNumberPool();
     if (pool.length === 0) return { empty: true };
-    const [next, ...rest] = pool;
-    const newLog = [...log, { number: next, assignedBy, assignedAt: new Date().toISOString() }];
+
+    // Build set of already-used IDs from both live grievances and archive
+    const [liveRes, archiveRes] = await Promise.all([
+      query(`select id from grievances`),
+      query(`select data->>'id' as id from archive`)
+    ]);
+    const existingIds = new Set();
+    for (const row of liveRes.rows)    existingIds.add(row.id);
+    for (const row of archiveRes.rows) if (row.id) existingIds.add(row.id);
+
+    // Walk the pool FIFO, skip any number already in the database
+    let next = null;
+    let rest = pool;
+    while (rest.length > 0) {
+      const [candidate, ...remaining] = rest;
+      rest = remaining;
+      if (!existingIds.has(candidate)) { next = candidate; break; }
+      // Number already used — drop it silently (no point keeping it in pool)
+    }
+
+    // Persist whatever is left after skipping used numbers
     await query(
       `insert into app_meta (key, value) values ('grievanceNumberPool', $1)
        on conflict (key) do update set value = excluded.value`,
       [JSON.stringify(rest)]
     );
+
+    if (!next) return { empty: true };
+
+    const newLog = [...log, { number: next, assignedBy, assignedAt: new Date().toISOString() }];
     await query(
       `insert into app_meta (key, value) values ('grievanceNumberPoolLog', $1)
        on conflict (key) do update set value = excluded.value`,
