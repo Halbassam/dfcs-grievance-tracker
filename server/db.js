@@ -119,7 +119,10 @@ async function submitGrievance(record) {
       step3: !!target.step3filed
     };
 
-    target.employee     = record.employee     || "";
+    // Employee name is locked after first submission — only set on new records.
+    if (isNew) target.employee = record.employee || "";
+    // On updates, ignore any incoming employee value to prevent accidental
+    // or intentional renaming of the grievant after the case is filed.
     target.grievantEmail = record.grievantEmail || "";
     target.description  = record.description  || "";
     target.jobClass     = record.jobClass     || "";

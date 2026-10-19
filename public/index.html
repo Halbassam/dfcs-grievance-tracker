@@ -279,7 +279,10 @@ footer.app-foot{text-align:center;color:var(--grey);font-size:11.5px;padding:30p
               &#9888;&#65039; <b>Low pool warning:</b> only <span id="poolWarningCount"></span> grievance number(s) remaining. Ask the union president for a new batch and add them in <b>Settings → Grievance number pool</b>.
             </div>
           </div>
-          <div class="field"><label for="f-name">Employee name <span class="req">*</span></label><input type="text" id="f-name" placeholder="Full name"></div>
+          <div class="field">
+            <label for="f-name">Employee name <span class="req">*</span><span id="nameLockNote" style="display:none;font-weight:400;font-size:11.5px;color:var(--grey);margin-left:6px;">&#128274; locked after filing</span></label>
+            <input type="text" id="f-name" placeholder="Full name">
+          </div>
           <div class="field"><label for="f-grievant-email">Grievant email <span style="font-weight:400;color:var(--grey);">(optional &mdash; for progress updates)</span></label><input type="text" id="f-grievant-email" placeholder="employee@illinois.gov (or several, comma-separated, for group grievances)"></div>
           <div class="field"><label for="f-job">Job classification</label><select id="f-job"></select></div>
           <div class="field"><label for="f-bu">Bargaining unit</label><select id="f-bu"></select></div>
@@ -1392,6 +1395,11 @@ function clearForm(){
   $('stewardEmailBox').textContent = 'Select a steward';
   $('gidNote').textContent = '';
   recalcDeadlines();
+  // Unlock name field (was locked when editing an existing record)
+  const nameInput = $('f-name');
+  if(nameInput){ nameInput.readOnly = false; nameInput.title = ''; }
+  const nameLockNote = $('nameLockNote');
+  if(nameLockNote) nameLockNote.style.display = 'none';
   // Reset GID field read-only state based on current pool (refresh() will update STATE.grievancePool)
   const gidInput = $('f-gid');
   if(gidInput) gidInput.readOnly = false;
@@ -2117,6 +2125,11 @@ $('detailCloseBtn').addEventListener('click', ()=>$('detailModalOverlay').classL
 function loadIntoForm(rec){
   $('f-gid').value = rec.id;
   $('f-name').value = rec.employee||'';
+  // Lock the name field — employee name cannot be changed after filing
+  $('f-name').readOnly = true;
+  $('f-name').title = 'Employee name cannot be changed after a grievance is filed.';
+  const nameLockNote = $('nameLockNote');
+  if(nameLockNote) nameLockNote.style.display = '';
   $('f-grievant-email').value = rec.grievantEmail||'';
   $('f-description').value = rec.description||'';
   $('f-job').value = rec.jobClass||'';
