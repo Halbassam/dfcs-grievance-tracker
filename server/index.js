@@ -91,11 +91,11 @@ function getSessionTokenFromRequest(req) {
 
 function setSessionCookie(res, token) {
   res.setHeader("Set-Cookie",
-    `dfcs_session=${token}; HttpOnly; SameSite=Strict; Max-Age=${30*24*3600}; Path=/`);
+    `dfcs_session=${token}; HttpOnly; Secure; SameSite=Strict; Max-Age=${30*24*3600}; Path=/`);
 }
 
 function clearSessionCookie(res) {
-  res.setHeader("Set-Cookie", "dfcs_session=; HttpOnly; SameSite=Strict; Max-Age=0; Path=/");
+  res.setHeader("Set-Cookie", "dfcs_session=; HttpOnly; Secure; SameSite=Strict; Max-Age=0; Path=/");
 }
 
 async function getCurrentUser(req) {
