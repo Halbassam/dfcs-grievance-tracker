@@ -198,6 +198,48 @@ footer.app-foot{text-align:center;color:var(--grey);font-size:11.5px;padding:30p
 .chat-bubble.bot{align-self:flex-start;background:var(--paper-2);color:var(--ink);border-bottom-left-radius:2px;border:1px solid var(--green-line);}
 .chat-bubble.bot.pending{color:var(--grey);font-style:italic;}
 .chat-bubble.bot.error{background:var(--red-bg);color:var(--red);border-color:var(--red);}
+
+/* ── Guided wizard ─────────────────────────────────────────── */
+#wizardOverlay{position:fixed;inset:0;z-index:9000;pointer-events:none;display:none;}
+#wizardOverlay.active{display:block;}
+#wizardMask{position:absolute;inset:0;background:rgba(0,0,0,.55);pointer-events:all;}
+#wizardHighlight{
+  position:absolute;
+  box-shadow:0 0 0 9999px rgba(0,0,0,.55);
+  border-radius:6px;
+  border:2px solid var(--green-1);
+  pointer-events:none;
+  transition:all .3s ease;
+}
+#wizardCard{
+  position:absolute;
+  background:var(--paper);
+  border:1.5px solid var(--green-line);
+  border-radius:10px;
+  box-shadow:0 8px 32px rgba(0,0,0,.25);
+  padding:20px 22px 16px;
+  max-width:340px;
+  min-width:240px;
+  pointer-events:all;
+  z-index:9010;
+  transition:all .3s ease;
+}
+#wizardCard h4{margin:0 0 8px;font-family:var(--serif);color:var(--green-1);font-size:15px;}
+#wizardCard p{margin:0 0 14px;font-size:13px;line-height:1.6;color:var(--ink);}
+#wizardCard .wiz-progress{font-size:11px;color:var(--grey);margin-bottom:10px;}
+#wizardCard .wiz-btns{display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap;}
+#wizardCard .wiz-btns button{font-size:12.5px;padding:6px 14px;}
+#wizardCard .wiz-exit{font-size:11.5px;color:var(--grey);cursor:pointer;text-decoration:underline;align-self:center;margin-right:auto;}
+#wizardCard .wiz-exit:hover{color:var(--red);}
+.wiz-launch-btn{
+  display:inline-flex;align-items:center;gap:7px;
+  background:var(--green-1);color:#fff;
+  border:none;border-radius:6px;
+  padding:9px 18px;font-size:13px;font-weight:600;cursor:pointer;
+  margin-bottom:18px;
+}
+.wiz-launch-btn:hover{background:var(--green-2);}
+.wiz-launch-btn svg{flex-shrink:0;}
 </style>
 </head>
 <body>
@@ -699,6 +741,15 @@ footer.app-foot{text-align:center;color:var(--grey);font-size:11.5px;padding:30p
 
     <div style="max-width:780px;">
 
+      <!-- Guided tour launcher -->
+      <div id="wizLaunchRow" style="margin-bottom:4px;">
+        <button class="wiz-launch-btn" id="wizLaunchBtn">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polygon points="10 8 16 12 10 16 10 8"/></svg>
+          Start guided tour
+        </button>
+        <div id="wizRoleLabel" style="font-size:12px;color:var(--grey);margin-top:-10px;margin-bottom:14px;"></div>
+      </div>
+
       <!-- Quick-start -->
       <div class="panel panel-pad" style="margin-bottom:20px;">
         <h3 style="font-family:var(--serif);color:var(--green-1);margin:0 0 14px;">Quick start</h3>
@@ -740,6 +791,7 @@ footer.app-foot{text-align:center;color:var(--grey);font-size:11.5px;padding:30p
           <p style="margin-bottom:8px;"><b>Grievance ID</b> — enter your local's standard ID format (e.g. G-2026-047). Must be unique — the system rejects duplicates.</p>
           <p style="margin-bottom:8px;"><b>Awareness date</b> — the date the steward (or grievant) first became aware of the violation. This is the clock-start for contractual filing deadlines under Article V.</p>
           <p style="margin-bottom:8px;"><b>CBA article / Section picker</b> — select the article first, then the section picker below it will show only that article's numbered sections. You can still type freely in the section field if the exact subsection isn't listed.</p>
+          <p style="margin-bottom:8px;"><b>Employee name</b> — once a grievance has been saved at least once, the employee name field locks to prevent accidental edits that would mismatch your records. To change it, use <b>Settings → Manage users</b> or contact an admin to edit the record directly.</p>
           <p style="margin-bottom:8px;"><b>Location</b> — single-location stewards see this pre-filled and locked. Admins and stewards covering multiple offices see a dropdown.</p>
           <p style="margin-bottom:8px;"><b>Deadlines panel</b> — appears automatically once you enter the Awareness date. The app calculates Step 1, 2, and 3 filing and response deadlines per Article V, skipping holidays you have configured. Always verify deadlines against the actual contract before relying on them.</p>
           <p style="margin-bottom:0;"><b>Saving</b> — click <b>Save grievance</b> to create or update the record. The system confirms with a toast notification. To edit an existing grievance, click its ID anywhere in the Dashboard or log to load it back into the form.</p>
@@ -821,6 +873,17 @@ footer.app-foot{text-align:center;color:var(--grey);font-size:11.5px;padding:30p
           <p style="margin-bottom:8px;"><b>Edit lists</b> — configure the dropdown options shown on the Intake Form: CBA articles, grievance types, job classifications, bargaining units, locations, shifts, and activity types. The Article and Grievance Type lists were pre-seeded from the 2023–2027 contract — edit them to match how your local actually categorizes cases.</p>
           <p style="margin-bottom:8px;"><b>Location assignment check</b> — shows any grievances or steward accounts missing a location. Useful after first deployment or when onboarding a new office.</p>
           <p style="margin-bottom:0;"><b>Holiday list</b> — enter observed holidays so the deadline calculator skips them correctly. Holidays are used by the Article V deadline math — missing a holiday here could cause deadlines to be off by a day.</p>
+        </div>
+      </div>
+
+      <!-- Grievance Number Pool -->
+      <div class="panel panel-pad" style="margin-bottom:20px;">
+        <h3 style="font-family:var(--serif);color:var(--green-1);margin:0 0 14px;">Grievance Number Pool (Admin only)</h3>
+        <div style="font-size:13.5px;line-height:1.7;">
+          <p style="margin-bottom:8px;">The grievance number pool lets admins pre-load a list of sequential grievance IDs (e.g. <code>G-2026-001</code> through <code>G-2026-100</code>). Stewards can then click <b>Assign next number</b> on the Intake Form instead of typing an ID manually — the next available number is claimed automatically and can't be taken by another user at the same time.</p>
+          <p style="margin-bottom:8px;"><b>Loading the pool</b> — go to <b>Settings → Grievance number pool</b> and enter the list of IDs one per line (or comma-separated). The system adds them to the pool; numbers already used are skipped. A green badge on the Intake Form shows how many numbers remain.</p>
+          <p style="margin-bottom:8px;"><b>When the pool is empty</b> — a warning banner appears on the Intake Form. Stewards can still type a grievance ID manually; the pool just means they don't have to. Refill the pool from Settings when it runs low.</p>
+          <p style="margin-bottom:0;"><b>Race-condition protection</b> — if two stewards click <b>Assign next number</b> at the same moment, the system uses a database-level lock to ensure each gets a different number. You will never see the same ID issued twice.</p>
         </div>
       </div>
 
@@ -3699,6 +3762,323 @@ function startBackgroundPolling(){
   showMainApp(user);
   await bootApp();
   startBackgroundPolling();
+})();
+</script>
+<div id="printArea" style="display:none;"></div>
+
+<!-- ── Wizard overlay ───────────────────────────────────────── -->
+<div id="wizardOverlay">
+  <div id="wizardMask"></div>
+  <div id="wizardHighlight"></div>
+  <div id="wizardCard">
+    <div class="wiz-progress" id="wizProgress"></div>
+    <h4 id="wizTitle"></h4>
+    <p id="wizBody"></p>
+    <div class="wiz-btns">
+      <span class="wiz-exit" id="wizExitBtn">Exit tour</span>
+      <button class="btn btn-ghost" id="wizBackBtn">← Back</button>
+      <button class="btn btn-primary" id="wizNextBtn">Next →</button>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ── Guided wizard ──────────────────────────────────────────── */
+(function(){
+  /* Step definitions per role.
+     target: CSS selector of the element to spotlight (null = no highlight)
+     tab:    switchTab() name to navigate to before highlighting (null = stay)
+     scroll: true = scroll target into view
+  */
+  const STEWARD_STEPS = [
+    {
+      title: 'Welcome to the guided tour',
+      body:  'This tour walks you through the key workflows for your role. Use Next / Back to move between steps, or Exit tour to stop at any time.',
+      tab:   'help',
+      target: null
+    },
+    {
+      title: 'File a grievance — Intake Form',
+      body:  'Click the <b>Intake Form</b> tab to open the filing screen. Fill in the Grievance ID, employee name, awareness date, CBA article, and location, then click <b>Save grievance</b>.',
+      tab:   'intake',
+      target: '#tab-intake',
+      scroll: true
+    },
+    {
+      title: 'Grievance ID',
+      body:  'Enter your local\'s ID format here (e.g. <code>G-2026-047</code>). If a pool of numbers has been loaded by an admin, click <b>Assign next number</b> instead.',
+      tab:   'intake',
+      target: '#f-gid',
+      scroll: true
+    },
+    {
+      title: 'Employee name',
+      body:  'Type the grievant\'s name. Once the record is saved for the first time, this field locks to prevent accidental changes.',
+      tab:   'intake',
+      target: '#f-name',
+      scroll: true
+    },
+    {
+      title: 'Awareness date',
+      body:  'Set the date the steward or grievant first became aware of the violation. This starts the clock for contractual filing deadlines.',
+      tab:   'intake',
+      target: '#f-awareness',
+      scroll: true
+    },
+    {
+      title: 'CBA Article',
+      body:  'Pick the contract article being violated. The section picker below it updates automatically. You can also type a custom section.',
+      tab:   'intake',
+      target: '#f-article',
+      scroll: true
+    },
+    {
+      title: 'Save the grievance',
+      body:  'When the form is complete, click <b>Save grievance</b>. A toast notification confirms the save. Existing cases are updated in-place when you re-enter the same ID.',
+      tab:   'intake',
+      target: '#submitBtn',
+      scroll: true
+    },
+    {
+      title: 'Log activity on a case',
+      body:  'Go to the <b>Activity Log</b> tab to see all open cases. Click any case row to open its detail panel, then click <b>+ Add activity</b> to record meetings, phone calls, and next steps.',
+      tab:   'log',
+      target: '#tab-log',
+      scroll: true
+    },
+    {
+      title: 'Track deadlines — Dashboard',
+      body:  'The <b>Dashboard</b> tab shows all active grievances ranked by next deadline. Red rows are overdue. Check here daily so nothing slips.',
+      tab:   'dashboard',
+      target: '#tab-dashboard',
+      scroll: true
+    },
+    {
+      title: 'Archive resolved cases',
+      body:  'Once a grievance is settled, withdrawn, or denied, open its detail view and click <b>Archive</b>. Archived cases move to the <b>Archive</b> tab and are read-only.',
+      tab:   'archive',
+      target: '#tab-archive',
+      scroll: true
+    },
+    {
+      title: 'Tour complete!',
+      body:  'You\'ve seen the core steward workflow. Return to the <b>Help</b> tab any time to re-read documentation or restart this tour.',
+      tab:   'help',
+      target: null
+    }
+  ];
+
+  const STEWARD_PLUS_EXTRA = [
+    {
+      title: 'Start a pre-grievance investigation',
+      body:  'Go to <b>Investigations</b> and click <b>+ New investigation</b>. Enter the employee name, steward, and location. The system assigns an INV-YYYY-NNNN ID automatically.',
+      tab:   'investigations',
+      target: '#newInvestigationBtn',
+      scroll: true
+    },
+    {
+      title: 'Send the grievant intake form',
+      body:  'Inside an open investigation, click <b>Generate &amp; copy grievant link</b> to get a unique 7-day link. Text or email it to the grievant — they submit a statement with no login required.',
+      tab:   'investigations',
+      target: null
+    },
+    {
+      title: 'Convert an investigation to a grievance',
+      body:  'When the facts support filing, click <b>Convert ➜ Grievance</b> in the investigation detail panel. The Intake Form pre-fills automatically with the employee\'s details and statement.',
+      tab:   'investigations',
+      target: null
+    },
+    {
+      title: 'AI Drafting Bot',
+      body:  'Open the <b>Draft a Grievance</b> tab. Describe the situation in plain language. The bot will ask follow-up questions and produce a full draft with Relief Sought.',
+      tab:   'draftbot',
+      target: '#tab-draftbot',
+      scroll: true
+    },
+    {
+      title: 'Use or copy the draft',
+      body:  'Click <b>Copy as document</b> to copy the draft to your clipboard, or <b>Use this draft in the Intake Form</b> to pre-fill the grievance form. Always verify contract citations against the printed CBA.',
+      tab:   'draftbot',
+      target: '#useDraftBtn',
+      scroll: true
+    }
+  ];
+
+  const ADMIN_EXTRA = [
+    {
+      title: 'First-time setup — Settings',
+      body:  'Go to <b>Settings</b> and fill in <b>Local chapter info</b> first: Agency, Local No., Bureau, County, and Shift. These values auto-fill on every printed grievance.',
+      tab:   'settings',
+      target: '#tab-settings',
+      scroll: true
+    },
+    {
+      title: 'Manage users',
+      body:  'Click <b>Manage users</b> in Settings to create accounts. Assign each user a role (Steward / Steward Plus / Admin) and one or more locations. A steward with no location can\'t view grievances.',
+      tab:   'settings',
+      target: '#manageUsersBtn',
+      scroll: true
+    },
+    {
+      title: 'Load the grievance number pool',
+      body:  'Scroll to <b>Grievance number pool</b> in Settings. Enter your IDs one per line (e.g. G-2026-001 through G-2026-100). Stewards can then click <b>Assign next number</b> on the Intake Form.',
+      tab:   'settings',
+      target: '#grievanceNumberPoolPanel',
+      scroll: true
+    },
+    {
+      title: 'Configure email',
+      body:  'Check <b>Settings → Email status</b>. If the BREVO_API_KEY and BREVO_SENDER_EMAIL env vars are set, emails are live. Click <b>Send test email</b> to verify. Set each location\'s management email for courtesy notices.',
+      tab:   'settings',
+      target: '#runEmailCheckBtn',
+      scroll: true
+    }
+  ];
+
+  function buildSteps(role){
+    if(!role || role === 'steward'){
+      return STEWARD_STEPS;
+    }
+    if(role === 'steward_plus'){
+      // Insert extras before the final "tour complete" step
+      const base = STEWARD_STEPS.slice(0, -1);
+      return [...base, ...STEWARD_PLUS_EXTRA, STEWARD_STEPS[STEWARD_STEPS.length-1]];
+    }
+    // admin
+    const base = STEWARD_STEPS.slice(0, -1);
+    return [...base, ...STEWARD_PLUS_EXTRA, ...ADMIN_EXTRA, STEWARD_STEPS[STEWARD_STEPS.length-1]];
+  }
+
+  let steps = [], currentStep = 0;
+
+  const overlay   = document.getElementById('wizardOverlay');
+  const highlight = document.getElementById('wizardHighlight');
+  const card      = document.getElementById('wizardCard');
+  const progEl    = document.getElementById('wizProgress');
+  const titleEl   = document.getElementById('wizTitle');
+  const bodyEl    = document.getElementById('wizBody');
+  const nextBtn   = document.getElementById('wizNextBtn');
+  const backBtn   = document.getElementById('wizBackBtn');
+  const exitBtn   = document.getElementById('wizExitBtn');
+  const launchBtn = document.getElementById('wizLaunchBtn');
+  const roleLabel = document.getElementById('wizRoleLabel');
+  const mask      = document.getElementById('wizardMask');
+
+  function positionHighlight(el){
+    if(!el){
+      highlight.style.opacity = '0';
+      return;
+    }
+    highlight.style.opacity = '1';
+    const r = el.getBoundingClientRect();
+    const pad = 6;
+    highlight.style.top    = (r.top  - pad + window.scrollY) + 'px';
+    highlight.style.left   = (r.left - pad + window.scrollX) + 'px';
+    highlight.style.width  = (r.width  + pad*2) + 'px';
+    highlight.style.height = (r.height + pad*2) + 'px';
+  }
+
+  function positionCard(targetEl){
+    // Place the card to the right or below the highlight, staying within viewport
+    const vw = window.innerWidth, vh = window.innerHeight;
+    const cw = 360, ch = 200; // approximate card size
+    let top, left;
+    if(targetEl){
+      const r = targetEl.getBoundingClientRect();
+      // prefer below the element
+      top  = r.bottom + 16 + window.scrollY;
+      left = Math.min(r.left + window.scrollX, vw - cw - 16);
+      // if would go off-screen bottom, place above
+      if(r.bottom + ch + 16 > vh) top = Math.max(r.top - ch - 16 + window.scrollY, window.scrollY + 16);
+    } else {
+      // centered
+      top  = window.scrollY + (vh - ch) / 2;
+      left = (vw - cw) / 2;
+    }
+    left = Math.max(left, 12);
+    card.style.top  = top  + 'px';
+    card.style.left = left + 'px';
+    card.style.width = Math.min(cw, vw - 24) + 'px';
+  }
+
+  function renderStep(idx){
+    const s = steps[idx];
+    const total = steps.length;
+    progEl.textContent = 'Step ' + (idx+1) + ' of ' + total;
+    titleEl.textContent = s.title;
+    bodyEl.innerHTML    = s.body;
+    backBtn.style.display = idx === 0 ? 'none' : '';
+    nextBtn.textContent   = idx === total-1 ? 'Finish ✓' : 'Next →';
+
+    if(s.tab){ switchTab(s.tab); }
+
+    // Small delay lets the tab render before we measure
+    setTimeout(()=>{
+      const el = s.target ? document.querySelector(s.target) : null;
+      if(el && s.scroll) el.scrollIntoView({behavior:'smooth', block:'center'});
+      positionHighlight(el);
+      positionCard(el);
+    }, 80);
+  }
+
+  function startWizard(){
+    const role = (typeof CURRENT_USER !== 'undefined' && CURRENT_USER) ? CURRENT_USER.role : 'steward';
+    steps = buildSteps(role);
+    currentStep = 0;
+    overlay.classList.add('active');
+    document.body.style.overflow = 'hidden';
+    renderStep(0);
+  }
+
+  function stopWizard(){
+    overlay.classList.remove('active');
+    highlight.style.opacity = '0';
+    document.body.style.overflow = '';
+  }
+
+  nextBtn.onclick = ()=>{
+    if(currentStep < steps.length - 1){
+      currentStep++;
+      renderStep(currentStep);
+    } else {
+      stopWizard();
+    }
+  };
+  backBtn.onclick = ()=>{
+    if(currentStep > 0){ currentStep--; renderStep(currentStep); }
+  };
+  exitBtn.onclick = ()=> stopWizard();
+  mask.onclick    = ()=> stopWizard();
+  launchBtn.onclick = ()=> startWizard();
+
+  // Update role label once CURRENT_USER is available (after login)
+  function updateRoleLabel(){
+    if(typeof CURRENT_USER === 'undefined' || !CURRENT_USER){ return; }
+    const roleMap = { admin:'Admin', steward_plus:'Steward Plus', steward:'Steward' };
+    const rName = roleMap[CURRENT_USER.role] || 'Steward';
+    roleLabel.textContent = 'Your role: ' + rName + ' — ' +
+      (CURRENT_USER.role === 'admin'
+        ? 'tour covers all features (steward, investigations, AI bot, setup, users, pool, email)'
+        : CURRENT_USER.role === 'steward_plus'
+          ? 'tour covers steward + investigations + AI drafting bot'
+          : 'tour covers filing, logging activity, dashboard, and archiving');
+  }
+
+  // Hook into the existing login/logout flow by polling until CURRENT_USER is set
+  const _labelInterval = setInterval(()=>{
+    if(typeof CURRENT_USER !== 'undefined' && CURRENT_USER && CURRENT_USER.username){
+      updateRoleLabel();
+      clearInterval(_labelInterval);
+    }
+  }, 500);
+
+  window.addEventListener('resize', ()=>{
+    if(!overlay.classList.contains('active')) return;
+    const s = steps[currentStep];
+    const el = s && s.target ? document.querySelector(s.target) : null;
+    positionHighlight(el);
+    positionCard(el);
+  });
 })();
 </script>
 <div id="printArea" style="display:none;"></div>
