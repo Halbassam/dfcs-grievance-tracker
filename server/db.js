@@ -100,14 +100,43 @@ async function getGrievanceLocationById(id) {
   return res.rows.length ? (res.rows[0].location || "") : null; // null = doesn't exist yet (a new grievance)
 }
 
+/** Returns { lockedTo, location } for an existing grievance, or null if not found. */
+async function getGrievanceLock(id) {
+  const res = await query(
+    "select locked_to, data->>'location' as location from grievances where id = $1",
+    [id]
+  );
+  if (!res.rows.length) return null;
+  return { lockedTo: res.rows[0].locked_to || null, location: res.rows[0].location || "" };
+}
+
+/**
+ * Transfers the lock on a grievance to another user.
+ * Only the current lock holder or an admin may call this — the caller
+ * must have already checked that before calling.
+ * Returns { ok: true, lockedTo: newUsername }.
+ */
+async function handoffGrievance(id, toUsername) {
+  if (!id || !toUsername) throw new Error("id and toUsername are required.");
+  const res = await query(
+    `update grievances set locked_to = $2, updated_at = now() where id = $1 returning locked_to`,
+    [id, toUsername]
+  );
+  if (!res.rows.length) throw new Error(`Grievance ${id} not found.`);
+  return { ok: true, lockedTo: res.rows[0].locked_to };
+}
+
 async function submitGrievance(record) {
   const id = String(record.id || "").trim();
   if (!id) throw new Error("Grievance ID is required.");
 
   return withTransaction(async (client) => {
-    const existing = await client.query("select data from grievances where id = $1", [id]);
+    const existing = await client.query("select data, locked_to from grievances where id = $1", [id]);
     const isNew = existing.rows.length === 0;
     const target = isNew ? { id } : { ...existing.rows[0].data };
+    // Carry the existing lock forward (hand-offs update locked_to directly via
+    // handoffGrievance — not through submitGrievance).
+    const existingLockedTo = isNew ? null : (existing.rows[0].locked_to || null);
 
     // Capture "was this step already filed before this save?" BEFORE
     // we overwrite the date fields below, so the caller can tell which
@@ -146,13 +175,23 @@ async function submitGrievance(record) {
     target.updatedBy = record.actingUser || "";
     target.id = id;
 
+    // Lock: new grievances are locked to the creating user's username.
+    // Existing grievances keep their current lock (only handoffGrievance changes it).
+    // We store the username (not display name) for stable identity comparison.
+    const newLockedTo = isNew
+      ? (record.actorUsername || record.actingUser || null)
+      : existingLockedTo;
+    // Mirror into data blob so the client can read it without a separate query
+    target.lockedTo = newLockedTo || "";
+
     await client.query(
-      `insert into grievances (id, status, steward, data, updated_at)
-       values ($1, $2, $3, $4::jsonb, now())
+      `insert into grievances (id, status, steward, locked_to, data, updated_at)
+       values ($1, $2, $3, $4, $5::jsonb, now())
        on conflict (id) do update
          set status = excluded.status, steward = excluded.steward,
+             locked_to = excluded.locked_to,
              data = excluded.data, updated_at = now()`,
-      [id, target.status, target.steward, JSON.stringify(target)]
+      [id, target.status, target.steward, newLockedTo, JSON.stringify(target)]
     );
 
     // Which steps were just newly filed in THIS save (blank before, has
@@ -321,7 +360,11 @@ async function logActivity(record) {
   return { ok: true };
 }
 
-async function archiveClosed(allowedLocations) {
+/**
+ * @param {string[]|null} allowedLocations  null = admin (no location filter)
+ * @param {string|null}   actorUsername     username of the caller; used for lock check (null = admin bypass)
+ */
+async function archiveClosed(allowedLocations, actorUsername) {
   return withTransaction(async (client) => {
     const archivedAt = new Date().toISOString().slice(0, 10);
     const placeholders = TERMINAL_STATUSES.map((_, i) => `$${i + 1}`).join(", ");
@@ -333,11 +376,16 @@ async function archiveClosed(allowedLocations) {
       : "";
     const params = allowedLocations ? [...TERMINAL_STATUSES, allowedLocations] : TERMINAL_STATUSES;
     const res = await client.query(
-      `select id, status, steward, data from grievances where status in (${placeholders})${locationClause}`,
+      `select id, status, steward, locked_to, data from grievances where status in (${placeholders})${locationClause}`,
       params
     );
     let archivedCount = 0;
     for (const row of res.rows) {
+      // Lock check: non-admins can only archive grievances locked to themselves.
+      // actorUsername === null means admin caller — admins bypass the lock.
+      if (actorUsername !== null && row.locked_to && row.locked_to !== actorUsername) {
+        continue;
+      }
       const archivedRecord = { ...row.data, archivedAt };
       await client.query(
         `insert into archive (id, status, steward, archived_at, data)
@@ -1197,7 +1245,7 @@ module.exports = {
   submitGrievance, logActivity, archiveClosed, sendCourtesyNotice,
   updateStewards, updateSetupList, getSetupList, updateHolidays, updateOrgSettings,
   getLocationDetails, updateLocationDetails, getOrgLocalNo,
-  findUpcomingDeadlines, SIMPLE_SETUP_KEYS, getGrievanceLocationById,
+  findUpcomingDeadlines, SIMPLE_SETUP_KEYS, getGrievanceLocationById, getGrievanceLock, handoffGrievance,
   hasAnyUsers, listUsersSafe, upsertUser, deleteUser,
   verifyLogin, createSession, getSessionUser, destroySession,
   // Investigation workflow

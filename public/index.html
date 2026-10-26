@@ -374,6 +374,15 @@ footer.app-foot{text-align:center;color:var(--grey);font-size:11.5px;padding:30p
           <div class="field"><label for="f-status">Current status / outcome</label><select id="f-status"></select></div>
           <div></div>
 
+          <!-- Lock banner: shown when the loaded grievance is locked to someone else -->
+          <div id="lockBanner" style="display:none;grid-column:1/-1;">
+            <div class="notice-box notice-amber" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+              <span style="font-size:16px;">&#128274;</span>
+              <span style="flex:1;font-size:13px;">This grievance is locked to <b id="lockOwnerName"></b>. You can view it but cannot save changes.</span>
+              <button type="button" class="btn btn-secondary" id="handoffBtn" style="display:none;font-size:12.5px;padding:5px 12px;">Hand off to me</button>
+            </div>
+          </div>
+
           <div class="form-footer">
             <button type="button" class="btn btn-secondary" id="clearFormBtn2">Clear</button>
             <button type="submit" class="btn btn-primary btn-lg" id="submitBtn">Submit &amp; clear</button>
@@ -1466,11 +1475,74 @@ function clearForm(){
   // Reset GID field read-only state based on current pool (refresh() will update STATE.grievancePool)
   const gidInput = $('f-gid');
   if(gidInput) gidInput.readOnly = false;
+  // Reset lock banner
+  const lockBanner = $('lockBanner');
+  if(lockBanner) lockBanner.style.display = 'none';
+  const submitBtn2 = $('submitBtn');
+  if(submitBtn2){ submitBtn2.disabled = false; submitBtn2.title = ''; }
   updateIntakePoolUI();
   $('f-gid').focus();
 }
 $('clearFormBtn').addEventListener('click', clearForm);
 $('clearFormBtn2').addEventListener('click', clearForm);
+
+/* ── Grievance hand-off ──────────────────────────────────── */
+$('handoffBtn').addEventListener('click', async function(){
+  const gid = this.dataset.gid;
+  if(!gid){ toast('No grievance loaded.', 'err'); return; }
+
+  // Build steward list for the picker (everyone except the current user)
+  const allUsers = (STATE.users || []).filter(u =>
+    u.username !== (CURRENT_USER && CURRENT_USER.username)
+  );
+  if(!allUsers.length){
+    toast('No other users found to hand off to.', 'err');
+    return;
+  }
+
+  // Simple prompt — build a quick inline modal-free select
+  const toUsername = await new Promise(resolve => {
+    const overlay = document.createElement('div');
+    overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:8000;display:flex;align-items:center;justify-content:center;';
+    const box = document.createElement('div');
+    box.style.cssText = 'background:var(--paper);border-radius:10px;padding:24px;max-width:360px;width:90%;box-shadow:0 8px 32px rgba(0,0,0,.25);';
+    box.innerHTML = `
+      <div style="font-family:var(--serif);font-size:16px;font-weight:700;color:var(--green-1);margin-bottom:12px;">&#128275; Hand off grievance</div>
+      <div style="font-size:13px;margin-bottom:14px;">Transfer the lock on <b>${gid}</b> to another steward. They will be the only one who can edit it.</div>
+      <select id="_handoffSelect" style="width:100%;margin-bottom:14px;padding:8px;border:1.5px solid var(--green-line);border-radius:6px;font-size:13px;">
+        ${allUsers.map(u => `<option value="${u.username}">${u.displayName||u.username} (${u.role})</option>`).join('')}
+      </select>
+      <div style="display:flex;gap:8px;justify-content:flex-end;">
+        <button id="_handoffCancel" class="btn btn-ghost">Cancel</button>
+        <button id="_handoffConfirm" class="btn btn-primary">Hand off</button>
+      </div>`;
+    overlay.appendChild(box);
+    document.body.appendChild(overlay);
+    overlay.querySelector('#_handoffCancel').onclick = () => { document.body.removeChild(overlay); resolve(null); };
+    overlay.querySelector('#_handoffConfirm').onclick = () => {
+      const val = overlay.querySelector('#_handoffSelect').value;
+      document.body.removeChild(overlay);
+      resolve(val || null);
+    };
+  });
+
+  if(!toUsername) return;
+
+  try {
+    const r = await fetch('/api/grievance/handoff', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: gid, toUsername })
+    });
+    const data = await r.json();
+    if(!r.ok) throw new Error(data.error || 'Hand-off failed.');
+    toast(`Grievance ${gid} handed off to ${toUsername}.`, 'ok');
+    clearForm();
+    await refresh();
+  } catch(err) {
+    toast(err.message, 'err');
+  }
+});
 
 function deriveDeadlines(rec){
   const d = {};
@@ -2219,6 +2291,38 @@ function loadIntoForm(rec){
   $('f-status').value = rec.status||'';
   $('gidNote').textContent = `Existing record — submitting will UPDATE "${rec.id}" (historic dates are preserved).`;
   recalcDeadlines();
+
+  // Lock banner: show if the record is locked to someone other than the current user.
+  const lockBanner  = $('lockBanner');
+  const lockOwner   = $('lockOwnerName');
+  const handoffBtn  = $('handoffBtn');
+  const submitBtn   = $('submitBtn');
+  const lockedTo    = rec.lockedTo || '';
+  const myUsername  = CURRENT_USER ? CURRENT_USER.username : '';
+  const isAdmin     = CURRENT_USER && CURRENT_USER.role === 'admin';
+
+  if(lockedTo && lockedTo !== myUsername && !isAdmin){
+    // Locked to someone else — show banner, disable save
+    lockBanner.style.display = '';
+    lockOwner.textContent = lockedTo;
+    handoffBtn.style.display = 'none'; // can't hand off if we don't hold it
+    submitBtn.disabled = true;
+    submitBtn.title = `Locked to ${lockedTo} — hand off required before editing.`;
+  } else if(lockedTo && lockedTo === myUsername && !isAdmin){
+    // We hold the lock — show a subtle indicator and the hand-off option
+    lockBanner.style.display = '';
+    lockOwner.textContent = `you (${myUsername})`;
+    handoffBtn.style.display = '';
+    handoffBtn.textContent = 'Hand off to another steward…';
+    handoffBtn.dataset.gid = rec.id;
+    submitBtn.disabled = false;
+    submitBtn.title = '';
+  } else {
+    // Admin or no lock — hide banner entirely
+    lockBanner.style.display = 'none';
+    submitBtn.disabled = false;
+    submitBtn.title = '';
+  }
 }
 
 function switchTab(tab){

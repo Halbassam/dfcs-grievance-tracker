@@ -345,7 +345,8 @@ const server = http.createServer(async (req, res) => {
 
     if (pathname === "/api/grievance" && req.method === "POST") {
       const body = await readBody(req);
-      body.actingUser = currentUser.displayName || currentUser.username;
+      body.actingUser    = currentUser.displayName || currentUser.username;
+      body.actorUsername = currentUser.username; // stable key used for lock ownership
 
       // Enforce location server-side -- never trust whatever the client
       // sent for this. A single-location user can't file anywhere but
@@ -367,6 +368,17 @@ const server = http.createServer(async (req, res) => {
         const existingLocation = body.id ? await db.getGrievanceLocationById(String(body.id).trim()) : null;
         if (existingLocation !== null && !canAccessLocation(currentUser, existingLocation)) {
           return sendJson(res, 403, { error: "You don't have access to this grievance." });
+        }
+
+        // Lock check: if this is an existing grievance locked to someone else, block the edit.
+        if (body.id && existingLocation !== null) {
+          const lockInfo = await db.getGrievanceLock(String(body.id).trim());
+          if (lockInfo && lockInfo.lockedTo && lockInfo.lockedTo !== currentUser.username) {
+            return sendJson(res, 403, {
+              error: `This grievance is locked to ${lockInfo.lockedTo}. Ask them to hand it off to you before editing.`,
+              lockedTo: lockInfo.lockedTo
+            });
+          }
         }
 
         if (locations.length === 1) {
@@ -411,6 +423,32 @@ const server = http.createServer(async (req, res) => {
       }
     }
 
+    // Hand off a grievance lock to another user.
+    // Only the current lock holder or an admin may do this.
+    if (pathname === "/api/grievance/handoff" && req.method === "POST") {
+      const body = await readBody(req);
+      const gid        = String(body.id || "").trim();
+      const toUsername = String(body.toUsername || "").trim();
+      if (!gid || !toUsername) {
+        return sendJson(res, 400, { error: "id and toUsername are required." });
+      }
+      const lockInfo = await db.getGrievanceLock(gid);
+      if (!lockInfo) {
+        return sendJson(res, 404, { error: `Grievance ${gid} not found.` });
+      }
+      if (!isAdmin(currentUser) && lockInfo.lockedTo !== currentUser.username) {
+        return sendJson(res, 403, {
+          error: `Only the current lock holder (${lockInfo.lockedTo}) or an admin can hand off this grievance.`
+        });
+      }
+      try {
+        const result = await db.handoffGrievance(gid, toUsername);
+        return sendJson(res, 200, result);
+      } catch (err) {
+        return sendJson(res, 400, { error: err.message });
+      }
+    }
+
     // AI grievance-drafting assistant. Any logged-in user (steward or
     // admin) can use it — it only reads the contract text and the
     // conversation the steward types; it never touches the database.
@@ -446,7 +484,11 @@ const server = http.createServer(async (req, res) => {
     }
 
     if (pathname === "/api/archive" && req.method === "POST") {
-      const result = await db.archiveClosed(isAdmin(currentUser) ? null : userLocations(currentUser));
+      const admin = isAdmin(currentUser);
+      const result = await db.archiveClosed(
+        admin ? null : userLocations(currentUser),
+        admin ? null : currentUser.username
+      );
       return sendJson(res, 200, result);
     }
 
