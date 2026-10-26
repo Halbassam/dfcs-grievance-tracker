@@ -175,6 +175,16 @@ async function submitGrievance(record) {
     target.updatedBy = record.actingUser || "";
     target.id = id;
 
+    // Edit history: append a coarse entry on every save.
+    // New grievances get a "Created" entry; subsequent saves get "Edited".
+    // Kept inside the data blob so it travels with the record (archive, export).
+    const historyEntry = {
+      at: target.updatedAt,
+      by: record.actingUser || record.actorUsername || "unknown",
+      action: isNew ? "Created" : "Edited"
+    };
+    target.editHistory = [...(Array.isArray(target.editHistory) ? target.editHistory : []), historyEntry];
+
     // Lock: new grievances are locked to the creating user's username.
     // Existing grievances keep their current lock (only handoffGrievance changes it).
     // We store the username (not display name) for stable identity comparison.
@@ -1240,6 +1250,45 @@ async function consumeNextGrievanceNumber(assignedBy) {
   });
 }
 
+// ---------------------------------------------------------------------------
+// Audit log
+// ---------------------------------------------------------------------------
+
+/**
+ * Append one entry to the audit_log table.
+ * Fire-and-forget safe — callers .catch() so a DB hiccup never blocks a login.
+ * @param {string} username
+ * @param {'login'|'logout'|'tab'|'record_open'} action
+ * @param {string} detail   - tab name, grievance ID, etc.
+ * @param {string} ip       - request IP (best-effort)
+ */
+async function writeAuditLog(username, action, detail = "", ip = "") {
+  await query(
+    `insert into audit_log (username, action, detail, ip) values ($1, $2, $3, $4)`,
+    [String(username), String(action), String(detail).slice(0, 500), String(ip).slice(0, 100)]
+  );
+}
+
+/**
+ * Fetch recent audit entries for the admin UI.
+ * @param {number} limit   max rows (default 200)
+ * @param {string} [filterUsername]  if provided, restrict to that user
+ */
+async function getAuditLog(limit = 200, filterUsername = null) {
+  let q, params;
+  if (filterUsername) {
+    q = `select id, username, action, detail, ip, created_at from audit_log
+         where username = $1 order by created_at desc limit $2`;
+    params = [filterUsername, limit];
+  } else {
+    q = `select id, username, action, detail, ip, created_at from audit_log
+         order by created_at desc limit $1`;
+    params = [limit];
+  }
+  const res = await query(q, params);
+  return res.rows;
+}
+
 module.exports = {
   getAll, readRaw, writeRawAtomic, withLock, logEmailAttempt, pingKeepAlive,
   submitGrievance, logActivity, archiveClosed, sendCourtesyNotice,
@@ -1256,5 +1305,7 @@ module.exports = {
   // Attachments
   listAttachments, createAttachmentRecord, getAttachmentRecord, deleteAttachmentRecord,
   // Grievance number pool
-  getGrievanceNumberPool, addToGrievanceNumberPool, clearGrievanceNumberPool, consumeNextGrievanceNumber
+  getGrievanceNumberPool, addToGrievanceNumberPool, clearGrievanceNumberPool, consumeNextGrievanceNumber,
+  // Audit log
+  writeAuditLog, getAuditLog
 };

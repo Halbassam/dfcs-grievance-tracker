@@ -17,6 +17,53 @@ const storage = require("./storage");
 const PORT = process.env.PORT || 3000;
 const PUBLIC_DIR = path.join(__dirname, "../public");
 
+/** Best-effort client IP — respects the X-Forwarded-For header set by Render's proxy. */
+function clientIp(req) {
+  const fwd = req.headers["x-forwarded-for"];
+  if (fwd) return fwd.split(",")[0].trim();
+  return req.socket && req.socket.remoteAddress || "";
+}
+
+// ---------------------------------------------------------------------------
+// Login rate limiter (in-memory)
+// Tracks consecutive failures per username. After LOGIN_MAX_FAILURES attempts
+// the account is locked out for LOGIN_LOCKOUT_MS. Resets on success or expiry.
+// In-memory is intentional: free-tier restarts are frequent enough that a
+// persistent attacker gains little, and this stops automated scripts cold.
+// ---------------------------------------------------------------------------
+const LOGIN_MAX_FAILURES  = 10;
+const LOGIN_LOCKOUT_MS    = 15 * 60 * 1000; // 15 minutes
+const _loginFailures = new Map(); // username (lowercase) → { count, lockedUntil }
+
+function loginCheckLock(username) {
+  const key = username.toLowerCase();
+  const rec = _loginFailures.get(key);
+  if (!rec) return null; // no history
+  if (rec.lockedUntil && Date.now() < rec.lockedUntil) {
+    const secsLeft = Math.ceil((rec.lockedUntil - Date.now()) / 1000);
+    return `Too many failed login attempts. Try again in ${secsLeft} seconds.`;
+  }
+  return null; // either not locked or lockout has expired
+}
+
+function loginRecordFailure(username) {
+  const key = username.toLowerCase();
+  const rec = _loginFailures.get(key) || { count: 0, lockedUntil: null };
+  // If a previous lockout has expired, reset the counter
+  if (rec.lockedUntil && Date.now() >= rec.lockedUntil) {
+    rec.count = 0; rec.lockedUntil = null;
+  }
+  rec.count += 1;
+  if (rec.count >= LOGIN_MAX_FAILURES) {
+    rec.lockedUntil = Date.now() + LOGIN_LOCKOUT_MS;
+  }
+  _loginFailures.set(key, rec);
+}
+
+function loginRecordSuccess(username) {
+  _loginFailures.delete(username.toLowerCase());
+}
+
 const MIME = {
   ".html": "text/html; charset=utf-8",
   ".js": "text/javascript; charset=utf-8",
@@ -210,14 +257,24 @@ const server = http.createServer(async (req, res) => {
     // Auth routes (no session required)
     if (pathname === "/api/auth/login" && req.method === "POST") {
       const body = await readBody(req);
-      const user = await db.verifyLogin(body.username, body.password);
-      if (!user) return sendJson(res, 401, { error: "Incorrect username or password." });
+      const rawUsername = String(body.username || "").trim();
+
+      // Rate-limit check before hitting the DB
+      const lockMsg = loginCheckLock(rawUsername);
+      if (lockMsg) return sendJson(res, 429, { error: lockMsg });
+
+      const user = await db.verifyLogin(rawUsername, body.password);
+      if (!user) {
+        loginRecordFailure(rawUsername);
+        return sendJson(res, 401, { error: "Incorrect username or password." });
+      }
+      loginRecordSuccess(rawUsername);
       const token = await db.createSession(user.username);
       setSessionCookie(res, token);
-      // Fire-and-forget: a real write on every login keeps Supabase's
-      // free-tier project from auto-pausing due to inactivity. Never
-      // awaited and never allowed to affect the login response.
+      // Fire-and-forget keeps Supabase free-tier alive and records login.
       db.pingKeepAlive().catch(err => console.error("[index] Keep-alive ping failed:", err.message));
+      db.writeAuditLog(user.username, "login", "", clientIp(req))
+        .catch(err => console.error("[audit] login write failed:", err.message));
       return sendJson(res, 200, { ok: true, user });
     }
 
@@ -231,6 +288,11 @@ const server = http.createServer(async (req, res) => {
     if (pathname === "/api/auth/logout" && req.method === "POST") {
       const token = getSessionTokenFromRequest(req);
       if (token) await db.destroySession(token);
+      // Record logout before clearing session (currentUser still valid here)
+      if (currentUser && currentUser.username) {
+        db.writeAuditLog(currentUser.username, "logout", "", clientIp(req))
+          .catch(err => console.error("[audit] logout write failed:", err.message));
+      }
       clearSessionCookie(res);
       return sendJson(res, 200, { ok: true });
     }
@@ -441,6 +503,11 @@ const server = http.createServer(async (req, res) => {
           error: `Only the current lock holder (${lockInfo.lockedTo}) or an admin can hand off this grievance.`
         });
       }
+      // Validate the target user exists so we can't orphan a grievance to a phantom username.
+      const targetUser = STATE.users.find(u => u.username === toUsername);
+      if (!targetUser) {
+        return sendJson(res, 400, { error: `User "${toUsername}" not found. They may have been deleted.` });
+      }
       try {
         const result = await db.handoffGrievance(gid, toUsername);
         return sendJson(res, 200, result);
@@ -592,6 +659,7 @@ const server = http.createServer(async (req, res) => {
     }
 
     if (pathname === "/api/email/run-now" && req.method === "POST") {
+      if (!isAdmin(currentUser)) return sendJson(res, 403, { error: "Only admins can trigger the email run." });
       const summary = await scheduler.runDeadlineCheck();
       return sendJson(res, 200, summary);
     }
@@ -795,6 +863,30 @@ Additional details: ${sub.otherDetails || ""}`;
       // Any logged-in steward may claim a number; no extra role check needed.
       const result = await db.consumeNextGrievanceNumber(currentUser.username);
       return sendJson(res, 200, result);
+    }
+
+    // ── AUDIT LOG ──────────────────────────────────────────────────────────
+
+    // POST /api/audit — client-side fire-and-forget ping (tab nav, record open)
+    if (pathname === "/api/audit" && req.method === "POST") {
+      const body = await readBody(req);
+      const action = String(body.action || "").trim();
+      const detail = String(body.detail || "").trim();
+      const ALLOWED_ACTIONS = new Set(["tab", "record_open"]);
+      if (!ALLOWED_ACTIONS.has(action)) return sendJson(res, 400, { error: "Invalid action." });
+      db.writeAuditLog(currentUser.username, action, detail, clientIp(req))
+        .catch(err => console.error("[audit] client ping failed:", err.message));
+      return sendJson(res, 200, { ok: true });
+    }
+
+    // GET /api/audit/log — admin-only: fetch recent entries
+    if (pathname === "/api/audit/log" && req.method === "GET") {
+      if (!isAdmin(currentUser)) return sendJson(res, 403, { error: "Only admins can view the audit log." });
+      const url = new URL(req.url, "http://x");
+      const filterUser = url.searchParams.get("user") || null;
+      const limit = Math.min(parseInt(url.searchParams.get("limit") || "200", 10), 500);
+      const rows = await db.getAuditLog(limit, filterUser);
+      return sendJson(res, 200, { rows });
     }
 
     return sendJson(res, 404, { error: "Unknown API route" });
