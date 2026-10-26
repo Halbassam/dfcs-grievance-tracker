@@ -284,6 +284,7 @@ footer.app-foot{text-align:center;color:var(--grey);font-size:11.5px;padding:30p
     <button class="tab-btn" data-tab="workload">Steward Workload</button>
     <button class="tab-btn" data-tab="archive">Archive</button>
     <button class="tab-btn" data-tab="settings">Settings</button>
+    <button class="tab-btn admin-only-tab" data-tab="audit" style="display:none;">&#128065; Audit Log</button>
     <button class="tab-btn" data-tab="help">&#10067; Help</button>
     <span id="currentUserBadge" class="hidden" style="display:flex;align-items:center;gap:10px;padding:10px 14px;color:rgba(255,255,255,0.85);font-size:12.5px;white-space:nowrap;">
       <span id="currentUserName"></span>
@@ -381,6 +382,16 @@ footer.app-foot{text-align:center;color:var(--grey);font-size:11.5px;padding:30p
               <span style="flex:1;font-size:13px;">This grievance is locked to <b id="lockOwnerName"></b>. You can view it but cannot save changes.</span>
               <button type="button" class="btn btn-secondary" id="handoffBtn" style="display:none;font-size:12.5px;padding:5px 12px;">Hand off to me</button>
             </div>
+          </div>
+
+          <!-- Edit History: shown once a grievance is loaded; hidden on new/cleared form -->
+          <div id="editHistoryWrap" style="display:none;grid-column:1/-1;margin-top:4px;">
+            <details>
+              <summary style="cursor:pointer;font-size:12.5px;color:var(--grey);user-select:none;padding:4px 0;">
+                &#128221; Edit history
+              </summary>
+              <div id="editHistoryList" style="margin-top:8px;font-size:12px;color:var(--grey);line-height:1.7;padding-left:4px;"></div>
+            </details>
           </div>
 
           <div class="form-footer">
@@ -740,6 +751,37 @@ footer.app-foot{text-align:center;color:var(--grey);font-size:11.5px;padding:30p
         <div class="field" style="margin:0;"><label for="cpNewPw">New password</label><input type="password" id="cpNewPw" autocomplete="new-password"></div>
         <div class="field" style="margin:0;"><label for="cpConfirmPw">Confirm new password</label><input type="password" id="cpConfirmPw" autocomplete="new-password"></div>
         <button class="btn btn-primary" id="cpSaveBtn" style="align-self:flex-start;">Change password</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- AUDIT LOG (admin only) -->
+  <section id="tab-audit" class="hidden">
+    <div class="section-head">
+      <div><h2>&#128065; Audit Log</h2><div class="sub">Login events, tab navigation, and record access — admin view only</div></div>
+      <div style="display:flex;gap:8px;align-items:center;">
+        <select id="auditUserFilter" style="font-size:13px;padding:5px 10px;border:1.5px solid var(--green-line);border-radius:6px;background:var(--paper);color:var(--ink);">
+          <option value="">All users</option>
+        </select>
+        <button class="btn btn-secondary" id="auditRefreshBtn" style="font-size:12.5px;">&#8635; Refresh</button>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="panel-pad" style="overflow-x:auto;">
+        <table id="auditTable" style="width:100%;border-collapse:collapse;font-size:12.5px;">
+          <thead>
+            <tr style="text-align:left;border-bottom:2px solid var(--green-line);">
+              <th style="padding:8px 12px;white-space:nowrap;color:var(--green-1);">When</th>
+              <th style="padding:8px 12px;color:var(--green-1);">User</th>
+              <th style="padding:8px 12px;color:var(--green-1);">Action</th>
+              <th style="padding:8px 12px;color:var(--green-1);">Detail</th>
+              <th style="padding:8px 12px;color:var(--green-1);">IP</th>
+            </tr>
+          </thead>
+          <tbody id="auditTableBody">
+            <tr><td colspan="5" style="padding:24px;text-align:center;color:var(--grey);">Loading…</td></tr>
+          </tbody>
+        </table>
       </div>
     </div>
   </section>
@@ -1480,6 +1522,9 @@ function clearForm(){
   if(lockBanner) lockBanner.style.display = 'none';
   const submitBtn2 = $('submitBtn');
   if(submitBtn2){ submitBtn2.disabled = false; submitBtn2.title = ''; }
+  // Hide edit history
+  const editHistoryWrap2 = $('editHistoryWrap');
+  if(editHistoryWrap2) editHistoryWrap2.style.display = 'none';
   updateIntakePoolUI();
   $('f-gid').focus();
 }
@@ -1501,21 +1546,52 @@ $('handoffBtn').addEventListener('click', async function(){
   }
 
   // Simple prompt — build a quick inline modal-free select
+  // NOTE: all user-supplied strings (gid, displayName, username) are set via
+  // textContent / .value to avoid any innerHTML injection risk.
   const toUsername = await new Promise(resolve => {
     const overlay = document.createElement('div');
     overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:8000;display:flex;align-items:center;justify-content:center;';
     const box = document.createElement('div');
     box.style.cssText = 'background:var(--paper);border-radius:10px;padding:24px;max-width:360px;width:90%;box-shadow:0 8px 32px rgba(0,0,0,.25);';
-    box.innerHTML = `
-      <div style="font-family:var(--serif);font-size:16px;font-weight:700;color:var(--green-1);margin-bottom:12px;">&#128275; Hand off grievance</div>
-      <div style="font-size:13px;margin-bottom:14px;">Transfer the lock on <b>${gid}</b> to another steward. They will be the only one who can edit it.</div>
-      <select id="_handoffSelect" style="width:100%;margin-bottom:14px;padding:8px;border:1.5px solid var(--green-line);border-radius:6px;font-size:13px;">
-        ${allUsers.map(u => `<option value="${u.username}">${u.displayName||u.username} (${u.role})</option>`).join('')}
-      </select>
-      <div style="display:flex;gap:8px;justify-content:flex-end;">
-        <button id="_handoffCancel" class="btn btn-ghost">Cancel</button>
-        <button id="_handoffConfirm" class="btn btn-primary">Hand off</button>
-      </div>`;
+
+    // Title
+    const title = document.createElement('div');
+    title.style.cssText = 'font-family:var(--serif);font-size:16px;font-weight:700;color:var(--green-1);margin-bottom:12px;';
+    title.textContent = '🔓 Hand off grievance';
+    box.appendChild(title);
+
+    // Body line — gid injected safely via textContent
+    const body2 = document.createElement('div');
+    body2.style.cssText = 'font-size:13px;margin-bottom:14px;';
+    body2.append('Transfer the lock on ');
+    const gidSpan = document.createElement('b');
+    gidSpan.textContent = gid;
+    body2.appendChild(gidSpan);
+    body2.append(' to another steward. They will be the only one who can edit it.');
+    box.appendChild(body2);
+
+    // Select — options built via DOM API so displayName/username are never innerHTML
+    const sel = document.createElement('select');
+    sel.id = '_handoffSelect';
+    sel.style.cssText = 'width:100%;margin-bottom:14px;padding:8px;border:1.5px solid var(--green-line);border-radius:6px;font-size:13px;';
+    allUsers.forEach(u => {
+      const opt = document.createElement('option');
+      opt.value = u.username;
+      opt.textContent = `${u.displayName || u.username} (${u.role})`;
+      sel.appendChild(opt);
+    });
+    box.appendChild(sel);
+
+    // Buttons row
+    const btnRow = document.createElement('div');
+    btnRow.style.cssText = 'display:flex;gap:8px;justify-content:flex-end;';
+    const cancelBtn = document.createElement('button');
+    cancelBtn.id = '_handoffCancel'; cancelBtn.className = 'btn btn-ghost'; cancelBtn.textContent = 'Cancel';
+    const confirmBtn = document.createElement('button');
+    confirmBtn.id = '_handoffConfirm'; confirmBtn.className = 'btn btn-primary'; confirmBtn.textContent = 'Hand off';
+    btnRow.appendChild(cancelBtn); btnRow.appendChild(confirmBtn);
+    box.appendChild(btnRow);
+
     overlay.appendChild(box);
     document.body.appendChild(overlay);
     overlay.querySelector('#_handoffCancel').onclick = () => { document.body.removeChild(overlay); resolve(null); };
@@ -2258,6 +2334,8 @@ function openDetail(gid){
 $('detailCloseBtn').addEventListener('click', ()=>$('detailModalOverlay').classList.remove('show'));
 
 function loadIntoForm(rec){
+  // Audit: record which grievance was opened
+  auditPing('record_open', rec.id || '');
   $('f-gid').value = rec.id;
   $('f-name').value = rec.employee||'';
   // Lock the name field — employee name cannot be changed after filing
@@ -2323,6 +2401,37 @@ function loadIntoForm(rec){
     submitBtn.disabled = false;
     submitBtn.title = '';
   }
+
+  // Edit history panel
+  const editHistoryWrap = $('editHistoryWrap');
+  const editHistoryList = $('editHistoryList');
+  if(editHistoryWrap && editHistoryList){
+    const history = Array.isArray(rec.editHistory) ? rec.editHistory : [];
+    if(history.length){
+      editHistoryWrap.style.display = '';
+      editHistoryList.innerHTML = history.slice().reverse().map(h => {
+        const dt = h.at ? new Date(h.at) : null;
+        const dateStr = dt ? dt.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}) : '';
+        const timeStr = dt ? dt.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'}) : '';
+        return `<div style="padding:2px 0;border-bottom:1px solid var(--rule);last-child:border:none;">
+          <b style="color:var(--ink);">${escapeHtml(h.action||'Edited')}</b>
+          by ${escapeHtml(h.by||'unknown')}
+          <span style="font-family:var(--mono);font-size:11px;">&nbsp;${dateStr}${timeStr ? ' at '+timeStr : ''}</span>
+        </div>`;
+      }).join('');
+    } else {
+      editHistoryWrap.style.display = 'none';
+    }
+  }
+}
+
+/** Fire-and-forget audit ping — never throws, never blocks UI. */
+function auditPing(action, detail){
+  if(!CURRENT_USER || !CURRENT_USER.username) return;
+  fetch('/api/audit', {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({ action, detail })
+  }).catch(()=>{}); // silent — best-effort
 }
 
 function switchTab(tab){
@@ -2333,6 +2442,10 @@ function switchTab(tab){
   window.scrollTo(0,0);
   // Refresh pool UI when switching to intake
   if(tab === 'intake') updateIntakePoolUI();
+  // Audit: record tab navigation
+  auditPing('tab', tab);
+  // Refresh audit log when admin opens it
+  if(tab === 'audit') loadAuditLog();
 }
 document.querySelectorAll('.tab-btn').forEach(btn=>{
   btn.addEventListener('click', ()=>switchTab(btn.dataset.tab));
@@ -3885,6 +3998,93 @@ function startBackgroundPolling(){
     </div>
   </div>
 </div>
+
+<script>
+/* ── Audit Log ──────────────────────────────────────────────── */
+(function(){
+  const ACTION_LABELS = {
+    login:       '🔑 Login',
+    logout:      '🚪 Logout',
+    tab:         '📂 Tab',
+    record_open: '📄 Record opened'
+  };
+  const ACTION_COLORS = {
+    login:       'var(--green-1)',
+    logout:      'var(--grey)',
+    tab:         '#6b7280',
+    record_open: '#2563eb'
+  };
+
+  async function loadAuditLog(){
+    const filterUser = $('auditUserFilter') ? $('auditUserFilter').value : '';
+    const url = '/api/audit/log?limit=200' + (filterUser ? '&user='+encodeURIComponent(filterUser) : '');
+    const tbody = $('auditTableBody');
+    if(tbody) tbody.innerHTML = '<tr><td colspan="5" style="padding:24px;text-align:center;color:var(--grey);">Loading…</td></tr>';
+    try {
+      const r = await fetch(url);
+      const data = await r.json();
+      if(!r.ok) throw new Error(data.error || 'Failed to load audit log.');
+      const rows = data.rows || [];
+
+      // Populate user filter dropdown (first load only — when it has only the default option)
+      const sel = $('auditUserFilter');
+      if(sel && sel.options.length <= 1){
+        const users = [...new Set(rows.map(r => r.username))].sort();
+        users.forEach(u => {
+          const opt = document.createElement('option');
+          opt.value = u; opt.textContent = u;
+          sel.appendChild(opt);
+        });
+      }
+
+      if(!rows.length){
+        if(tbody) tbody.innerHTML = '<tr><td colspan="5" style="padding:24px;text-align:center;color:var(--grey);">No entries yet.</td></tr>';
+        return;
+      }
+      if(tbody) tbody.innerHTML = rows.map(row => {
+        const dt = new Date(row.created_at);
+        const dateStr = dt.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});
+        const timeStr = dt.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit',second:'2-digit'});
+        const label   = ACTION_LABELS[row.action] || row.action;
+        const color   = ACTION_COLORS[row.action] || 'var(--ink)';
+        return `<tr style="border-bottom:1px solid var(--rule);">
+          <td style="padding:7px 12px;font-family:var(--mono);font-size:11.5px;white-space:nowrap;color:var(--grey);">${dateStr}<br>${timeStr}</td>
+          <td style="padding:7px 12px;font-weight:600;">${escapeHtml(row.username)}</td>
+          <td style="padding:7px 12px;color:${color};white-space:nowrap;">${label}</td>
+          <td style="padding:7px 12px;color:var(--ink);">${escapeHtml(row.detail || '—')}</td>
+          <td style="padding:7px 12px;font-family:var(--mono);font-size:11px;color:var(--grey);">${escapeHtml(row.ip || '')}</td>
+        </tr>`;
+      }).join('');
+    } catch(err) {
+      if(tbody) tbody.innerHTML = `<tr><td colspan="5" style="padding:24px;text-align:center;color:var(--red);">${escapeHtml(err.message)}</td></tr>`;
+    }
+  }
+
+  // Expose so switchTab can call it
+  window.loadAuditLog = loadAuditLog;
+
+  // Show/hide the tab button based on role
+  function updateAuditTabVisibility(){
+    const btn = document.querySelector('.admin-only-tab[data-tab="audit"]');
+    if(btn) btn.style.display = (CURRENT_USER && CURRENT_USER.role === 'admin') ? '' : 'none';
+  }
+
+  // Hook up buttons — DOM is already parsed by the time this script runs
+  // (script is at end of body), so wire directly without waiting for DOMContentLoaded.
+  const _refreshBtn = $('auditRefreshBtn');
+  if(_refreshBtn) _refreshBtn.addEventListener('click', loadAuditLog);
+  const _auditSel = $('auditUserFilter');
+  if(_auditSel) _auditSel.addEventListener('change', loadAuditLog);
+
+  // Poll until CURRENT_USER is set (same pattern as wizard role label)
+  const _auditPoll = setInterval(()=>{
+    if(typeof CURRENT_USER !== 'undefined' && CURRENT_USER){
+      updateAuditTabVisibility();
+      clearInterval(_auditPoll);
+    }
+  }, 300);
+})();
+</script>
 
 <script>
 /* ── Guided wizard ──────────────────────────────────────────── */
