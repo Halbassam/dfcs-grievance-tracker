@@ -17,3 +17,6 @@ create table if not exists audit_log (
 
 create index if not exists idx_audit_log_username   on audit_log (username);
 create index if not exists idx_audit_log_created_at on audit_log (created_at desc);
+
+-- Enable RLS (server uses service role key, so this only blocks direct anon/public API access)
+alter table audit_log enable row level security;
