@@ -900,6 +900,14 @@ Additional details: ${sub.otherDetails || ""}`;
 server.listen(PORT, () => {
   console.log(`FCRC Grievance Tracker running on port ${PORT}`);
   scheduler.startScheduler();
+
+  // Keep Supabase free-tier alive — ping the DB every 5 days so it never
+  // reaches the 7-day inactivity threshold and pauses.
+  const KEEP_ALIVE_INTERVAL_MS = 5 * 24 * 60 * 60 * 1000; // 5 days
+  db.pingKeepAlive().catch(err => console.error("[keep-alive] initial ping failed:", err.message));
+  setInterval(() => {
+    db.pingKeepAlive().catch(err => console.error("[keep-alive] scheduled ping failed:", err.message));
+  }, KEEP_ALIVE_INTERVAL_MS);
 });
 
 // Exported for unit testing only (see __selftest__/run_bot_permission_test.js).
