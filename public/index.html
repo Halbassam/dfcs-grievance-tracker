@@ -743,6 +743,24 @@ footer.app-foot{text-align:center;color:var(--grey);font-size:11.5px;padding:30p
       </div>
     </div>
 
+    <div class="panel panel-pad" id="myPoolPanel" style="margin-bottom:24px;">
+      <h3 style="font-family:var(--serif);color:var(--green-1);margin:0 0 6px;font-size:17px;">Grievance number pool</h3>
+      <p style="font-size:13px;color:var(--grey);margin:6px 0 14px;">Add preset grievance numbers so the Intake Form can auto-assign them. Numbers already in the pool or already used are skipped automatically.</p>
+      <div id="myPoolStatusDisplay" style="margin-bottom:16px;padding:12px 16px;border-radius:6px;background:var(--panel-alt,#f0f5f0);font-size:13.5px;"></div>
+      <div style="margin-bottom:16px;">
+        <label style="font-weight:600;font-size:13px;display:block;margin-bottom:6px;">Add numbers to pool</label>
+        <textarea id="myPoolNumbersInput" rows="4" style="width:100%;box-sizing:border-box;font-family:monospace;font-size:13px;padding:8px 10px;border:1px solid var(--green-line);border-radius:6px;resize:vertical;" placeholder="FCRC-2026-001&#10;FCRC-2026-002&#10;FCRC-2026-003&#10;(one per line, or comma-separated)"></textarea>
+        <div style="display:flex;gap:10px;margin-top:10px;flex-wrap:wrap;align-items:center;">
+          <button class="btn btn-primary" id="myPoolAddBtn">Add to pool</button>
+          <span id="myPoolAddStatus" style="font-size:13px;color:var(--green-2);"></span>
+        </div>
+      </div>
+      <div>
+        <label style="font-weight:600;font-size:13px;display:block;margin-bottom:6px;">Recent assignments</label>
+        <div id="myPoolLogTable" style="font-size:12.5px;"></div>
+      </div>
+    </div>
+
     <div class="panel panel-pad" id="changePasswordPanel">
       <h3 style="font-family:var(--serif);color:var(--green-1);margin:0 0 6px;font-size:17px;">Change my password</h3>
       <p style="font-size:13px;color:var(--grey);margin:6px 0 14px;">Change the password for your own account. You'll need to enter your current password to confirm.</p>
@@ -2775,25 +2793,24 @@ function updateIntakePoolUI(){
 }
 
 /** Renders the pool status and log table in the Settings panel (admin only). */
-async function renderPoolStatusPanel(){
-  const statusDiv = $('poolStatusDisplay');
+/** Shared render for any pool status panel — pass the element IDs for that panel. */
+async function _renderPoolPanel(statusId, logId){
+  const statusDiv = $(statusId);
   if(!statusDiv) return;
   try{
     const data = await apiGet('/api/grievance-pool');
     const remaining = data.remaining || 0;
     const log = data.log || [];
-    // Status line
     let statusHtml;
     if(remaining === 0){
-      statusHtml = `<span style="color:var(--red,#c0392b);font-weight:600;">&#9888; Pool is empty.</span> Stewards will type grievance numbers manually until you add a new batch.`;
+      statusHtml = `<span style="color:var(--red,#c0392b);font-weight:600;">&#9888; Pool is empty.</span> Stewards will type grievance numbers manually until a new batch is added.`;
     } else if(remaining <= 3){
-      statusHtml = `<span style="color:#b8660c;font-weight:600;">&#9888; Low: ${remaining} number(s) remaining.</span> Request a new batch from the union president soon.`;
+      statusHtml = `<span style="color:#b8660c;font-weight:600;">&#9888; Low: ${remaining} number(s) remaining.</span> Add a new batch soon.`;
     } else {
       statusHtml = `<span style="color:var(--green-2,#27ae60);font-weight:600;">&#10003; ${remaining} number(s) available</span> — intake form will auto-assign.`;
     }
     statusDiv.innerHTML = statusHtml;
-    // Log table
-    const logDiv = $('poolLogTable');
+    const logDiv = $(logId);
     if(!logDiv) return;
     if(log.length === 0){
       logDiv.innerHTML = '<span style="color:var(--grey);font-size:12.5px;">No numbers have been assigned yet.</span>';
@@ -2819,6 +2836,14 @@ async function renderPoolStatusPanel(){
   }
 }
 
+async function renderPoolStatusPanel(){
+  await _renderPoolPanel('poolStatusDisplay', 'poolLogTable');
+}
+
+async function renderMyPoolPanel(){
+  await _renderPoolPanel('myPoolStatusDisplay', 'myPoolLogTable');
+}
+
 // Add to pool button
 $('poolAddBtn')?.addEventListener('click', async ()=>{
   const raw = ($('poolNumbersInput')?.value || '').trim();
@@ -2835,6 +2860,29 @@ $('poolAddBtn')?.addEventListener('click', async ()=>{
     $('poolNumbersInput').value = '';
     await refresh();
     renderPoolStatusPanel();
+  }catch(err){
+    toast(err.message || 'Could not add numbers.', 'err');
+  }finally{
+    btn.disabled = false; btn.textContent = 'Add to pool';
+  }
+});
+
+// My pool panel (all users — same add logic, no clear button)
+$('myPoolAddBtn')?.addEventListener('click', async ()=>{
+  const raw = ($('myPoolNumbersInput')?.value || '').trim();
+  if(!raw){ toast('Enter at least one grievance number.', 'err'); return; }
+  const statusEl = $('myPoolAddStatus');
+  const btn = $('myPoolAddBtn');
+  btn.disabled = true; btn.textContent = 'Adding…';
+  if(statusEl) statusEl.textContent = '';
+  try{
+    const result = await apiPost('/api/grievance-pool/add', { numbers: raw });
+    const msg = `Added ${result.added}${result.skipped ? `, skipped ${result.skipped} duplicate(s)` : ''}. Pool now has ${result.remaining} number(s).`;
+    if(statusEl) statusEl.textContent = msg;
+    toast(msg);
+    $('myPoolNumbersInput').value = '';
+    await refresh();
+    renderMyPoolPanel();
   }catch(err){
     toast(err.message || 'Could not add numbers.', 'err');
   }finally{
@@ -3204,6 +3252,7 @@ function renderSettingsCounts(isBackgroundPoll){
   if(!isBackgroundPoll){
     renderLocationContactsPanel();
     renderPoolStatusPanel();
+    renderMyPoolPanel();
 
     // Org settings fields
     $('orgAgencyInput')   && ($('orgAgencyInput').value   = ORG_SETTINGS.agency   || '');
