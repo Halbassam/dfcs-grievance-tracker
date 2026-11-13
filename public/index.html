@@ -1127,6 +1127,9 @@ function uid(){ return 'a'+Math.random().toString(36).slice(2,10)+Date.now().toS
 
 let SETUP = {};
 let STATE = { grievances: [], activity: [], archive: [], holidays: [], users: [], attachments: [], grievancePool: { remaining: 0 } };
+// Tracks a pool number claimed via "Assign next" but not yet saved.
+// If the form is cleared or a different record is loaded, this gets returned to the pool.
+let _pendingPoolNumber = null;
 let LOCATION_DETAILS = {}; // per-location { bureau, email } config, keyed by location name
 
 // Admin-only convenience filter: admins receive every location's data
@@ -1491,6 +1494,7 @@ async function submitAndClear(){
       followup: "No", followupDate: ""
     });
     toast(isNew ? `Grievance ${gid} added.` : `Grievance ${gid} updated.`);
+    _pendingPoolNumber = null; // number was saved — don't return it to pool
     clearForm();
     await refresh();
   }catch(err){
@@ -1525,6 +1529,8 @@ function clearForm(){
   // Hide edit history
   const editHistoryWrap2 = $('editHistoryWrap');
   if(editHistoryWrap2) editHistoryWrap2.style.display = 'none';
+  // Return any pool number that was assigned but not saved
+  returnPendingPoolNumber();
   updateIntakePoolUI();
   $('f-gid').focus();
 }
@@ -2334,6 +2340,8 @@ function openDetail(gid){
 $('detailCloseBtn').addEventListener('click', ()=>$('detailModalOverlay').classList.remove('show'));
 
 function loadIntoForm(rec){
+  // If a pool number was assigned but not saved, return it before loading a different record
+  if(_pendingPoolNumber && _pendingPoolNumber !== rec.id) returnPendingPoolNumber();
   // Audit: record which grievance was opened
   auditPing('record_open', rec.id || '');
   $('f-gid').value = rec.id;
@@ -2847,6 +2855,21 @@ $('poolClearBtn')?.addEventListener('click', async ()=>{
   }
 });
 
+/** Return a pending pool number silently if one is set. Fire-and-forget. */
+function returnPendingPoolNumber(){
+  if(!_pendingPoolNumber) return;
+  const num = _pendingPoolNumber;
+  _pendingPoolNumber = null;
+  fetch('/api/grievance-pool/return', {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({ number: num })
+  }).then(r => r.json()).then(data => {
+    if(data.ok) STATE.grievancePool.remaining = (STATE.grievancePool.remaining || 0) + 1;
+    updateIntakePoolUI();
+  }).catch(()=>{});
+}
+
 // Assign Next button on intake form
 $('assignNextBtn')?.addEventListener('click', async ()=>{
   const btn = $('assignNextBtn');
@@ -2864,6 +2887,8 @@ $('assignNextBtn')?.addEventListener('click', async ()=>{
       if(gidInput){ gidInput.readOnly = false; gidInput.value = result.number; gidInput.readOnly = false; }
       $('gidNote').textContent = '';
       toast(`Assigned: ${result.number}${result.remaining <= 3 ? ` — only ${result.remaining} number(s) left in pool!` : ''}`);
+      // Track this number so we can return it if the form is abandoned
+      _pendingPoolNumber = result.number;
       // Refresh pool count in STATE so badge updates
       STATE.grievancePool = { remaining: result.remaining };
       updateIntakePoolUI();

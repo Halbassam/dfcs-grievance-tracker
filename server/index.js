@@ -865,6 +865,15 @@ Additional details: ${sub.otherDetails || ""}`;
       return sendJson(res, 200, result);
     }
 
+    // POST /api/grievance-pool/return — put an unused number back (form cleared without saving)
+    if (pathname === "/api/grievance-pool/return" && req.method === "POST") {
+      const body = await readBody(req);
+      const number = String(body.number || "").trim();
+      if (!number) return sendJson(res, 400, { error: "number is required." });
+      const result = await db.returnGrievanceNumber(number);
+      return sendJson(res, 200, result);
+    }
+
     // ── AUDIT LOG ──────────────────────────────────────────────────────────
 
     // POST /api/audit — client-side fire-and-forget ping (tab nav, record open)

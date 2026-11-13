@@ -1202,6 +1202,35 @@ async function clearGrievanceNumberPool() {
 }
 
 /**
+ * Returns a previously-consumed number back to the front of the pool.
+ * Called when a steward clicks "Assign next" but then clears the form
+ * or navigates away without saving the grievance.
+ */
+async function returnGrievanceNumber(number) {
+  if (!number || typeof number !== "string") return { ok: false };
+  return withLock(async () => {
+    // Don't return if it's already in use in the DB (edge case: submitted on another tab)
+    const [liveRes, archiveRes] = await Promise.all([
+      query(`select id from grievances where id = $1`, [number]),
+      query(`select data->>'id' as id from archive where data->>'id' = $1`, [number])
+    ]);
+    if (liveRes.rows.length > 0 || archiveRes.rows.length > 0) {
+      return { ok: false, reason: "already_used" };
+    }
+    const { pool } = await getGrievanceNumberPool();
+    // Avoid duplicates in the pool
+    if (pool.includes(number)) return { ok: true, reason: "already_in_pool" };
+    const newPool = [number, ...pool]; // put it back at the front
+    await query(
+      `insert into app_meta (key, value) values ('grievanceNumberPool', $1)
+       on conflict (key) do update set value = excluded.value`,
+      [JSON.stringify(newPool)]
+    );
+    return { ok: true, remaining: newPool.length };
+  });
+}
+
+/**
  * Takes the next number from the pool and records it in the log.
  * Returns { number: string } or { empty: true } if pool is exhausted.
  * Skips any number that already exists in live grievances or archive
@@ -1305,7 +1334,7 @@ module.exports = {
   // Attachments
   listAttachments, createAttachmentRecord, getAttachmentRecord, deleteAttachmentRecord,
   // Grievance number pool
-  getGrievanceNumberPool, addToGrievanceNumberPool, clearGrievanceNumberPool, consumeNextGrievanceNumber,
+  getGrievanceNumberPool, addToGrievanceNumberPool, clearGrievanceNumberPool, consumeNextGrievanceNumber, returnGrievanceNumber,
   // Audit log
   writeAuditLog, getAuditLog
 };
