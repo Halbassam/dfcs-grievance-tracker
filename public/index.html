@@ -792,6 +792,12 @@ footer.app-foot{text-align:center;color:var(--grey);font-size:11.5px;padding:30p
         <select id="auditUserFilter" style="font-size:13px;padding:5px 10px;border:1.5px solid var(--green-line);border-radius:6px;background:var(--paper);color:var(--ink);">
           <option value="">All users</option>
         </select>
+        <select id="auditActionFilter" style="font-size:13px;padding:5px 10px;border:1.5px solid var(--green-line);border-radius:6px;background:var(--paper);color:var(--ink);">
+          <option value="">All activity</option>
+          <option value="login,session,logout">Logins only</option>
+          <option value="tab">Tab clicks only</option>
+          <option value="record_open">Records opened only</option>
+        </select>
         <button class="btn btn-secondary" id="auditRefreshBtn" style="font-size:12.5px;">&#8635; Refresh</button>
       </div>
     </div>
@@ -4169,19 +4175,23 @@ function startBackgroundPolling(){
   const ACTION_LABELS = {
     login:       '🔑 Login',
     logout:      '🚪 Logout',
+    session:     '🔓 Returned (still signed in)',
     tab:         '📂 Tab',
     record_open: '📄 Record opened'
   };
   const ACTION_COLORS = {
     login:       'var(--green-1)',
     logout:      'var(--grey)',
+    session:     'var(--green-1)',
     tab:         '#6b7280',
     record_open: '#2563eb'
   };
 
   async function loadAuditLog(){
     const filterUser = $('auditUserFilter') ? $('auditUserFilter').value : '';
-    const url = '/api/audit/log?limit=200' + (filterUser ? '&user='+encodeURIComponent(filterUser) : '');
+    const filterActions = $('auditActionFilter') ? $('auditActionFilter').value : '';
+    const url = '/api/audit/log?limit=200' + (filterUser ? '&user='+encodeURIComponent(filterUser) : '')
+      + (filterActions ? '&actions='+encodeURIComponent(filterActions) : '');
     const tbody = $('auditTableBody');
     if(tbody) tbody.innerHTML = '<tr><td colspan="5" style="padding:24px;text-align:center;color:var(--grey);">Loading…</td></tr>';
     try {
@@ -4239,6 +4249,8 @@ function startBackgroundPolling(){
   if(_refreshBtn) _refreshBtn.addEventListener('click', loadAuditLog);
   const _auditSel = $('auditUserFilter');
   if(_auditSel) _auditSel.addEventListener('change', loadAuditLog);
+  const _auditActSel = $('auditActionFilter');
+  if(_auditActSel) _auditActSel.addEventListener('change', loadAuditLog);
 
   // Poll until CURRENT_USER is set (same pattern as wizard role label)
   const _auditPoll = setInterval(()=>{

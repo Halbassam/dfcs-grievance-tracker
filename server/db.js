@@ -1307,18 +1307,20 @@ async function writeAuditLog(username, action, detail = "", ip = "") {
  * @param {number} limit   max rows (default 200)
  * @param {string} [filterUsername]  if provided, restrict to that user
  */
-async function getAuditLog(limit = 200, filterUsername = null) {
-  let q, params;
-  if (filterUsername) {
-    q = `select id, username, action, detail, ip, created_at from audit_log
-         where username = $1 order by created_at desc limit $2`;
-    params = [filterUsername, limit];
-  } else {
-    q = `select id, username, action, detail, ip, created_at from audit_log
-         order by created_at desc limit $1`;
-    params = [limit];
+async function getAuditLog(limit = 200, filterUsername = null, filterActions = []) {
+  const where = [];
+  const params = [];
+  if (filterUsername) { params.push(filterUsername); where.push(`username = $${params.length}`); }
+  if (Array.isArray(filterActions) && filterActions.length) {
+    params.push(filterActions); where.push(`action = any($${params.length}::text[])`);
   }
-  const res = await query(q, params);
+  params.push(limit);
+  const res = await query(
+    `select id, username, action, detail, ip, created_at from audit_log
+     ${where.length ? "where " + where.join(" and ") : ""}
+     order by created_at desc limit $${params.length}`,
+    params
+  );
   return res.rows;
 }
 

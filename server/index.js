@@ -61,6 +61,17 @@ function loginRecordFailure(username) {
   _loginFailures.set(key, rec);
 }
 
+// One "session" audit row per user per 10 minutes at most.
+const SESSION_VISIT_THROTTLE_MS = 10 * 60 * 1000;
+const _lastSessionVisit = new Map();
+function sessionVisitShouldLog(username) {
+  const now = Date.now();
+  const last = _lastSessionVisit.get(username) || 0;
+  if (now - last < SESSION_VISIT_THROTTLE_MS) return false;
+  _lastSessionVisit.set(username, now);
+  return true;
+}
+
 function loginRecordSuccess(username) {
   _loginFailures.delete(username.toLowerCase());
 }
@@ -283,6 +294,13 @@ const server = http.createServer(async (req, res) => {
       const user = await getCurrentUser(req);
       if (!user) return sendJson(res, 401, { error: "Not logged in." });
       db.pingKeepAlive().catch(err => console.error("[index] Keep-alive ping failed:", err.message));
+      // The session cookie lasts 30 days, so most visits never pass through
+      // the login form. Record those visits too ("session" = opened the app
+      // while still signed in). Throttled so page refreshes don't flood the log.
+      if (user.username && sessionVisitShouldLog(user.username)) {
+        db.writeAuditLog(user.username, "session", "", clientIp(req))
+          .catch(err => console.error("[audit] session write failed:", err.message));
+      }
       return sendJson(res, 200, { user });
     }
 
@@ -904,7 +922,10 @@ Additional details: ${sub.otherDetails || ""}`;
       const url = new URL(req.url, "http://x");
       const filterUser = url.searchParams.get("user") || null;
       const limit = Math.min(parseInt(url.searchParams.get("limit") || "200", 10), 500);
-      const rows = await db.getAuditLog(limit, filterUser);
+      const AUDIT_ACTIONS = new Set(["login", "logout", "session", "tab", "record_open"]);
+      const filterActions = (url.searchParams.get("actions") || "")
+        .split(",").map(s => s.trim()).filter(a => AUDIT_ACTIONS.has(a));
+      const rows = await db.getAuditLog(limit, filterUser, filterActions);
       return sendJson(res, 200, { rows });
     }
 
