@@ -103,11 +103,15 @@ async function getGrievanceLocationById(id) {
 /** Returns { lockedTo, location } for an existing grievance, or null if not found. */
 async function getGrievanceLock(id) {
   const res = await query(
-    "select locked_to, data->>'location' as location from grievances where id = $1",
+    "select locked_to, data->>'location' as location, data->>'employee' as employee from grievances where id = $1",
     [id]
   );
   if (!res.rows.length) return null;
-  return { lockedTo: res.rows[0].locked_to || null, location: res.rows[0].location || "" };
+  return {
+    lockedTo: res.rows[0].locked_to || null,
+    location: res.rows[0].location || "",
+    employee: res.rows[0].employee || ""
+  };
 }
 
 /**

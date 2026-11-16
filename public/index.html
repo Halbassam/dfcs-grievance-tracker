@@ -600,10 +600,21 @@ footer.app-foot{text-align:center;color:var(--grey);font-size:11.5px;padding:30p
           <option value="Step 3 — Agency Head">Step 3</option>
           <option value="Step 4 / Arbitration">Step 4 / Arbitration</option>
         </select>
+        <select id="logStatusFilter" style="padding:8px 12px;border:1px solid var(--green-line);border-radius:6px;font-family:inherit;font-size:13.5px;">
+          <option value="">All statuses</option>
+        </select>
+        <label style="display:flex;align-items:center;gap:6px;font-size:12.5px;color:var(--grey);margin:0;">Filed from
+          <input type="date" id="logDateFrom" style="padding:7px 8px;border:1px solid var(--green-line);border-radius:6px;font-family:inherit;font-size:13px;">
+        </label>
+        <label style="display:flex;align-items:center;gap:6px;font-size:12.5px;color:var(--grey);margin:0;">to
+          <input type="date" id="logDateTo" style="padding:7px 8px;border:1px solid var(--green-line);border-radius:6px;font-family:inherit;font-size:13px;">
+        </label>
+        <button class="btn btn-ghost" id="logClearFiltersBtn" style="display:none;">Clear filters</button>
         <button class="btn btn-secondary" id="logExportCsvBtn">Export CSV</button>
         <button class="btn btn-secondary" id="archiveClosedBtn">Archive closed</button>
       </div>
     </div>
+    <div id="logResultCount" style="font-size:12.5px;color:var(--grey);margin:0 0 8px;"></div>
     <div class="table-wrap"><table><thead><tr><th>ID</th><th>Employee</th><th>Job class</th><th>Steward</th><th>Type</th><th>Status</th><th>Step</th><th>Step 1 filed</th><th>Step 1 due</th><th>Step 2 filed</th><th>Step 3 filed</th><th>Days open</th><th></th></tr></thead><tbody id="logBody"></tbody></table></div>
   </section>
 
@@ -924,6 +935,7 @@ footer.app-foot{text-align:center;color:var(--grey);font-size:11.5px;padding:30p
             </tr></thead>
             <tbody>
               <tr><td style="padding:7px 10px;border:1px solid var(--green-line);"><b>Steward deadline reminder</b></td><td style="padding:7px 10px;border:1px solid var(--green-line);">The assigned steward</td><td style="padding:7px 10px;border:1px solid var(--green-line);">Daily — lists deadlines within 3 days and any past-due cases</td></tr>
+              <tr><td style="padding:7px 10px;border:1px solid var(--green-line);"><b>Hand-off notice</b></td><td style="padding:7px 10px;border:1px solid var(--green-line);">The steward receiving the grievance</td><td style="padding:7px 10px;border:1px solid var(--green-line);">When a grievance is handed off — sent to the email listed for that steward in Manage stewards (the steward name must match their login display name)</td></tr>
               <tr><td style="padding:7px 10px;border:1px solid var(--green-line);"><b>Grievant step notification</b></td><td style="padding:7px 10px;border:1px solid var(--green-line);">The grievant (if an email is on file)</td><td style="padding:7px 10px;border:1px solid var(--green-line);">When Step 1, 2, or 3 is first filed on a case</td></tr>
               <tr><td style="padding:7px 10px;border:1px solid var(--green-line);"><b>Courtesy notice to management</b></td><td style="padding:7px 10px;border:1px solid var(--green-line);">Management contact(s) configured per location</td><td style="padding:7px 10px;border:1px solid var(--green-line);">On demand — steward clicks the courtesy notice button on a case</td></tr>
             </tbody>
@@ -947,9 +959,9 @@ footer.app-foot{text-align:center;color:var(--grey);font-size:11.5px;padding:30p
 
       <!-- Grievance Number Pool -->
       <div class="panel panel-pad" style="margin-bottom:20px;">
-        <h3 style="font-family:var(--serif);color:var(--green-1);margin:0 0 14px;">Grievance Number Pool (Admin only)</h3>
+        <h3 style="font-family:var(--serif);color:var(--green-1);margin:0 0 14px;">Grievance Number Pool</h3>
         <div style="font-size:13.5px;line-height:1.7;">
-          <p style="margin-bottom:8px;">The grievance number pool lets admins pre-load a list of sequential grievance IDs (e.g. <code>G-2026-001</code> through <code>G-2026-100</code>). Stewards can then click <b>Assign next number</b> on the Intake Form instead of typing an ID manually — the next available number is claimed automatically and can't be taken by another user at the same time.</p>
+          <p style="margin-bottom:8px;">The grievance number pool lets any user pre-load a list of sequential grievance IDs (e.g. <code>G-2026-001</code> through <code>G-2026-100</code>). Stewards can then click <b>Assign next number</b> on the Intake Form instead of typing an ID manually — the next available number is claimed automatically and can't be taken by another user at the same time.</p>
           <p style="margin-bottom:8px;"><b>Loading the pool</b> — go to <b>Settings → Grievance number pool</b> and enter the list of IDs one per line (or comma-separated). The system adds them to the pool; numbers already used are skipped. A green badge on the Intake Form shows how many numbers remain.</p>
           <p style="margin-bottom:8px;"><b>When the pool is empty</b> — a warning banner appears on the Intake Form. Stewards can still type a grievance ID manually; the pool just means they don't have to. Refill the pool from Settings when it runs low.</p>
           <p style="margin-bottom:0;"><b>Race-condition protection</b> — if two stewards click <b>Assign next number</b> at the same moment, the system uses a database-level lock to ensure each gets a different number. You will never see the same ID issued twice.</p>
@@ -1738,6 +1750,17 @@ function rowClass(rec){
   if(nd && daysBetween(today(), nd) <= 7 && daysBetween(today(), nd) >= 0) return 'row-amber';
   return '';
 }
+/** "N days overdue" / "Due today" label for the dashboard's Next deadline
+ *  column, so a missed date is spelled out and not only shown by row colour. */
+function lateBadge(nd){
+  if(!nd) return '';
+  const diff = daysBetween(today(), nd);
+  if(diff > 0) return '';
+  const text = diff === 0 ? 'Due today' : `${-diff} day${diff===-1?'':'s'} overdue`;
+  const bg = diff === 0 ? 'var(--amber-bg)' : 'var(--red)';
+  const fg = diff === 0 ? 'var(--amber)' : '#fff';
+  return ` <span style="display:inline-block;margin-left:6px;padding:1px 7px;border-radius:10px;font-size:11px;font-weight:700;white-space:nowrap;background:${bg};color:${fg};">${text}</span>`;
+}
 function cbaRef(rec){
   if(!rec.article) return '';
   return rec.section ? `${rec.article} \u00a7 ${rec.section}` : rec.article;
@@ -1808,9 +1831,10 @@ const ARCHIVE_CSV_COLUMNS = [
 
 $('logExportCsvBtn').addEventListener('click', ()=>{
   const rows = getFilteredLogRows();
-  if(!rows.length){ alert('No grievances match the current search/level filter to export.'); return; }
+  if(!rows.length){ alert('No grievances match the current search and filters to export.'); return; }
   const levelFilter = $('logLevelFilter').value;
-  const suffix = levelFilter ? '-' + levelFilter.replace(/[^a-z0-9]+/gi,'-').replace(/^-+|-+$/g,'') : '';
+  let suffix = levelFilter ? '-' + levelFilter.replace(/[^a-z0-9]+/gi,'-').replace(/^-+|-+$/g,'') : '';
+  if(logFiltersActive() && !suffix) suffix = '-filtered';
   downloadCSV(`grievance-log${suffix}-${toISO(today())}.csv`, toCSV(rows, GRIEVANCE_CSV_COLUMNS));
 });
 
@@ -1852,7 +1876,7 @@ function renderDashboard(){
       <td>${escapeHtml(rec.gtype||'')}</td>
       <td>${escapeHtml(cbaRef(rec))}</td>
       <td>${escapeHtml(currentStep(rec))}</td>
-      <td>${nd?fmt(nd):'—'}</td>
+      <td>${nd?fmt(nd):'—'}${lateBadge(nd)}</td>
       <td><span class="pill ${rec.status==='Pending Arbitration'?'pill-arb':'pill-pending'}">${escapeHtml(rec.status||'Pending')}</span></td>
       <td>${days!==null?days:'—'}</td>
     </tr>`;
@@ -1880,18 +1904,74 @@ function getFilteredLogRows(){
   if(levelFilter){
     filtered = filtered.filter(rec => currentStep(rec) === levelFilter);
   }
+  const statusFilter = $('logStatusFilter') ? $('logStatusFilter').value : '';
+  if(statusFilter === LOG_STATUS_OVERDUE){
+    filtered = filtered.filter(isOverdue);
+  } else if(statusFilter === LOG_STATUS_ACTIVE){
+    filtered = filtered.filter(rec => !isResolved(rec));
+  } else if(statusFilter){
+    filtered = filtered.filter(rec => (rec.status||'') === statusFilter);
+  }
+  const from = $('logDateFrom') ? $('logDateFrom').value : '';
+  const to = $('logDateTo') ? $('logDateTo').value : '';
+  if(from || to){
+    // YYYY-MM-DD strings compare correctly as plain strings.
+    filtered = filtered.filter(rec => {
+      const filed = logFiledDate(rec);
+      if(!filed) return false;
+      return (!from || filed >= from) && (!to || filed <= to);
+    });
+  }
   return filtered;
+}
+
+const LOG_STATUS_OVERDUE = '__overdue__';
+const LOG_STATUS_ACTIVE = '__active__';
+
+/** The date a record counts as "filed" for the Log's date-range filter:
+ *  its Step 1 filing date, or the day it was entered if Step 1 is blank. */
+function logFiledDate(rec){
+  if(rec.step1filed) return rec.step1filed;
+  if(rec.createdAt){ const d = new Date(rec.createdAt); if(!isNaN(d)) return toISO(d); }
+  return '';
+}
+
+function logFiltersActive(){
+  return ['logSearchInput','logLevelFilter','logStatusFilter','logDateFrom','logDateTo']
+    .some(id => $(id) && $(id).value.trim() !== '');
+}
+
+/** Rebuilds the Status dropdown from the configured list plus any status
+ *  actually present on a record, keeping the current selection. */
+function fillLogStatusFilter(){
+  const sel = $('logStatusFilter');
+  if(!sel) return;
+  const prev = sel.value;
+  const statuses = [...new Set([...(SETUP.Status||[]), ...STATE.grievances.map(g=>g.status).filter(Boolean)])];
+  sel.innerHTML = '<option value="">All statuses</option>'
+    + `<option value="${LOG_STATUS_ACTIVE}">Active (not closed)</option>`
+    + `<option value="${LOG_STATUS_OVERDUE}">Overdue</option>`
+    + statuses.map(s=>`<option value="${escapeHtml(s)}">${escapeHtml(s)}</option>`).join('');
+  if([...sel.options].some(o=>o.value===prev)) sel.value = prev;
 }
 
 function renderLog(){
   const body = $('logBody');
+  const countEl = $('logResultCount');
+  const clearBtn = $('logClearFiltersBtn');
+  fillLogStatusFilter();
+  if(clearBtn) clearBtn.style.display = logFiltersActive() ? '' : 'none';
   if(!STATE.grievances.length){
+    if(countEl) countEl.textContent = '';
     body.innerHTML = `<tr><td colspan="13"><div class="empty-state"><div class="icon">&#128193;</div><h3>Log is empty</h3><p>Records appear here after you submit the Intake Form.</p></div></td></tr>`;
     return;
   }
   const filtered = getFilteredLogRows();
+  if(countEl) countEl.textContent = logFiltersActive()
+    ? `Showing ${filtered.length} of ${STATE.grievances.length} grievances`
+    : `${STATE.grievances.length} grievance${STATE.grievances.length===1?'':'s'}`;
   if(!filtered.length){
-    body.innerHTML = `<tr><td colspan="13"><div class="empty-state"><div class="icon">&#128269;</div><h3>No matches</h3><p>No grievances match the current search and level filter. Try different terms or choose "All levels".</p></div></td></tr>`;
+    body.innerHTML = `<tr><td colspan="13"><div class="empty-state"><div class="icon">&#128269;</div><h3>No matches</h3><p>No grievances match the current search and filters. Try different terms or click "Clear filters".</p></div></td></tr>`;
     return;
   }
   body.innerHTML = filtered.slice().reverse().map(rec=>{
@@ -2053,6 +2133,11 @@ function renderWorkload(){
 
 $('logSearchInput').addEventListener('input', ()=>renderLog());
 $('logLevelFilter').addEventListener('change', ()=>renderLog());
+['logStatusFilter','logDateFrom','logDateTo'].forEach(id=>$(id).addEventListener('change', ()=>renderLog()));
+$('logClearFiltersBtn').addEventListener('click', ()=>{
+  ['logSearchInput','logLevelFilter','logStatusFilter','logDateFrom','logDateTo'].forEach(id=>{ $(id).value = ''; });
+  renderLog();
+});
 
 $('archiveClosedBtn').addEventListener('click', ()=>{
   const eligible = STATE.grievances.filter(isResolved);
@@ -3132,6 +3217,8 @@ $('viewEmailLogBtn').addEventListener('click', ()=>{
           desc = `Grievant update &middot; Case ${escapeHtml(entry.gid||'')} &middot; ${stepLabel} &middot; to ${escapeHtml(entry.to||'')}`;
         } else if(entry.kind === 'steward-deadline-digest'){
           desc = `Steward digest &middot; ${escapeHtml(entry.steward||'')} &middot; to ${escapeHtml(entry.to||'')} &middot; ${entry.count||0} deadline(s)${entry.overdueCount ? ` (${entry.overdueCount} overdue)` : ''}`;
+        } else if(entry.kind === 'handoff-notice'){
+          desc = `Hand-off notice &middot; Case ${escapeHtml(entry.gid||'')} &middot; ${escapeHtml(entry.from||'')} &rarr; ${escapeHtml(entry.steward||'')}${entry.to ? ` &middot; to ${escapeHtml(entry.to)}` : ''}`;
         } else {
           desc = escapeHtml(entry.kind);
         }
@@ -3796,6 +3883,9 @@ function applyRoleVisibility(user){
   if(otherListsPanel) otherListsPanel.style.display = admin ? '' : 'none';
   const poolPanel = $('grievanceNumberPoolPanel');
   if(poolPanel) poolPanel.style.display = admin ? '' : 'none';
+  // Non-admins get the add-only pool panel; admins already have the full one above.
+  const myPoolPanel = $('myPoolPanel');
+  if(myPoolPanel) myPoolPanel.style.display = (!admin && user && user.username) ? '' : 'none';
   // Change-password is available to every logged-in user
   const changePasswordPanel = $('changePasswordPanel');
   if(changePasswordPanel) changePasswordPanel.style.display = (user && user.username) ? '' : 'none';

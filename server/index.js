@@ -10,6 +10,7 @@ const crypto = require("crypto");
 const db = require("./db");
 const scheduler = require("./scheduler");
 const grievantNotify = require("./grievantNotify");
+const handoffNotify = require("./handoffNotify");
 const grievanceDraftBot = require("./grievanceDraftBot");
 const investigationForms = require("./investigationForms");
 const storage = require("./storage");
@@ -504,12 +505,20 @@ const server = http.createServer(async (req, res) => {
         });
       }
       // Validate the target user exists so we can't orphan a grievance to a phantom username.
-      const targetUser = STATE.users.find(u => u.username === toUsername);
+      const allUsers = await db.listUsersSafe();
+      const targetUser = allUsers.find(u => u.username === toUsername);
       if (!targetUser) {
         return sendJson(res, 400, { error: `User "${toUsername}" not found. They may have been deleted.` });
       }
       try {
         const result = await db.handoffGrievance(gid, toUsername);
+        // Fire-and-forget: tell the receiving steward by email. Never blocks
+        // or fails the hand-off itself. Skipped when handing off to yourself.
+        if (toUsername !== currentUser.username) {
+          handoffNotify.sendHandoffNotification({
+            gid, employee: lockInfo.employee || "", toUser: targetUser, fromUser: currentUser
+          }).catch(err => console.error("[handoff] notification failed:", err.message));
+        }
         return sendJson(res, 200, result);
       } catch (err) {
         return sendJson(res, 400, { error: err.message });
@@ -830,14 +839,15 @@ Additional details: ${sub.otherDetails || ""}`;
 
     // GET  /api/grievance-pool        — pool status (remaining count + log)
     if (pathname === "/api/grievance-pool" && req.method === "GET") {
-      if (!isAdmin(currentUser)) return sendJson(res, 403, { error: "Only admins can view the number pool." });
+      // Any logged-in user may see the pool status and assignment log.
       const result = await db.getGrievanceNumberPool();
       return sendJson(res, 200, { remaining: result.pool.length, log: result.log });
     }
 
-    // POST /api/grievance-pool/add    — admin adds a batch of numbers
+    // POST /api/grievance-pool/add    — any user adds a batch of numbers
     if (pathname === "/api/grievance-pool/add" && req.method === "POST") {
-      if (!isAdmin(currentUser)) return sendJson(res, 403, { error: "Only admins can add numbers to the pool." });
+      // Any logged-in user may add numbers (stewards receive batches too).
+      // Clearing the pool stays admin-only.
       const body = await readBody(req);
       // Accept either an array or a newline/comma-delimited string
       let numbers = body.numbers || [];
