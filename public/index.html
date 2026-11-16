@@ -592,7 +592,7 @@ footer.app-foot{text-align:center;color:var(--grey);font-size:11.5px;padding:30p
       <div><h2>Grievance Log</h2><div class="sub">Complete master ledger</div></div>
       <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;">
         <input type="text" id="logSearchInput" placeholder="Search by employee, ID, steward, or description&hellip;" style="padding:8px 12px;border:1px solid var(--green-line);border-radius:6px;font-family:inherit;font-size:13.5px;min-width:240px;">
-        <select id="logLevelFilter" style="padding:8px 12px;border:1px solid var(--green-line);border-radius:6px;font-family:inherit;font-size:13.5px;">
+        <select id="logLevelFilter" style="width:auto;flex:1 1 170px;padding:8px 12px;border:1px solid var(--green-line);border-radius:6px;font-family:inherit;font-size:13.5px;">
           <option value="">All levels</option>
           <option value="Intake">Intake</option>
           <option value="Step 1 — Immediate Supervisor">Step 1</option>
@@ -600,14 +600,14 @@ footer.app-foot{text-align:center;color:var(--grey);font-size:11.5px;padding:30p
           <option value="Step 3 — Agency Head">Step 3</option>
           <option value="Step 4 / Arbitration">Step 4 / Arbitration</option>
         </select>
-        <select id="logStatusFilter" style="padding:8px 12px;border:1px solid var(--green-line);border-radius:6px;font-family:inherit;font-size:13.5px;">
+        <select id="logStatusFilter" style="width:auto;flex:1 1 170px;padding:8px 12px;border:1px solid var(--green-line);border-radius:6px;font-family:inherit;font-size:13.5px;">
           <option value="">All statuses</option>
         </select>
-        <label style="display:flex;align-items:center;gap:6px;font-size:12.5px;color:var(--grey);margin:0;">Filed from
-          <input type="date" id="logDateFrom" style="padding:7px 8px;border:1px solid var(--green-line);border-radius:6px;font-family:inherit;font-size:13px;">
+        <label style="display:flex;align-items:center;gap:6px;font-size:12.5px;color:var(--grey);margin:0;white-space:nowrap;">Filed from
+          <input type="date" id="logDateFrom" style="width:auto;padding:7px 8px;border:1px solid var(--green-line);border-radius:6px;font-family:inherit;font-size:13px;">
         </label>
-        <label style="display:flex;align-items:center;gap:6px;font-size:12.5px;color:var(--grey);margin:0;">to
-          <input type="date" id="logDateTo" style="padding:7px 8px;border:1px solid var(--green-line);border-radius:6px;font-family:inherit;font-size:13px;">
+        <label style="display:flex;align-items:center;gap:6px;font-size:12.5px;color:var(--grey);margin:0;white-space:nowrap;">to
+          <input type="date" id="logDateTo" style="width:auto;padding:7px 8px;border:1px solid var(--green-line);border-radius:6px;font-family:inherit;font-size:13px;">
         </label>
         <button class="btn btn-ghost" id="logClearFiltersBtn" style="display:none;">Clear filters</button>
         <button class="btn btn-secondary" id="logExportCsvBtn">Export CSV</button>
@@ -842,7 +842,7 @@ footer.app-foot{text-align:center;color:var(--grey);font-size:11.5px;padding:30p
         <p style="font-size:13.5px;line-height:1.7;margin-bottom:10px;">This app tracks grievances and pre-grievance investigations for your AFSCME local. Here is the typical workflow:</p>
         <ol style="font-size:13.5px;line-height:1.9;padding-left:20px;">
           <li><b>File a grievance</b> — go to <b>Intake Form</b>, fill in the employee details, pick the CBA article and grievance type, and save. The app calculates contractual deadlines automatically.</li>
-          <li><b>Track it</b> — the <b>Dashboard</b> shows all active cases ranked by next deadline, flags overdue ones in red, and shows the Steward Workload summary.</li>
+          <li><b>Track it</b> — the <b>Dashboard</b> shows all active cases ranked by next deadline and flags overdue ones in red with the number of days overdue. The <b>Grievance Log</b> lists every case and can be searched, filtered, and exported.</li>
           <li><b>Log activity</b> — inside any grievance detail view, use the <b>Activity Log</b> to record meetings, phone calls, and next steps.</li>
           <li><b>Advance through steps</b> — fill in the Step 1, 2, and 3 date fields as the grievance progresses. The app updates deadlines automatically.</li>
           <li><b>Archive resolved cases</b> — once a case is settled, withdrawn, or denied, use the <b>Archive</b> button to move it out of the active list.</li>
@@ -856,7 +856,7 @@ footer.app-foot{text-align:center;color:var(--grey);font-size:11.5px;padding:30p
         <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;">
           <div style="border:1.5px solid var(--green-line);border-radius:var(--radius);padding:12px;">
             <div style="font-weight:700;color:var(--green-1);margin-bottom:6px;">Steward</div>
-            <div style="font-size:12.5px;line-height:1.6;color:var(--grey);">Files and tracks grievances at their assigned location(s). Cannot access the AI drafting bot, Manage Users, or Settings.</div>
+            <div style="font-size:12.5px;line-height:1.6;color:var(--grey);">Files and tracks grievances at their assigned location(s). In Settings they can change their own password and add numbers to the grievance number pool. Cannot access the AI drafting bot, Manage Users, or the admin settings.</div>
           </div>
           <div style="border:1.5px solid var(--green-line);border-radius:var(--radius);padding:12px;">
             <div style="font-weight:700;color:var(--green-1);margin-bottom:6px;">Steward Plus</div>
@@ -864,7 +864,7 @@ footer.app-foot{text-align:center;color:var(--grey);font-size:11.5px;padding:30p
           </div>
           <div style="border:1.5px solid var(--green-line);border-radius:var(--radius);padding:12px;">
             <div style="font-weight:700;color:var(--green-1);margin-bottom:6px;">Admin</div>
-            <div style="font-size:12.5px;line-height:1.6;color:var(--grey);">Full access — all features, all locations, plus Settings (manage users, locations, setup lists, org info, email configuration).</div>
+            <div style="font-size:12.5px;line-height:1.6;color:var(--grey);">Full access — all features, all locations, plus Settings (manage users, locations, setup lists, org info, email configuration) and the <b>Audit Log</b>.</div>
           </div>
         </div>
         <p style="font-size:12.5px;color:var(--grey);margin-top:10px;">&#9432; Location assignment is separate from role. A "super steward" covering multiple offices is just a steward (or steward plus) with two or more locations checked in Manage Users.</p>
@@ -874,13 +874,15 @@ footer.app-foot{text-align:center;color:var(--grey);font-size:11.5px;padding:30p
       <div class="panel panel-pad" style="margin-bottom:20px;">
         <h3 style="font-family:var(--serif);color:var(--green-1);margin:0 0 14px;">Intake Form — filing a grievance</h3>
         <div style="font-size:13.5px;line-height:1.7;">
-          <p style="margin-bottom:8px;"><b>Grievance ID</b> — enter your local's standard ID format (e.g. G-2026-047). Must be unique — the system rejects duplicates.</p>
+          <p style="margin-bottom:8px;"><b>Grievance ID</b> — enter your local's standard ID format (e.g. G-2026-047), or click <b>Assign next number</b> to take the next one from the grievance number pool. Must be unique — the system rejects duplicates. If you assign a number and then clear the form or open another grievance without saving, the number goes back to the pool.</p>
           <p style="margin-bottom:8px;"><b>Awareness date</b> — the date the steward (or grievant) first became aware of the violation. This is the clock-start for contractual filing deadlines under Article V.</p>
           <p style="margin-bottom:8px;"><b>CBA article / Section picker</b> — select the article first, then the section picker below it will show only that article's numbered sections. You can still type freely in the section field if the exact subsection isn't listed.</p>
           <p style="margin-bottom:8px;"><b>Employee name</b> — once a grievance has been saved at least once, the employee name field locks to prevent accidental edits that would mismatch your records. To change it, use <b>Settings → Manage users</b> or contact an admin to edit the record directly.</p>
           <p style="margin-bottom:8px;"><b>Location</b> — single-location stewards see this pre-filled and locked. Admins and stewards covering multiple offices see a dropdown.</p>
           <p style="margin-bottom:8px;"><b>Deadlines panel</b> — appears automatically once you enter the Awareness date. The app calculates Step 1, 2, and 3 filing and response deadlines per Article V, skipping holidays you have configured. Always verify deadlines against the actual contract before relying on them.</p>
           <p style="margin-bottom:0;"><b>Saving</b> — click <b>Save grievance</b> to create or update the record. The system confirms with a toast notification. To edit an existing grievance, click its ID anywhere in the Dashboard or log to load it back into the form.</p>
+          <p style="margin-bottom:8px;"><b>Locks and hand-off</b> — a grievance is locked to one steward at a time. If it is locked to someone else you can view it but not save changes. The steward holding it clicks <b>Hand off to another steward…</b> in the banner at the top of the form and picks who takes over. The receiving steward gets an email notice (see Automatic emails). Admins can edit any grievance regardless of the lock.</p>
+          <p style="margin-bottom:8px;"><b>Edit history</b> — when you open a saved grievance, an <b>Edit history</b> line appears near the bottom of the form. Click it to see who created the grievance and who has edited it since, with the date and time of each save.</p>
         </div>
       </div>
 
@@ -918,11 +920,23 @@ footer.app-foot{text-align:center;color:var(--grey);font-size:11.5px;padding:30p
         </div>
       </div>
 
+      <!-- Grievance Log -->
+      <div class="panel panel-pad" style="margin-bottom:20px;">
+        <h3 style="font-family:var(--serif);color:var(--green-1);margin:0 0 14px;">Grievance Log — search, filter, and export</h3>
+        <div style="font-size:13.5px;line-height:1.7;">
+          <p style="margin-bottom:8px;"><b>Search</b> — type any part of a grievance ID, employee name, steward name, or description to narrow the list as you type.</p>
+          <p style="margin-bottom:8px;"><b>Level and status filters</b> — pick a step level, a status, or the two shortcuts: <b>Active (not closed)</b> and <b>Overdue</b>.</p>
+          <p style="margin-bottom:8px;"><b>Filed from / to</b> — limits the list to grievances filed in a date range. This uses the Step 1 filed date, or the day the record was entered if Step 1 is still blank.</p>
+          <p style="margin-bottom:8px;"><b>Clear filters</b> — appears whenever a search or filter is on. The line above the table shows how many grievances match, e.g. "Showing 4 of 37 grievances".</p>
+          <p style="margin-bottom:8px;"><b>Export CSV</b> — downloads the list as a spreadsheet file. The export contains exactly what the current search and filters show, so set them first to get a report for one status or date range. The Archive tab has its own export.</p>
+        </div>
+      </div>
+
       <!-- Dashboard -->
       <div class="panel panel-pad" style="margin-bottom:20px;">
         <h3 style="font-family:var(--serif);color:var(--green-1);margin:0 0 14px;">Dashboard</h3>
         <div style="font-size:13.5px;line-height:1.7;">
-          <p style="margin-bottom:8px;"><b>Priority Case Monitor</b> — active grievances sorted by next contractual deadline. Red rows are overdue. Cases past Step 3 are not shown here — Council 31 tracks Step 4 and arbitration separately.</p>
+          <p style="margin-bottom:8px;"><b>Priority Case Monitor</b> — active grievances sorted by next contractual deadline. Red rows are overdue, and the Next deadline column spells it out with a <b>"N days overdue"</b> or <b>"Due today"</b> label. Cases past Step 3 are not shown here — Council 31 tracks Step 4 and arbitration separately.</p>
           <p style="margin-bottom:8px;"><b>Steward Workload</b> — one card per steward showing their active caseload by step. A red border means they have at least one overdue deadline. Admins see a location filter dropdown in the header to narrow the view by office.</p>
           <p style="margin-bottom:0;"><b>Location filter (admin only)</b> — use the dropdown in the top-right of the Priority Monitor to filter the entire dashboard view to one office. Stewards always see only their own location(s) and can't switch.</p>
         </div>
@@ -932,7 +946,7 @@ footer.app-foot{text-align:center;color:var(--grey);font-size:11.5px;padding:30p
       <div class="panel panel-pad" style="margin-bottom:20px;">
         <h3 style="font-family:var(--serif);color:var(--green-1);margin:0 0 14px;">Automatic emails</h3>
         <div style="font-size:13.5px;line-height:1.7;">
-          <p style="margin-bottom:10px;">The app sends three types of emails automatically. All include your AFSCME Local number in the subject line and body if it has been entered in <b>Settings → Local chapter info</b>.</p>
+          <p style="margin-bottom:10px;">The app sends the following emails. All include your AFSCME Local number in the subject line and body if it has been entered in <b>Settings → Local chapter info</b>.</p>
           <table style="width:100%;border-collapse:collapse;font-size:12.5px;">
             <thead><tr style="background:var(--green-soft);">
               <th style="text-align:left;padding:7px 10px;border:1px solid var(--green-line);">Email type</th>
@@ -952,8 +966,9 @@ footer.app-foot{text-align:center;color:var(--grey);font-size:11.5px;padding:30p
 
       <!-- Settings -->
       <div class="panel panel-pad" style="margin-bottom:20px;">
-        <h3 style="font-family:var(--serif);color:var(--green-1);margin:0 0 14px;">Settings (Admin only)</h3>
+        <h3 style="font-family:var(--serif);color:var(--green-1);margin:0 0 14px;">Settings</h3>
         <div style="font-size:13.5px;line-height:1.7;">
+          <p style="margin-bottom:8px;"><b>For every user</b> — <b>Change my password</b> (you need your current password) and, for stewards, the <b>Grievance number pool</b> panel for adding numbers. Everything below is for admins only.</p>
           <p style="margin-bottom:8px;"><b>Local chapter info</b> — stores the org-wide values (Agency, Local No., Bureau, County, Shift) that auto-fill on every printed grievance. Select a location in the dropdown to load and save that office's bureau and management email.</p>
           <p style="margin-bottom:8px;"><b>Location contact details</b> — configure a bureau name and management email address for each of your offices in one grid. The management email is used for courtesy reminder notices — each location gets its own address.</p>
           <p style="margin-bottom:8px;"><b>Manage users</b> — create, edit, and delete login accounts. Assign a role (Steward / Steward Plus / Admin) and one or more locations per account. A steward with no location assigned cannot view or file grievances until one is set.</p>
@@ -968,9 +983,21 @@ footer.app-foot{text-align:center;color:var(--grey);font-size:11.5px;padding:30p
         <h3 style="font-family:var(--serif);color:var(--green-1);margin:0 0 14px;">Grievance Number Pool</h3>
         <div style="font-size:13.5px;line-height:1.7;">
           <p style="margin-bottom:8px;">The grievance number pool lets any user pre-load a list of sequential grievance IDs (e.g. <code>G-2026-001</code> through <code>G-2026-100</code>). Stewards can then click <b>Assign next number</b> on the Intake Form instead of typing an ID manually — the next available number is claimed automatically and can't be taken by another user at the same time.</p>
-          <p style="margin-bottom:8px;"><b>Loading the pool</b> — go to <b>Settings → Grievance number pool</b> and enter the list of IDs one per line (or comma-separated). The system adds them to the pool; numbers already used are skipped. A green badge on the Intake Form shows how many numbers remain.</p>
+          <p style="margin-bottom:8px;"><b>Loading the pool</b> — any user can go to <b>Settings → Grievance number pool</b> and enter the list of IDs one per line (or comma-separated). The system adds them to the pool; numbers already used are skipped. The panel also shows how many numbers remain and who was assigned each recent number. Only admins can clear the pool. A green badge on the Intake Form shows how many numbers remain.</p>
           <p style="margin-bottom:8px;"><b>When the pool is empty</b> — a warning banner appears on the Intake Form. Stewards can still type a grievance ID manually; the pool just means they don't have to. Refill the pool from Settings when it runs low.</p>
+          <p style="margin-bottom:8px;"><b>Unused numbers come back</b> — if a steward assigns a number and then clears the form or opens a different grievance without saving, the number returns to the front of the pool. A number is only lost if the browser is closed before saving; an admin can add it back to the pool by typing it in.</p>
           <p style="margin-bottom:0;"><b>Race-condition protection</b> — if two stewards click <b>Assign next number</b> at the same moment, the system uses a database-level lock to ensure each gets a different number. You will never see the same ID issued twice.</p>
+        </div>
+      </div>
+
+      <!-- Audit Log -->
+      <div class="panel panel-pad" style="margin-bottom:20px;">
+        <h3 style="font-family:var(--serif);color:var(--green-1);margin:0 0 14px;">Audit Log (Admin only)</h3>
+        <div style="font-size:13.5px;line-height:1.7;">
+          <p style="margin-bottom:8px;">The <b>Audit Log</b> tab shows who used the system and when. Only admins can see the tab. Each row shows the date and time, the user, what they did, and the IP address it came from.</p>
+          <p style="margin-bottom:8px;"><b>What is recorded</b> — <b>Login</b> (signed in with username and password), <b>Returned (still signed in)</b> (opened the app while their earlier sign-in was still valid — a sign-in lasts 30 days, so this is how most visits appear), <b>Logout</b>, <b>Tab</b> (which tab they clicked), and <b>Record opened</b> (which grievance they opened).</p>
+          <p style="margin-bottom:8px;"><b>Filters</b> — choose a user to see only that person, and choose <b>Logins only</b> to hide tab clicks and see just sign-ins, returns, and sign-outs. Click <b>Refresh</b> for the latest entries. The tab shows the 200 most recent matching entries.</p>
+          <p style="margin-bottom:8px;"><b>Limits</b> — returning visits are recorded at most once every 10 minutes per user, so refreshing the page does not add rows. Tab clicks and record opens are sent by the browser and are best-effort. This log is separate from the <b>Edit history</b> on each grievance, which records who saved changes.</p>
         </div>
       </div>
 
@@ -983,6 +1010,9 @@ footer.app-foot{text-align:center;color:var(--grey);font-size:11.5px;padding:30p
           <p style="margin-bottom:8px;"><b>The deadline calculator shows N/A</b> — the Awareness date is required to calculate any deadlines. Set it first, then the Step 1 filing deadline will appear.</p>
           <p style="margin-bottom:8px;"><b>Emails are not arriving</b> — go to <b>Settings → Email status</b> to check whether BREVO_API_KEY and BREVO_SENDER_EMAIL are configured. Also check the Email Log for recent send attempts and any error messages. The steward's email address must be entered in <b>Settings → Manage stewards</b> for them to receive deadline reminders.</p>
           <p style="margin-bottom:8px;"><b>The AI bot cited the wrong Article</b> — always verify citations against the printed contract. The bot's verbatim quote is the key check: if the quote doesn't appear in the contract, the citation is wrong. Start a fresh conversation and describe the situation with more specific detail if the first attempt missed the relevant article.</p>
+          <p style="margin-bottom:8px;"><b>I am locked out of logging in</b> — after 10 wrong passwords in a row the account is locked for 15 minutes. Wait and try again, or ask an admin to reset your password in Manage users.</p>
+          <p style="margin-bottom:8px;"><b>I cannot save a grievance</b> — it is locked to another steward. Ask them to hand it off to you, or ask an admin to make the change.</p>
+          <p style="margin-bottom:8px;"><b>The hand-off email did not arrive</b> — the receiving steward must be listed in <b>Settings → Manage stewards</b> with an email, and the steward name there must match their login display name. The Email Log shows whether the notice was sent or why it was skipped.</p>
           <p style="margin-bottom:0;"><b>I want to see archived grievances</b> — go to the <b>Archive</b> tab. Archived cases are read-only. If a case needs to be re-opened (e.g. a denial was appealed), contact an admin — there is no un-archive button by design, since re-opening requires a judgment call.</p>
         </div>
       </div>
@@ -4286,7 +4316,7 @@ function startBackgroundPolling(){
     },
     {
       title: 'Grievance ID',
-      body:  'Enter your local\'s ID format here (e.g. <code>G-2026-047</code>). If a pool of numbers has been loaded by an admin, click <b>Assign next number</b> instead.',
+      body:  'Enter your local\'s ID format here (e.g. <code>G-2026-047</code>). If a pool of numbers has been loaded, click <b>Assign next number</b> instead. If you then clear the form without saving, the number goes back to the pool.',
       tab:   'intake',
       target: '#f-gid',
       scroll: true
@@ -4320,6 +4350,19 @@ function startBackgroundPolling(){
       scroll: true
     },
     {
+      title: 'Hand-off and edit history',
+      body:  'A grievance is locked to one steward at a time. When you open one you hold, a banner at the top of the form offers <b>Hand off to another steward…</b> — the person you pick gets an email. Lower down, <b>Edit history</b> shows who created and edited the case and when.',
+      tab:   'intake',
+      target: null
+    },
+    {
+      title: 'Find a case — Grievance Log',
+      body:  'The <b>Grievance Log</b> lists every case. Search by name or ID, filter by level, status (including <b>Overdue</b>), or filed-date range, then click <b>Export CSV</b> to download exactly what is showing.',
+      tab:   'log',
+      target: '#logStatusFilter',
+      scroll: true
+    },
+    {
       title: 'Log activity on a case',
       body:  'Go to the <b>Activity Log</b> tab to see all open cases. Click any case row to open its detail panel, then click <b>+ Add activity</b> to record meetings, phone calls, and next steps.',
       tab:   'log',
@@ -4328,7 +4371,7 @@ function startBackgroundPolling(){
     },
     {
       title: 'Track deadlines — Dashboard',
-      body:  'The <b>Dashboard</b> tab shows all active grievances ranked by next deadline. Red rows are overdue. Check here daily so nothing slips.',
+      body:  'The <b>Dashboard</b> tab shows all active grievances ranked by next deadline. Red rows are overdue, with a label showing how many days. Check here daily so nothing slips.',
       tab:   'dashboard',
       target: '#tab-dashboard',
       scroll: true
@@ -4347,6 +4390,15 @@ function startBackgroundPolling(){
       target: null
     }
   ];
+
+  // Shown to stewards and steward plus (admins get their own pool step below).
+  const STEWARD_SETTINGS_STEP = {
+    title: 'Your Settings — password and number pool',
+    body:  'In <b>Settings</b> you can change your password and add grievance numbers to the pool. Enter the numbers one per line and click <b>Add to pool</b>; the panel shows how many remain.',
+    tab:   'settings',
+    target: '#myPoolPanel',
+    scroll: true
+  };
 
   const STEWARD_PLUS_EXTRA = [
     {
@@ -4401,28 +4453,35 @@ function startBackgroundPolling(){
     },
     {
       title: 'Load the grievance number pool',
-      body:  'Scroll to <b>Grievance number pool</b> in Settings. Enter your IDs one per line (e.g. G-2026-001 through G-2026-100). Stewards can then click <b>Assign next number</b> on the Intake Form.',
+      body:  'Scroll to <b>Grievance number pool</b> in Settings. Enter your IDs one per line (e.g. G-2026-001 through G-2026-100). Stewards can then click <b>Assign next number</b> on the Intake Form, and can add numbers themselves from their own Settings. Only admins can clear the pool.',
       tab:   'settings',
       target: '#grievanceNumberPoolPanel',
       scroll: true
     },
     {
       title: 'Configure email',
-      body:  'Check <b>Settings → Email status</b>. If the BREVO_API_KEY and BREVO_SENDER_EMAIL env vars are set, emails are live. Click <b>Send test email</b> to verify. Set each location\'s management email for courtesy notices.',
+      body:  'Check <b>Settings → Email status</b>. If the BREVO_API_KEY and BREVO_SENDER_EMAIL env vars are set, emails are live. Click <b>Send test email</b> to verify. Set each location\'s management email for courtesy notices, and give each steward an email in <b>Manage stewards</b> (name matching their login display name) so reminders and hand-off notices reach them.',
       tab:   'settings',
       target: '#runEmailCheckBtn',
+      scroll: true
+    },
+    {
+      title: 'Audit Log',
+      body:  'The <b>Audit Log</b> tab (admins only) shows who signed in and when, which tabs they clicked, and which grievances they opened. Choose <b>Logins only</b> to see just sign-ins and return visits, or pick one user.',
+      tab:   'audit',
+      target: '#auditActionFilter',
       scroll: true
     }
   ];
 
   function buildSteps(role){
     if(!role || role === 'steward'){
-      return STEWARD_STEPS;
+      return [...STEWARD_STEPS.slice(0, -1), STEWARD_SETTINGS_STEP, STEWARD_STEPS[STEWARD_STEPS.length-1]];
     }
     if(role === 'steward_plus'){
       // Insert extras before the final "tour complete" step
       const base = STEWARD_STEPS.slice(0, -1);
-      return [...base, ...STEWARD_PLUS_EXTRA, STEWARD_STEPS[STEWARD_STEPS.length-1]];
+      return [...base, STEWARD_SETTINGS_STEP, ...STEWARD_PLUS_EXTRA, STEWARD_STEPS[STEWARD_STEPS.length-1]];
     }
     // admin
     const base = STEWARD_STEPS.slice(0, -1);
