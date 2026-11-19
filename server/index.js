@@ -258,8 +258,8 @@ const server = http.createServer(async (req, res) => {
 
   try {
     // ── PUBLIC FORM ROUTES (no authentication required) ────────────────────
-    // Served at /intake/:token and /witness/:token — these are the mobile-
-    // friendly forms sent to grievants and witnesses via link.
+    // Served at /intake/:token — the mobile-friendly form sent to grievants by
+    // link. (There is no witness form yet.)
 
     const intakeMatch = pathname.match(/^\/intake\/([a-f0-9]{48})$/);
     if (intakeMatch) {
