@@ -1,8 +1,9 @@
 const assert = require('assert');
 const fs = require('fs');
+const path = require('path');
 
 // ---------- Frontend: login screen + footer credit/copyright ----------
-const html = fs.readFileSync('/home/claude/dfcs-rebuild/public/index.html', 'utf8');
+const html = fs.readFileSync(path.resolve(__dirname, '..', 'public/index.html'), 'utf8');
 
 // Login screen
 const loginSection = html.slice(html.indexOf('id="loginScreen"'), html.indexOf('class="topbar"'));
@@ -23,7 +24,7 @@ assert.ok(footerMatch[1].includes('&copy; 2026 Hazem Albassam. All rights reserv
 console.log('✓ App footer (visible on every page) shows bold developer credit and copyright statement');
 
 // ---------- Backend: tracker link in steward deadline emails ----------
-const schedulerSrc = fs.readFileSync('/home/claude/dfcs-rebuild/server/scheduler.js', 'utf8');
+const schedulerSrc = fs.readFileSync(path.resolve(__dirname, '..', 'server/scheduler.js'), 'utf8');
 assert.ok(schedulerSrc.includes('https://dfcs-grievance-tracker.onrender.com'),
   'scheduler.js should include the tracker URL for steward emails');
 console.log('✓ Steward deadline email includes the tracker login link');
@@ -31,7 +32,7 @@ console.log('✓ Steward deadline email includes the tracker login link');
 // Confirm it actually appears in a BUILT email body, not just floating in the source
 const { execSync } = require('child_process');
 // Re-derive buildEmailBody's output by requiring the module and calling it directly
-delete require.cache[require.resolve('/home/claude/dfcs-rebuild/server/scheduler.js')];
+delete require.cache[require.resolve(path.resolve(__dirname, '..', 'server/scheduler.js'))];
 // scheduler.js doesn't export buildEmailBody, so verify via source presence
 // AND confirm it's inside the lines.push(...) sequence that forms the body,
 // not e.g. a stray comment.

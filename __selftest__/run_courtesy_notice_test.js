@@ -6,8 +6,8 @@ async function setupDb() {
   const { newDb } = require('pg-mem');
   const mem = newDb();
   const pgAdapter = mem.adapters.createPg();
-  const poolPath = path.resolve('/home/claude/dfcs-rebuild/server/pool.js');
-  const dbPath = path.resolve('/home/claude/dfcs-rebuild/server/db.js');
+  const poolPath = path.resolve(__dirname, '..', 'server/pool.js');
+  const dbPath = path.resolve(__dirname, '..', 'server/db.js');
   const Pool = pgAdapter.Pool;
   const pool = new Pool();
   require.cache[poolPath] = {
@@ -19,15 +19,16 @@ async function setupDb() {
   };
   delete require.cache[dbPath];
   await pool.query(`
-    create table grievances (id text primary key, status text not null default 'Pending', steward text, data jsonb not null default '{}', created_at timestamptz not null default now(), updated_at timestamptz not null default now());
+    create table grievances (id text primary key, status text not null default 'Pending', steward text, locked_to text, data jsonb not null default '{}', created_at timestamptz not null default now(), updated_at timestamptz not null default now());
     create table activity (row_id serial primary key, gid text not null, data jsonb not null default '{}', created_at timestamptz not null default now());
     create table archive (id text primary key, status text, steward text, archived_at text, data jsonb not null default '{}', created_at timestamptz not null default now());
-    create table users (username text primary key, display_name text not null, password_hash text not null, role text not null default 'steward', created_at timestamptz not null default now());
+    create table users (username text primary key, display_name text not null, password_hash text not null, role text not null default 'steward', locations jsonb not null default '[]', created_at timestamptz not null default now());
     create table sessions (token text primary key, username text not null, expires_at timestamptz not null);
     create table holidays (date text primary key, name text not null);
     create table setup_lists (key text primary key, items jsonb not null default '[]');
     create table email_log (row_id serial primary key, run_at timestamptz not null default now(), data jsonb not null default '{}');
     create table app_meta (key text primary key, value text);
+    create table attachments (id text primary key, gid text not null, filename text not null, content_type text not null, size_bytes integer not null, storage_path text not null, uploaded_by text not null, uploaded_at timestamptz not null default now());
   `);
   return require(dbPath);
 }
@@ -120,7 +121,7 @@ async function testOneTimeEnforcement() {
   const rec = all.grievances.find(r => r.id === '2026-c4');
   // Directly update via a raw query since there's no dedicated setter --
   // this mirrors exactly what sendCourtesyNotice itself would persist.
-  const { query } = require('/home/claude/dfcs-rebuild/server/pool.js');
+  const { query } = require(path.resolve(__dirname, '..', 'server/pool.js'));
   await query(
     `update grievances set data = $2::jsonb where id = $1`,
     ['2026-c4', JSON.stringify({ ...rec, step1CourtesySent: true })]
@@ -138,14 +139,17 @@ async function testOneTimeEnforcement() {
 async function testFrontendButtonVisibility() {
   const { JSDOM } = require('jsdom');
   const fs = require('fs');
-  let html = fs.readFileSync('/home/claude/dfcs-rebuild/public/index.html', 'utf8');
+  let html = fs.readFileSync(path.resolve(__dirname, '..', 'public/index.html'), 'utf8');
   html = html.replace('</script>', `</script><script>
     window.__t3 = {
       courtesyNoticeSectionHtml: (rec, d) => courtesyNoticeSectionHtml(rec, d),
       deriveDeadlines: (rec) => deriveDeadlines(rec)
     };
   </script>`);
-  const dom = new JSDOM(html, { runScripts: 'dangerously', url: 'http://localhost/' });
+  const dom = new JSDOM(html, {
+    runScripts: 'dangerously', url: 'http://localhost/',
+    beforeParse(window) { window.fetch = (...args) => fetch(...args); }
+  });
   const w = dom.window;
   await new Promise(r => setTimeout(r, 300));
 
@@ -177,22 +181,6 @@ async function testFrontendButtonVisibility() {
   console.log('✓ Frontend: no button appears for a step that was never filed (nothing to send a reminder about)');
 }
 
-(async () => {
-  try {
-    await testMissingManagementEmail();
-    await testMissingBrevoConfig();
-    await testInvalidStep();
-    await testGrievanceNotFound();
-    await testNoDeadlineYet();
-    await testOneTimeEnforcement();
-    await testFrontendButtonVisibility();
-    console.log('\nALL COURTESY NOTICE TESTS PASSED');
-  } catch (e) {
-    console.error('\n✗ FAILED:', e.message);
-    process.exit(1);
-  }
-})();
-
 async function testMultipleRecipientsParsing() {
   const db = await setupDb();
   await db.updateOrgSettings({ managementEmail: 'super@illinois.gov, hr@illinois.gov , labor.relations@illinois.gov' });
@@ -222,9 +210,20 @@ async function testMultiRecipientRejectsWithBadAddressesOnly() {
 
 (async () => {
   try {
+    await testMissingManagementEmail();
+    await testMissingBrevoConfig();
+    await testInvalidStep();
+    await testGrievanceNotFound();
+    await testNoDeadlineYet();
+    await testOneTimeEnforcement();
+    await testFrontendButtonVisibility();
+    console.log('\nALL COURTESY NOTICE TESTS PASSED');
+
     await testMultipleRecipientsParsing();
     await testMultiRecipientRejectsWithBadAddressesOnly();
     console.log('\nALL MULTI-RECIPIENT COURTESY NOTICE TESTS PASSED');
+
+    process.exit(0);
   } catch (e) {
     console.error('\n✗ FAILED:', e.message);
     process.exit(1);

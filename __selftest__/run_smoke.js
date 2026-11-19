@@ -8,7 +8,7 @@ async function testDb() {
   const pgAdapter = mem.adapters.createPg();
 
   // Intercept the pool module with pg-mem
-  const poolPath = path.resolve('/home/claude/dfcs-rebuild/server/pool.js');
+  const poolPath = path.resolve(__dirname, '..', 'server/pool.js');
   const Pool = pgAdapter.Pool;
   const pool = new Pool();
   require.cache[poolPath] = {
@@ -25,18 +25,19 @@ async function testDb() {
 
   // Create schema (pg-mem compatible subset)
   await pool.query(`
-    create table grievances (id text primary key, status text not null default 'Pending', steward text, data jsonb not null default '{}', created_at timestamptz not null default now(), updated_at timestamptz not null default now());
+    create table grievances (id text primary key, status text not null default 'Pending', steward text, locked_to text, data jsonb not null default '{}', created_at timestamptz not null default now(), updated_at timestamptz not null default now());
     create table activity (row_id serial primary key, gid text not null, data jsonb not null default '{}', created_at timestamptz not null default now());
     create table archive (id text primary key, status text, steward text, archived_at text, data jsonb not null default '{}', created_at timestamptz not null default now());
-    create table users (username text primary key, display_name text not null, password_hash text not null, role text not null default 'steward', created_at timestamptz not null default now());
+    create table users (username text primary key, display_name text not null, password_hash text not null, role text not null default 'steward', locations jsonb not null default '[]', created_at timestamptz not null default now());
     create table sessions (token text primary key, username text not null, expires_at timestamptz not null);
     create table holidays (date text primary key, name text not null);
     create table setup_lists (key text primary key, items jsonb not null default '[]');
     create table email_log (row_id serial primary key, run_at timestamptz not null default now(), data jsonb not null default '{}');
     create table app_meta (key text primary key, value text);
+    create table attachments (id text primary key, gid text not null, filename text not null, content_type text not null, size_bytes integer not null, storage_path text not null, uploaded_by text not null, uploaded_at timestamptz not null default now());
   `);
 
-  const db = require('/home/claude/dfcs-rebuild/server/db.js');
+  const db = require(path.resolve(__dirname, '..', 'server/db.js'));
 
   // Test 1: submitGrievance ignores removed fields, keeps core fields
   const g1 = await db.submitGrievance({
@@ -134,7 +135,7 @@ async function testDb() {
 async function testFrontend() {
   const { JSDOM } = require('jsdom');
   const fs = require('fs');
-  let html = fs.readFileSync('/home/claude/dfcs-rebuild/public/index.html', 'utf8');
+  let html = fs.readFileSync(path.resolve(__dirname, '..', 'public/index.html'), 'utf8');
   // Bridge to reach let-scoped internals
   html = html.replace('</script>', `</script><script>
     window.__t = {
@@ -145,7 +146,10 @@ async function testFrontend() {
       setSetup: (s)=>{ SETUP = s; }
     };
   </script>`);
-  const dom = new JSDOM(html, { runScripts: 'dangerously', url: 'http://localhost/' });
+  const dom = new JSDOM(html, {
+    runScripts: 'dangerously', url: 'http://localhost/',
+    beforeParse(window) { window.fetch = (...args) => fetch(...args); }
+  });
   const w = dom.window;
   await new Promise(r => setTimeout(r, 300));
   assert.ok(w.__t, 'bridge loaded');
@@ -161,7 +165,7 @@ async function testFrontend() {
   w.__t.setOrg({ agency:'DHS', localNo:'2858', bureau:'BFCP', location:'North Suburban FCRC', county:'Cook R1N', shift:'Day' });
   w.__t.setState({ grievances: [
     { id:'2026-001', employee:'Jane Doe', steward:'Hazem', status:'Pending', jobClass:'HSC (RC-62)', bu:'RC-62', gtype:'Workload', article:'Art. XXXI', remedy:'Adjust caseload', awareness:'2026-05-25', step1filed:'2026-06-01', step1resp:'2026-06-10', step2filed:'2026-06-15' }
-  ], activity: [], archive: [], holidays: [] });
+  ], activity: [], archive: [], holidays: [], attachments: [] });
 
   // Page title
   w.__t.updatePageTitle();
@@ -218,6 +222,7 @@ async function testFrontend() {
     await testDb();
     await testFrontend();
     console.log('\nALL SMOKE TESTS PASSED');
+    process.exit(0);
   } catch (e) {
     console.error('\n✗ SMOKE TEST FAILED:', e.message);
     process.exit(1);

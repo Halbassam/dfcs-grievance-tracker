@@ -6,7 +6,7 @@ const http = require('http');
   const { newDb } = require('pg-mem');
   const mem = newDb();
   const pgAdapter = mem.adapters.createPg();
-  const poolPath = path.resolve('/home/claude/dfcs-rebuild/server/pool.js');
+  const poolPath = path.resolve(__dirname, '..', 'server/pool.js');
   const Pool = pgAdapter.Pool;
   const pool = new Pool();
   require.cache[poolPath] = {
@@ -17,10 +17,10 @@ const http = require('http');
     }
   };
   await pool.query(`
-    create table grievances (id text primary key, status text not null default 'Pending', steward text, data jsonb not null default '{}', created_at timestamptz not null default now(), updated_at timestamptz not null default now());
+    create table grievances (id text primary key, status text not null default 'Pending', steward text, locked_to text, data jsonb not null default '{}', created_at timestamptz not null default now(), updated_at timestamptz not null default now());
     create table activity (row_id serial primary key, gid text not null, data jsonb not null default '{}', created_at timestamptz not null default now());
     create table archive (id text primary key, status text, steward text, archived_at text, data jsonb not null default '{}', created_at timestamptz not null default now());
-    create table users (username text primary key, display_name text not null, password_hash text not null, role text not null default 'steward', created_at timestamptz not null default now());
+    create table users (username text primary key, display_name text not null, password_hash text not null, role text not null default 'steward', locations jsonb not null default '[]', created_at timestamptz not null default now());
     create table sessions (token text primary key, username text not null, expires_at timestamptz not null);
     create table holidays (date text primary key, name text not null);
     create table setup_lists (key text primary key, items jsonb not null default '[]');
@@ -28,7 +28,7 @@ const http = require('http');
     create table app_meta (key text primary key, value text);
   `);
 
-  const db = require('/home/claude/dfcs-rebuild/server/db.js');
+  const db = require(path.resolve(__dirname, '..', 'server/db.js'));
   await db.upsertUser({ username: 'hazem', displayName: 'Hazem A', password: 'testpass123' });
 
   // No real Brevo credentials in test -- the notification path should
@@ -40,9 +40,9 @@ const http = require('http');
   // it starts listening immediately) -- so instead we require it after
   // setting PORT to 0 (OS-assigned free port) via a temporary override.
   process.env.PORT = '0';
-  delete require.cache[path.resolve('/home/claude/dfcs-rebuild/server/index.js')];
-  delete require.cache[path.resolve('/home/claude/dfcs-rebuild/server/grievantNotify.js')];
-  delete require.cache[path.resolve('/home/claude/dfcs-rebuild/server/scheduler.js')];
+  delete require.cache[path.resolve(__dirname, '..', 'server/index.js')];
+  delete require.cache[path.resolve(__dirname, '..', 'server/grievantNotify.js')];
+  delete require.cache[path.resolve(__dirname, '..', 'server/scheduler.js')];
 
   // index.js starts its own server on require; capture the actual port
   // via the 'listening' side effect by reading server logs is fragile,
@@ -55,7 +55,7 @@ const http = require('http');
   // synchronously, which is the main integration risk this test guards.
   let threw = false;
   try {
-    require('/home/claude/dfcs-rebuild/server/index.js');
+    require(path.resolve(__dirname, '..', 'server/index.js'));
   } catch (e) {
     threw = true;
     console.error('index.js threw synchronously on load:', e.message);
@@ -73,7 +73,7 @@ const http = require('http');
   assert.strictEqual(result.newlyFiledSteps.step1, true);
   console.log('✓ submitGrievance() result shape matches what the /api/grievance route expects (newlyFiledSteps present)');
 
-  const grievantNotify = require('/home/claude/dfcs-rebuild/server/grievantNotify.js');
+  const grievantNotify = require(path.resolve(__dirname, '..', 'server/grievantNotify.js'));
   // This mirrors exactly what index.js does after a successful save --
   // fire-and-forget, must not throw even without Brevo configured.
   let notifyThrew = false;

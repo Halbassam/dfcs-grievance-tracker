@@ -6,7 +6,7 @@ async function testNewlyFiledDetection() {
   const { newDb } = require('pg-mem');
   const mem = newDb();
   const pgAdapter = mem.adapters.createPg();
-  const poolPath = path.resolve('/home/claude/dfcs-rebuild/server/pool.js');
+  const poolPath = path.resolve(__dirname, '..', 'server/pool.js');
   const Pool = pgAdapter.Pool;
   const pool = new Pool();
   require.cache[poolPath] = {
@@ -17,9 +17,9 @@ async function testNewlyFiledDetection() {
     }
   };
   await pool.query(`
-    create table grievances (id text primary key, status text not null default 'Pending', steward text, data jsonb not null default '{}', created_at timestamptz not null default now(), updated_at timestamptz not null default now());
+    create table grievances (id text primary key, status text not null default 'Pending', steward text, locked_to text, data jsonb not null default '{}', created_at timestamptz not null default now(), updated_at timestamptz not null default now());
   `);
-  const db = require('/home/claude/dfcs-rebuild/server/db.js');
+  const db = require(path.resolve(__dirname, '..', 'server/db.js'));
 
   // First save: new grievance, Step 1 filed immediately.
   const g1 = await db.submitGrievance({
@@ -62,7 +62,7 @@ async function testNewlyFiledDetection() {
 }
 
 async function testEmailContent() {
-  const { buildStepEmailBody, parseEmailList } = require('/home/claude/dfcs-rebuild/server/grievantNotify.js');
+  const { buildStepEmailBody, parseEmailList } = require(path.resolve(__dirname, '..', 'server/grievantNotify.js'));
 
   // parseEmailList handles comma-separated group grievance emails
   assert.deepStrictEqual(parseEmailList('a@x.gov, b@y.gov,c@z.gov'), ['a@x.gov', 'b@y.gov', 'c@z.gov']);
@@ -110,7 +110,7 @@ async function testSendingLogic() {
   // hardcodes api.brevo.com, we instead verify the skip/error paths that
   // don't require reaching the real API, which is what matters most for
   // correctness (no crashes, no silent double-sends, clear errors).
-  const { sendGrievantStepNotifications } = require('/home/claude/dfcs-rebuild/server/grievantNotify.js');
+  const { sendGrievantStepNotifications } = require(path.resolve(__dirname, '..', 'server/grievantNotify.js'));
   server.close();
 
   // No grievant email on file -> should skip cleanly, no error, no crash

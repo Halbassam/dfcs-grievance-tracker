@@ -1,6 +1,7 @@
 const assert = require('assert');
 const http = require('http');
-const { sendMail } = require('/home/claude/dfcs-rebuild/server/mailer.js');
+const path = require('path');
+const { sendMail } = require(path.resolve(__dirname, '..', 'server/mailer.js'));
 
 // mailer.js hits api.brevo.com over TLS on port 443. To test the exact
 // request-construction logic without editing production code just for

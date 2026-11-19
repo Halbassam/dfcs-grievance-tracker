@@ -5,7 +5,7 @@ async function testBackend() {
   const { newDb } = require('pg-mem');
   const mem = newDb();
   const pgAdapter = mem.adapters.createPg();
-  const poolPath = path.resolve('/home/claude/dfcs-rebuild/server/pool.js');
+  const poolPath = path.resolve(__dirname, '..', 'server/pool.js');
   const Pool = pgAdapter.Pool;
   const pool = new Pool();
   require.cache[poolPath] = {
@@ -19,7 +19,7 @@ async function testBackend() {
     create table grievances (id text primary key, status text not null default 'Pending', steward text, data jsonb not null default '{}', created_at timestamptz not null default now(), updated_at timestamptz not null default now());
     create table holidays (date text primary key, name text not null);
   `);
-  const db = require('/home/claude/dfcs-rebuild/server/db.js');
+  const db = require(path.resolve(__dirname, '..', 'server/db.js'));
 
   const today = new Date();
   function iso(d){ return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
@@ -47,13 +47,16 @@ async function testBackend() {
 async function testFrontend() {
   const { JSDOM } = require('jsdom');
   const fs = require('fs');
-  let html = fs.readFileSync('/home/claude/dfcs-rebuild/public/index.html', 'utf8');
+  let html = fs.readFileSync(path.resolve(__dirname, '..', 'public/index.html'), 'utf8');
   html = html.replace('</script>', `</script><script>
     window.__t2 = {
       rowClass: (r)=>rowClass(r), isOverdue: (r)=>isOverdue(r), nextDeadline: (r)=>nextDeadline(r)
     };
   </script>`);
-  const dom = new JSDOM(html, { runScripts: 'dangerously', url: 'http://localhost/' });
+  const dom = new JSDOM(html, {
+    runScripts: 'dangerously', url: 'http://localhost/',
+    beforeParse(window) { window.fetch = (...args) => fetch(...args); }
+  });
   const w = dom.window;
   await new Promise(r => setTimeout(r, 300));
 
@@ -81,25 +84,26 @@ async function testFrontend() {
   console.log('✓ CSS: .row-blue has blue background (#1a4fa0) and white text (#fff)');
 }
 
+async function testAmberCss() {
+  // due-within-7-days rows are now true yellow, not the old amber
+  const { JSDOM } = require('jsdom');
+  const fs = require('fs');
+  const html = fs.readFileSync(path.resolve(__dirname, '..', 'public/index.html'), 'utf8');
+  const dom = new JSDOM(html);
+  const styleText = [...dom.window.document.querySelectorAll('style')].map(s=>s.textContent).join('\n');
+  assert.ok(/row-amber\s*\{[^}]*background:\s*#fff3b0/i.test(styleText), 'row-amber must use the new yellow (#fff3b0)');
+  console.log('✓ CSS: .row-amber (due within 7 days) now uses yellow (#fff3b0)');
+}
+
 (async () => {
   try {
     await testBackend();
     await testFrontend();
     console.log('\nALL STEP-3 TESTS PASSED');
+    await testAmberCss();
+    process.exit(0);
   } catch (e) {
     console.error('\n✗ FAILED:', e.message);
     process.exit(1);
   }
-})();
-
-// Extra check: due-within-7-days rows are now true yellow, not the old amber
-(async () => {
-  const { JSDOM } = require('jsdom');
-  const fs = require('fs');
-  const html = fs.readFileSync('/home/claude/dfcs-rebuild/public/index.html', 'utf8');
-  const dom = new JSDOM(html);
-  const styleText = [...dom.window.document.querySelectorAll('style')].map(s=>s.textContent).join('\n');
-  const assert = require('assert');
-  assert.ok(/row-amber\s*\{[^}]*background:\s*#fff3b0/i.test(styleText), 'row-amber must use the new yellow (#fff3b0)');
-  console.log('✓ CSS: .row-amber (due within 7 days) now uses yellow (#fff3b0)');
 })();

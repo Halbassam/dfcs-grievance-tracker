@@ -5,8 +5,8 @@ async function setupDb() {
   const { newDb } = require('pg-mem');
   const mem = newDb();
   const pgAdapter = mem.adapters.createPg();
-  const poolPath = path.resolve('/home/claude/dfcs-rebuild/server/pool.js');
-  const dbPath = path.resolve('/home/claude/dfcs-rebuild/server/db.js');
+  const poolPath = path.resolve(__dirname, '..', 'server/pool.js');
+  const dbPath = path.resolve(__dirname, '..', 'server/db.js');
   const Pool = pgAdapter.Pool;
   const pool = new Pool();
   require.cache[poolPath] = {
@@ -26,12 +26,13 @@ async function setupDb() {
     create table grievances (id text primary key, status text not null default 'Pending', steward text, data jsonb not null default '{}', created_at timestamptz not null default now(), updated_at timestamptz not null default now());
     create table activity (row_id serial primary key, gid text not null, data jsonb not null default '{}', created_at timestamptz not null default now());
     create table archive (id text primary key, status text, steward text, archived_at text, data jsonb not null default '{}', created_at timestamptz not null default now());
-    create table users (username text primary key, display_name text not null, password_hash text not null, role text not null default 'steward', created_at timestamptz not null default now());
+    create table users (username text primary key, display_name text not null, password_hash text not null, role text not null default 'steward', locations jsonb not null default '[]', created_at timestamptz not null default now());
     create table sessions (token text primary key, username text not null, expires_at timestamptz not null);
     create table holidays (date text primary key, name text not null);
     create table setup_lists (key text primary key, items jsonb not null default '[]');
     create table email_log (row_id serial primary key, run_at timestamptz not null default now(), data jsonb not null default '{}');
     create table app_meta (key text primary key, value text);
+    create table attachments (id text primary key, gid text not null, filename text not null, content_type text not null, size_bytes integer not null, storage_path text not null, uploaded_by text not null, uploaded_at timestamptz not null default now());
   `);
   return require(dbPath);
 }
@@ -68,9 +69,9 @@ async function testRetentionCap() {
 
 async function testGrievantNotifyActuallyLogs() {
   const db = await setupDb();
-  delete require.cache[path.resolve('/home/claude/dfcs-rebuild/server/grievantNotify.js')];
+  delete require.cache[path.resolve(__dirname, '..', 'server/grievantNotify.js')];
   process.env.BREVO_API_KEY = ''; // force the "no config" error path, which still must log nothing extra (no send attempted)
-  const { sendGrievantStepNotifications } = require('/home/claude/dfcs-rebuild/server/grievantNotify.js');
+  const { sendGrievantStepNotifications } = require(path.resolve(__dirname, '..', 'server/grievantNotify.js'));
 
   // No email on file -> skipped before any log write
   await sendGrievantStepNotifications(

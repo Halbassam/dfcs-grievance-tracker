@@ -5,8 +5,8 @@ async function testBackendPersistence() {
   const { newDb } = require('pg-mem');
   const mem = newDb();
   const pgAdapter = mem.adapters.createPg();
-  const poolPath = path.resolve('/home/claude/dfcs-rebuild/server/pool.js');
-  const dbPath = path.resolve('/home/claude/dfcs-rebuild/server/db.js');
+  const poolPath = path.resolve(__dirname, '..', 'server/pool.js');
+  const dbPath = path.resolve(__dirname, '..', 'server/db.js');
   const Pool = pgAdapter.Pool;
   const pool = new Pool();
   require.cache[poolPath] = {
@@ -18,7 +18,7 @@ async function testBackendPersistence() {
   };
   delete require.cache[dbPath];
   await pool.query(`
-    create table grievances (id text primary key, status text not null default 'Pending', steward text, data jsonb not null default '{}', created_at timestamptz not null default now(), updated_at timestamptz not null default now());
+    create table grievances (id text primary key, status text not null default 'Pending', steward text, locked_to text, data jsonb not null default '{}', created_at timestamptz not null default now(), updated_at timestamptz not null default now());
   `);
   const db = require(dbPath);
 
@@ -50,14 +50,17 @@ async function testBackendPersistence() {
 async function testFrontend() {
   const { JSDOM } = require('jsdom');
   const fs = require('fs');
-  let html = fs.readFileSync('/home/claude/dfcs-rebuild/public/index.html', 'utf8');
+  let html = fs.readFileSync(path.resolve(__dirname, '..', 'public/index.html'), 'utf8');
   html = html.replace('</script>', `</script><script>
     window.__t4 = {
       setState: (s)=>{ STATE = s; }, dollar: (id)=>$(id), renderLog: ()=>renderLog(),
       loadIntoForm: (r)=>loadIntoForm(r), openDetail: (gid)=>openDetail(gid)
     };
   </script>`);
-  const dom = new JSDOM(html, { runScripts: 'dangerously', url: 'http://localhost/' });
+  const dom = new JSDOM(html, {
+    runScripts: 'dangerously', url: 'http://localhost/',
+    beforeParse(window) { window.fetch = (...args) => fetch(...args); }
+  });
   const w = dom.window;
   await new Promise(r => setTimeout(r, 300));
 
@@ -76,7 +79,7 @@ async function testFrontend() {
       { id: '2026-d1', employee: 'Jane Doe', steward: 'Hazem', status: 'Pending', description: 'Shift changed without notice' },
       { id: '2026-d2', employee: 'John Smith', steward: 'Maria', status: 'Pending', description: 'Denied sick leave request' }
     ],
-    activity: [], archive: [], holidays: []
+    activity: [], archive: [], holidays: [], attachments: []
   });
   w.__t4.dollar('logSearchInput').value = 'sick leave';
   w.__t4.renderLog();
@@ -93,7 +96,7 @@ async function testFrontend() {
 
   w.__t4.setState({
     grievances: [{ id: '2026-d3', employee: 'No Desc', steward: 'Hazem', status: 'Pending', description: '' }],
-    activity: [], archive: [], holidays: []
+    activity: [], archive: [], holidays: [], attachments: []
   });
   w.__t4.openDetail('2026-d3');
   const detailHtml2 = w.__t4.dollar('detailBody').innerHTML;
@@ -107,6 +110,7 @@ async function testFrontend() {
     await testBackendPersistence();
     await testFrontend();
     console.log('\nALL DESCRIPTION FIELD TESTS PASSED');
+    process.exit(0);
   } catch (e) {
     console.error('\n✗ FAILED:', e.message);
     process.exit(1);

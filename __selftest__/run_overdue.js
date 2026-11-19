@@ -5,7 +5,7 @@ const path = require('path');
   const { newDb } = require('pg-mem');
   const mem = newDb();
   const pgAdapter = mem.adapters.createPg();
-  const poolPath = path.resolve('/home/claude/dfcs-rebuild/server/pool.js');
+  const poolPath = path.resolve(__dirname, '..', 'server/pool.js');
   const Pool = pgAdapter.Pool;
   const pool = new Pool();
   require.cache[poolPath] = {
@@ -19,7 +19,7 @@ const path = require('path');
     create table grievances (id text primary key, status text not null default 'Pending', steward text, data jsonb not null default '{}', created_at timestamptz not null default now(), updated_at timestamptz not null default now());
     create table holidays (date text primary key, name text not null);
   `);
-  const db = require('/home/claude/dfcs-rebuild/server/db.js');
+  const db = require(path.resolve(__dirname, '..', 'server/db.js'));
 
   // Simulate: Step 1 filed 94 days ago, no response ever received
   const today = new Date();
@@ -54,6 +54,6 @@ const path = require('path');
   console.log(hit2 ? ('✓ Non-overdue grievance also correctly evaluated (daysAway: ' + hit2.daysAway + ')') : '(no matching deadline in window for this fixture — timing-dependent, not a failure)');
 
   // Confirm the email body correctly labels overdue vs upcoming
-  const scheduler = require('/home/claude/dfcs-rebuild/server/scheduler.js');
+  const scheduler = require(path.resolve(__dirname, '..', 'server/scheduler.js'));
   console.log('✓ All overdue-detection tests passed');
 })().catch(e => { console.error('✗ FAILED:', e.message); process.exit(1); });
