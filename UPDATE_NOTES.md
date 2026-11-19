@@ -41,8 +41,9 @@ shows a role dropdown under Manage Users, you already have it.
 - **Official grievance form printing** — grievance detail → Print
   produces the AFSCME/State of Illinois Contract Grievance form,
   auto-filled from tracker + Settings. Statement of Grievance box,
-  Step 2/3/4 dates, and all signature lines stay blank for
-  hand-completion. No activity history on the printout.
+  Step 2/3/4 dates, and all signature lines except the Step 1
+  employee/union line stay blank for hand-completion. That line shows
+  the steward's name in a script font. No activity history on the printout.
 - **Edit in form fixed** — all step dates now pre-fill when editing.
 - **Stewards can change their own password** — Settings → Change my
   password (requires current password).

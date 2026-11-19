@@ -197,7 +197,10 @@ async function testFrontend() {
   assert.ok(!p.includes('2026-06-15'), 'Step 2 filed date must NOT appear (blank for hand-completion)');
   assert.ok(!p.includes('Adjust caseload') && !p.includes('Art. XXXI'), 'Statement box must be blank');
   assert.ok(!p.includes('Activity history'), 'No activity history section');
-  assert.ok(!p.includes('Hazem'), 'No steward name / fabricated signatures');
+  // The steward's name appears once: on the Step 1 employee/union acknowledgment
+  // line, in the script font. Every other signature line stays blank.
+  assert.strictEqual(p.split('Hazem').length - 1, 1, 'the steward name should appear only on the Step 1 signature line');
+  assert.ok(p.includes('gf-sig-script">Hazem<'), 'the steward name should be on the Step 1 script signature line');
   assert.ok(printed, 'window.print called');
   console.log('✓ Print form: official layout, ORG_SETTINGS auto-fill, blank Step 2+, no activity, no signatures');
 
