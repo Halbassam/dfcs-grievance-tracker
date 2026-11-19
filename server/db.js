@@ -22,15 +22,16 @@ const TERMINAL_STATUSES = [
 ];
 
 async function getAll() {
+  // Session tokens are deliberately never loaded here: this payload goes to
+  // every logged-in user, and a token is a working login for whoever holds it.
   const [
-    grievancesRes, activityRes, archiveRes, usersRes, sessionsRes,
+    grievancesRes, activityRes, archiveRes, usersRes,
     holidaysRes, setupRes, emailLogRes, metaRes, attachmentsRows
   ] = await Promise.all([
     query("select data from grievances order by created_at asc"),
     query("select data from activity order by row_id asc"),
     query("select data from archive order by created_at asc"),
-    query("select username, display_name, role, locations, created_at, password_hash from users"),
-    query("select token, username, expires_at from sessions"),
+    query("select username, display_name, role, locations, created_at from users"),
     query("select date, name from holidays order by date asc"),
     query("select key, items from setup_lists"),
     query("select data from email_log order by row_id desc limit 60"),
@@ -53,12 +54,6 @@ async function getAll() {
     // read every account's password hash straight out of the network tab.
   }));
 
-  const sessions = sessionsRes.rows.map(r => ({
-    token: r.token,
-    username: r.username,
-    expiresAt: r.expires_at instanceof Date ? r.expires_at.getTime() : Number(r.expires_at)
-  }));
-
   const metaMap = {};
   for (const row of metaRes.rows) metaMap[row.key] = row.value;
 
@@ -68,7 +63,7 @@ async function getAll() {
     archive:    archiveRes.rows.map(r => r.data),
     emailLog:   emailLogRes.rows.map(r => r.data),
     attachments: attachmentsRows,
-    users, sessions,
+    users,
     lastEmailRunDate: metaMap.lastEmailRunDate || "",
     holidays: holidaysRes.rows.map(r => ({ date: r.date, name: r.name })),
     setup,
