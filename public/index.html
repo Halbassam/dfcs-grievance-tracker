@@ -10,7 +10,7 @@
 :root{
   --ink:#0e1a25;--green-1:#002342;--green-2:#003666;--green-3:#004785;
   --brand:#005daa;
-  --green-soft:#e9f3fb;--green-line:#bad3e8;--paper:#faf9f4;--paper-2:#f1efe6;
+  --line:#e4e9ef;--green-soft:#e9f3fb;--green-line:#bad3e8;--paper:#faf9f4;--paper-2:#f1efe6;
   --amber:#b7791f;--amber-bg:#fdf3da;--red:#9c0006;--red-bg:#fdeceb;--grey:#686d72;--ok-bg:#e7f1f9;
   --serif:'Source Serif Pro','Iowan Old Style',Georgia,serif;
   --sans:'Inter',-apple-system,BlinkMacSystemFont,sans-serif;
@@ -35,8 +35,8 @@ body{font-family:var(--sans);background:var(--paper);color:var(--ink);font-size:
 .menu-toggle{display:none;background:none;border:none;color:#fff;font-size:22px;cursor:pointer;}
 .conn-dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:6px;}
 
-main{max-width:1280px;margin:0 auto;padding:28px 24px 80px;}
-.section-head{display:flex;align-items:baseline;justify-content:space-between;margin-bottom:22px;flex-wrap:wrap;gap:12px;}
+main{max-width:1280px;margin:0 auto;padding:36px 28px 96px;}
+.section-head{display:flex;align-items:baseline;justify-content:space-between;margin-bottom:28px;flex-wrap:wrap;gap:12px;}
 .section-head h2{font-family:var(--sans);font-size:26px;margin:0;color:var(--green-1);font-weight:600;}
 .section-head .sub{color:var(--grey);font-size:13px;margin-top:3px;}
 
@@ -44,16 +44,16 @@ main{max-width:1280px;margin:0 auto;padding:28px 24px 80px;}
 .btn:active{transform:translateY(1px);}
 .btn-primary{background:var(--brand);color:#fff;}
 .btn-primary:hover{background:var(--green-2);color:#fff;}
-.btn-secondary{background:#fff;color:var(--green-2);border-color:var(--green-line);}
+.btn-secondary{background:#fff;color:var(--green-2);border-color:var(--line);}
 .btn-secondary:hover{background:var(--green-soft);}
 .btn-ghost{background:transparent;color:var(--grey);}
 .btn-ghost:hover{background:var(--paper-2);color:var(--ink);}
 .btn:disabled{opacity:0.45;cursor:not-allowed;}
 .btn-lg{padding:13px 26px;font-size:14.5px;}
-.btn-tiny{padding:4px 10px;font-size:11.5px;border:1px solid var(--green-line);background:transparent;color:var(--green-2);border-radius:3px;cursor:pointer;}
+.btn-tiny{padding:4px 10px;font-size:11.5px;border:1px solid var(--line);background:transparent;color:var(--green-2);border-radius:3px;cursor:pointer;}
 
-.panel{background:#fff;border:1px solid var(--green-line);border-radius:10px;box-shadow:var(--shadow);}
-.panel-pad{padding:24px;}
+.panel{background:#fff;border:1px solid var(--line);border-radius:10px;box-shadow:var(--shadow);}
+.panel-pad{padding:28px;}
 
 .form-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:18px 24px;}
 @media (max-width:760px){.form-grid{grid-template-columns:1fr;}}
@@ -65,14 +65,14 @@ main{max-width:1280px;margin:0 auto;padding:28px 24px 80px;}
 input[type=text],input[type=date],select,textarea{font-family:var(--sans);font-size:14px;padding:9px 12px;border:1px solid #cdd3d8;border-radius:var(--radius);background:#fff;color:var(--ink);width:100%;min-height:40px;transition:border-color .15s,box-shadow .15s;}
 input:focus,select:focus,textarea:focus{outline:none;border-color:var(--brand);box-shadow:0 0 0 3px rgba(0,90,169,0.18);}
 textarea{resize:vertical;min-height:64px;}
-.readonly-box{background:var(--green-soft);border:1.5px solid var(--green-line);color:var(--green-1);font-weight:600;font-size:13.5px;padding:9px 11px;border-radius:var(--radius);}
+.readonly-box{background:var(--green-soft);border:1.5px solid var(--line);color:var(--green-1);font-weight:600;font-size:13.5px;padding:9px 11px;border-radius:var(--radius);}
 .field-note{font-size:11.5px;color:var(--grey);margin-top:2px;}
 .section-divider{grid-column:1/-1;display:flex;align-items:center;gap:10px;margin:8px 0 4px;}
 .section-divider .label{font-family:var(--sans);font-size:13px;font-weight:600;color:var(--green-2);white-space:nowrap;}
-.section-divider .line{flex:1;height:1px;background:var(--green-line);}
+.section-divider .line{flex:1;height:1px;background:var(--line);}
 .notice-box{grid-column:1/-1;padding:10px 14px;border-radius:var(--radius);font-size:12.5px;display:flex;gap:8px;border-left:3px solid;}
 .notice-amber{background:var(--amber-bg);border-color:var(--amber);color:#6b4d10;}
-.deadline-grid{grid-column:1/-1;display:grid;grid-template-columns:repeat(2,1fr);gap:10px 18px;background:var(--green-soft);border:1px solid var(--green-line);border-radius:10px;padding:16px;margin-top:4px;}
+.deadline-grid{grid-column:1/-1;display:grid;grid-template-columns:repeat(2,1fr);gap:10px 18px;background:var(--green-soft);border:1px solid var(--line);border-radius:10px;padding:16px;margin-top:4px;}
 @media (max-width:760px){.deadline-grid{grid-template-columns:1fr;}}
 .deadline-item{display:flex;flex-direction:column;gap:2px;}
 .deadline-item .dl-label{font-size:11.5px;color:var(--green-2);font-weight:600;}
@@ -81,11 +81,11 @@ textarea{resize:vertical;min-height:64px;}
 .status-open{background:var(--ok-bg);border-color:#9bb9d4;color:var(--green-1);}
 .status-closed{background:var(--red-bg);border-color:#e3a8a5;color:var(--red);}
 .status-wait{background:var(--paper-2);border-color:#d8d5c8;color:var(--grey);}
-.form-footer{grid-column:1/-1;display:flex;justify-content:flex-end;gap:12px;margin-top:8px;padding-top:18px;border-top:1px solid var(--green-line);}
+.form-footer{grid-column:1/-1;display:flex;justify-content:flex-end;gap:12px;margin-top:8px;padding-top:18px;border-top:1px solid var(--line);}
 
 .kpi-row{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:22px;}
 @media (max-width:880px){.kpi-row{grid-template-columns:repeat(2,1fr);}}
-.kpi{background:#fff;border:1px solid var(--green-line);border-radius:10px;padding:16px 18px;box-shadow:var(--shadow);}
+.kpi{background:#fff;border:1px solid var(--line);border-radius:10px;padding:20px 22px;box-shadow:var(--shadow);}
 .kpi .num{font-family:var(--sans);font-size:30px;font-weight:700;color:var(--green-1);line-height:1;}
 .kpi .lbl{font-size:12px;color:var(--grey);margin-top:4px;}
 .kpi.red .num{color:var(--red);}
@@ -94,10 +94,10 @@ textarea{resize:vertical;min-height:64px;}
 .legend span{display:inline-flex;align-items:center;gap:6px;}
 .dot{width:9px;height:9px;border-radius:50%;display:inline-block;}
 
-.table-wrap{overflow-x:auto;border:1px solid var(--green-line);border-radius:10px;background:#fff;}
+.table-wrap{overflow-x:auto;border:1px solid var(--line);border-radius:10px;background:#fff;}
 table{width:100%;border-collapse:collapse;font-size:13px;}
-thead th{background:#f6f8f9;color:var(--grey);text-align:left;padding:11px 12px;font-weight:600;font-size:11.5px;letter-spacing:.02em;white-space:nowrap;border-bottom:1.5px solid var(--green-line);}
-tbody td{padding:10px 12px;border-bottom:1px solid #ece9dd;white-space:nowrap;}
+thead th{background:#f6f8f9;color:var(--grey);text-align:left;padding:11px 12px;font-weight:600;font-size:11.5px;letter-spacing:.02em;white-space:nowrap;border-bottom:1.5px solid var(--line);}
+tbody td{padding:11px 12px;border-bottom:1px solid #eef2f6;white-space:nowrap;}
 tbody tr:hover{background:#f7f9fb;}
 tbody tr.row-red{background:var(--red-bg);}
 tbody tr.row-amber{background:#fff3b0;}
@@ -125,7 +125,7 @@ tbody tr.row-blue a.row-link{color:#fff;text-decoration:underline;}
 .followup-flag{background:var(--amber-bg);color:var(--amber);font-size:11px;font-weight:700;padding:3px 8px;border-radius:10px;white-space:nowrap;}
 
 .steward-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:16px;margin-bottom:24px;}
-.steward-card{background:#fff;border:1px solid var(--green-line);border-radius:10px;padding:18px;box-shadow:var(--shadow);}
+.steward-card{background:#fff;border:1px solid var(--line);border-radius:10px;padding:18px;box-shadow:var(--shadow);}
 .steward-card.has-overdue{border-color:#e3a8a5;background:linear-gradient(180deg,var(--red-bg),#fff 60%);}
 .steward-card .s-name{font-family:var(--sans);font-weight:600;font-size:16px;}
 .steward-card .s-stats{display:flex;gap:14px;margin-top:10px;flex-wrap:wrap;}
@@ -163,7 +163,7 @@ tbody tr.row-blue a.row-link{color:#fff;text-decoration:underline;}
   .tab-btn{text-align:left;width:100%;}
   .menu-toggle{display:block;}
 }
-footer.app-foot{text-align:center;color:var(--grey);font-size:11.5px;padding:30px 0 10px;border-top:1px solid var(--green-line);margin-top:40px;}
+footer.app-foot{text-align:center;color:var(--grey);font-size:11.5px;padding:30px 0 10px;border-top:1px solid var(--line);margin-top:40px;}
 
 /* ---------- Print: official AFSCME Contract Grievance form ---------- */
 @media print{
@@ -198,7 +198,7 @@ footer.app-foot{text-align:center;color:var(--grey);font-size:11.5px;padding:30p
 }
 .chat-bubble{max-width:82%;padding:10px 14px;border-radius:10px;font-size:13.5px;line-height:1.55;white-space:pre-wrap;}
 .chat-bubble.user{align-self:flex-end;background:var(--green-2);color:#fff;border-bottom-right-radius:2px;}
-.chat-bubble.bot{align-self:flex-start;background:var(--paper-2);color:var(--ink);border-bottom-left-radius:2px;border:1px solid var(--green-line);}
+.chat-bubble.bot{align-self:flex-start;background:var(--paper-2);color:var(--ink);border-bottom-left-radius:2px;border:1px solid var(--line);}
 .chat-bubble.bot.pending{color:var(--grey);font-style:italic;}
 .chat-bubble.bot.error{background:var(--red-bg);color:var(--red);border-color:var(--red);}
 
@@ -217,7 +217,7 @@ footer.app-foot{text-align:center;color:var(--grey);font-size:11.5px;padding:30p
 #wizardCard{
   position:absolute;
   background:var(--paper);
-  border:1.5px solid var(--green-line);
+  border:1.5px solid var(--line);
   border-radius:10px;
   box-shadow:0 8px 32px rgba(0,0,0,.25);
   padding:20px 22px 16px;
@@ -245,7 +245,7 @@ footer.app-foot{text-align:center;color:var(--grey);font-size:11.5px;padding:30p
 .wiz-launch-btn svg{flex-shrink:0;}
 .new-grievance-btn{text-transform:uppercase;letter-spacing:.06em;font-size:12.5px;font-weight:700;white-space:nowrap;align-self:center;margin-right:8px;}
 .view-bar{display:flex;gap:6px;flex-wrap:wrap;margin:0 0 16px;}
-.view-bar button{background:var(--paper-2);border:1px solid var(--green-line);color:var(--green-1);font-family:var(--sans);font-size:13px;font-weight:600;padding:6px 14px;border-radius:999px;cursor:pointer;}
+.view-bar button{background:var(--paper-2);border:1px solid var(--line);color:var(--green-1);font-family:var(--sans);font-size:13px;font-weight:600;padding:6px 14px;border-radius:999px;cursor:pointer;}
 .view-bar button:hover{border-color:var(--green-1);}
 .view-bar button.active{background:var(--green-1);color:#fff;border-color:var(--green-1);}
 /* Line icons (replace the emoji icons) */
@@ -258,7 +258,7 @@ h1,h2,h3{letter-spacing:-0.012em;}
 <body>
 
 <div id="loginScreen" class="hidden" style="position:fixed;inset:0;background:var(--paper);display:flex;align-items:center;justify-content:center;z-index:500;padding:20px;">
-  <div style="max-width:380px;width:100%;background:#fff;border:1px solid var(--green-line);border-radius:8px;box-shadow:0 8px 30px rgba(0,0,0,0.12);padding:32px;">
+  <div style="max-width:380px;width:100%;background:#fff;border:1px solid var(--line);border-radius:8px;box-shadow:0 8px 30px rgba(0,0,0,0.12);padding:32px;">
     <div style="text-align:center;margin-bottom:24px;">
       <div style="width:52px;height:52px;border-radius:50%;background:var(--brand);display:inline-flex;align-items:center;justify-content:center;font-family:var(--sans);font-weight:700;font-size:22px;color:#fff;margin-bottom:12px;">31</div>
       <h2 style="font-family:var(--sans);color:var(--green-1);margin:0;font-size:20px;">FCRC Grievance Tracker</h2>
@@ -275,7 +275,7 @@ h1,h2,h3{letter-spacing:-0.012em;}
     </div>
     <div id="loginError" style="display:none;background:var(--red-bg);border:1px solid #e3a8a5;color:var(--red);padding:9px 12px;border-radius:4px;font-size:13px;margin-bottom:14px;"></div>
     <button class="btn btn-primary btn-lg" id="loginSubmitBtn" style="width:100%;justify-content:center;">Sign in</button>
-    <div style="text-align:center;margin-top:20px;padding-top:16px;border-top:1px solid var(--green-line);">
+    <div style="text-align:center;margin-top:20px;padding-top:16px;border-top:1px solid var(--line);">
       <div style="font-size:11.5px;color:var(--grey);">&copy; 2026 Hazem Albassam. All rights reserved.</div>
     </div>
   </div>
@@ -428,8 +428,8 @@ h1,h2,h3{letter-spacing:-0.012em;}
     <div class="section-head">
       <div><h2>Grievance Log</h2><div class="sub">Complete master ledger</div></div>
       <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;">
-        <input type="text" id="logSearchInput" placeholder="Search by employee, ID, steward, or description&hellip;" style="padding:8px 12px;border:1px solid var(--green-line);border-radius:10px;font-family:inherit;font-size:13.5px;min-width:240px;">
-        <select id="logLevelFilter" style="width:auto;flex:1 1 170px;padding:8px 12px;border:1px solid var(--green-line);border-radius:10px;font-family:inherit;font-size:13.5px;">
+        <input type="text" id="logSearchInput" placeholder="Search by employee, ID, steward, or description&hellip;" style="padding:8px 12px;border:1px solid var(--line);border-radius:10px;font-family:inherit;font-size:13.5px;min-width:240px;">
+        <select id="logLevelFilter" style="width:auto;flex:1 1 170px;padding:8px 12px;border:1px solid var(--line);border-radius:10px;font-family:inherit;font-size:13.5px;">
           <option value="">All levels</option>
           <option value="Intake">Intake</option>
           <option value="Step 1 — Immediate Supervisor">Step 1</option>
@@ -437,14 +437,14 @@ h1,h2,h3{letter-spacing:-0.012em;}
           <option value="Step 3 — Agency Head">Step 3</option>
           <option value="Step 4 / Arbitration">Step 4 / Arbitration</option>
         </select>
-        <select id="logStatusFilter" style="width:auto;flex:1 1 170px;padding:8px 12px;border:1px solid var(--green-line);border-radius:10px;font-family:inherit;font-size:13.5px;">
+        <select id="logStatusFilter" style="width:auto;flex:1 1 170px;padding:8px 12px;border:1px solid var(--line);border-radius:10px;font-family:inherit;font-size:13.5px;">
           <option value="">All statuses</option>
         </select>
         <label style="display:flex;align-items:center;gap:6px;font-size:12.5px;color:var(--grey);margin:0;white-space:nowrap;">Filed from
-          <input type="date" id="logDateFrom" style="width:auto;padding:7px 8px;border:1px solid var(--green-line);border-radius:10px;font-family:inherit;font-size:13px;">
+          <input type="date" id="logDateFrom" style="width:auto;padding:7px 8px;border:1px solid var(--line);border-radius:10px;font-family:inherit;font-size:13px;">
         </label>
         <label style="display:flex;align-items:center;gap:6px;font-size:12.5px;color:var(--grey);margin:0;white-space:nowrap;">to
-          <input type="date" id="logDateTo" style="width:auto;padding:7px 8px;border:1px solid var(--green-line);border-radius:10px;font-family:inherit;font-size:13px;">
+          <input type="date" id="logDateTo" style="width:auto;padding:7px 8px;border:1px solid var(--line);border-radius:10px;font-family:inherit;font-size:13px;">
         </label>
         <button class="btn btn-ghost" id="logClearFiltersBtn" style="display:none;">Clear filters</button>
         <button class="btn btn-secondary" id="logExportCsvBtn">Export CSV</button>
@@ -515,7 +515,7 @@ h1,h2,h3{letter-spacing:-0.012em;}
           <div style="font-weight:600;font-size:14px;color:var(--green-1);margin-bottom:8px;"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="8" width="16" height="12" rx="2"/><path d="M12 4v4M9 13h.01M15 13h.01"/></svg> Draft a Grievance from this investigation</div>
           <div class="notice-box notice-amber" style="margin-bottom:12px;">The bot will use the investigation facts it has — the employee's statement and your logbook — as context. Witness statements can't be recorded in the app yet, so they aren't included. Verify citations before filing.</div>
           <div id="invBotThread" style="display:flex;flex-direction:column;gap:10px;max-height:40vh;overflow-y:auto;margin-bottom:10px;"></div>
-          <div id="invBotDraftCard" class="hidden" style="border:1.5px solid var(--green-line);border-radius:var(--radius);background:var(--green-soft);padding:12px;margin-bottom:10px;">
+          <div id="invBotDraftCard" class="hidden" style="border:1.5px solid var(--line);border-radius:var(--radius);background:var(--green-soft);padding:12px;margin-bottom:10px;">
             <div style="font-family:var(--sans);color:var(--green-1);font-weight:600;margin-bottom:6px;">Draft</div>
             <div id="invBotDraftSummary" style="font-size:13px;line-height:1.55;white-space:pre-wrap;"></div>
             <textarea id="invBotDocText" readonly style="width:100%;margin-top:8px;min-height:140px;font-family:var(--mono);font-size:12px;line-height:1.55;"></textarea>
@@ -601,7 +601,7 @@ h1,h2,h3{letter-spacing:-0.012em;}
     <div class="panel panel-pad">
       <div class="notice-box notice-amber" style="margin-bottom:16px;">&#9888;&#65039; <span>This is a drafting aid, not legal advice. Double-check every fact, date, and contract citation before filing, and loop in your local grievance chair on anything unusual or high-stakes.</span></div>
       <div id="draftbotThread" style="display:flex;flex-direction:column;gap:14px;max-height:52vh;overflow-y:auto;padding:4px 2px;margin-bottom:14px;"></div>
-      <div id="draftbotDraftCard" class="hidden" style="border:1.5px solid var(--green-line);border-radius:var(--radius);background:var(--green-soft);padding:14px;margin-bottom:14px;">
+      <div id="draftbotDraftCard" class="hidden" style="border:1.5px solid var(--line);border-radius:var(--radius);background:var(--green-soft);padding:14px;margin-bottom:14px;">
         <div style="font-family:var(--sans);color:var(--green-1);font-weight:600;margin-bottom:6px;">Latest draft</div>
         <div id="draftbotDraftSummary" style="font-size:13.5px;line-height:1.6;"></div>
         <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:10px;">
@@ -632,10 +632,10 @@ h1,h2,h3{letter-spacing:-0.012em;}
     <div class="section-head">
       <div><h2><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg> Audit Log</h2><div class="sub">Login events, tab navigation, and record access — admin view only</div></div>
       <div style="display:flex;gap:8px;align-items:center;">
-        <select id="auditUserFilter" style="font-size:13px;padding:5px 10px;border:1.5px solid var(--green-line);border-radius:10px;background:var(--paper);color:var(--ink);">
+        <select id="auditUserFilter" style="font-size:13px;padding:5px 10px;border:1.5px solid var(--line);border-radius:10px;background:var(--paper);color:var(--ink);">
           <option value="">All users</option>
         </select>
-        <select id="auditActionFilter" style="font-size:13px;padding:5px 10px;border:1.5px solid var(--green-line);border-radius:10px;background:var(--paper);color:var(--ink);">
+        <select id="auditActionFilter" style="font-size:13px;padding:5px 10px;border:1.5px solid var(--line);border-radius:10px;background:var(--paper);color:var(--ink);">
           <option value="">All activity</option>
           <option value="login,session,logout">Logins only</option>
           <option value="tab">Tab clicks only</option>
@@ -648,7 +648,7 @@ h1,h2,h3{letter-spacing:-0.012em;}
       <div class="panel-pad" style="overflow-x:auto;">
         <table id="auditTable" style="width:100%;border-collapse:collapse;font-size:12.5px;">
           <thead>
-            <tr style="text-align:left;border-bottom:2px solid var(--green-line);">
+            <tr style="text-align:left;border-bottom:2px solid var(--line);">
               <th style="padding:8px 12px;white-space:nowrap;color:var(--green-1);">When</th>
               <th style="padding:8px 12px;color:var(--green-1);">User</th>
               <th style="padding:8px 12px;color:var(--green-1);">Action</th>
@@ -755,7 +755,7 @@ h1,h2,h3{letter-spacing:-0.012em;}
 
       <div style="margin-bottom:16px;">
         <label style="font-weight:600;font-size:13px;display:block;margin-bottom:6px;">Add numbers to pool</label>
-        <textarea id="poolNumbersInput" rows="4" style="width:100%;box-sizing:border-box;font-family:monospace;font-size:13px;padding:8px 10px;border:1px solid var(--green-line);border-radius:10px;resize:vertical;" placeholder="FCRC-2026-001&#10;FCRC-2026-002&#10;FCRC-2026-003&#10;(one per line, or comma-separated)"></textarea>
+        <textarea id="poolNumbersInput" rows="4" style="width:100%;box-sizing:border-box;font-family:monospace;font-size:13px;padding:8px 10px;border:1px solid var(--line);border-radius:10px;resize:vertical;" placeholder="FCRC-2026-001&#10;FCRC-2026-002&#10;FCRC-2026-003&#10;(one per line, or comma-separated)"></textarea>
         <div style="display:flex;gap:10px;margin-top:10px;flex-wrap:wrap;align-items:center;">
           <button class="btn btn-primary" id="poolAddBtn">Add to pool</button>
           <button class="btn btn-ghost" id="poolClearBtn" style="color:var(--red,#c0392b);">Clear pool</button>
@@ -775,7 +775,7 @@ h1,h2,h3{letter-spacing:-0.012em;}
       <div id="myPoolStatusDisplay" style="margin-bottom:16px;padding:12px 16px;border-radius:10px;background:var(--panel-alt,#f2f5f8);font-size:13.5px;"></div>
       <div style="margin-bottom:16px;">
         <label style="font-weight:600;font-size:13px;display:block;margin-bottom:6px;">Add numbers to pool</label>
-        <textarea id="myPoolNumbersInput" rows="4" style="width:100%;box-sizing:border-box;font-family:monospace;font-size:13px;padding:8px 10px;border:1px solid var(--green-line);border-radius:10px;resize:vertical;" placeholder="FCRC-2026-001&#10;FCRC-2026-002&#10;FCRC-2026-003&#10;(one per line, or comma-separated)"></textarea>
+        <textarea id="myPoolNumbersInput" rows="4" style="width:100%;box-sizing:border-box;font-family:monospace;font-size:13px;padding:8px 10px;border:1px solid var(--line);border-radius:10px;resize:vertical;" placeholder="FCRC-2026-001&#10;FCRC-2026-002&#10;FCRC-2026-003&#10;(one per line, or comma-separated)"></textarea>
         <div style="display:flex;gap:10px;margin-top:10px;flex-wrap:wrap;align-items:center;">
           <button class="btn btn-primary" id="myPoolAddBtn">Add to pool</button>
           <span id="myPoolAddStatus" style="font-size:13px;color:var(--green-2);"></span>
@@ -829,19 +829,19 @@ h1,h2,h3{letter-spacing:-0.012em;}
         <h3 style="font-family:var(--sans);color:var(--green-1);margin:0 0 14px;">Account roles</h3>
         <p style="font-size:13.5px;line-height:1.6;margin-bottom:12px;">Every login belongs to one of four roles. Admins assign roles in <b>Settings → Manage users</b>.</p>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
-          <div style="border:1.5px solid var(--green-line);border-radius:var(--radius);padding:12px;">
+          <div style="border:1.5px solid var(--line);border-radius:var(--radius);padding:12px;">
             <div style="font-weight:700;color:var(--green-1);margin-bottom:6px;">Steward</div>
             <div style="font-size:12.5px;line-height:1.6;color:var(--grey);">Files and tracks grievances at their assigned location(s). In Settings they can change their own password and add numbers to the grievance number pool. Cannot access the AI drafting bot, Manage Users, or the admin settings.</div>
           </div>
-          <div style="border:1.5px solid var(--green-line);border-radius:var(--radius);padding:12px;">
+          <div style="border:1.5px solid var(--line);border-radius:var(--radius);padding:12px;">
             <div style="font-weight:700;color:var(--green-1);margin-bottom:6px;">Read-only Steward</div>
             <div style="font-size:12.5px;line-height:1.6;color:var(--grey);">Sees the same grievances, deadlines, log and workload as a Steward at their assigned location(s), but cannot file, edit, log activity, archive, hand off, upload files, send notices, or use the AI bot. Can still change their own password.</div>
           </div>
-          <div style="border:1.5px solid var(--green-line);border-radius:var(--radius);padding:12px;">
+          <div style="border:1.5px solid var(--line);border-radius:var(--radius);padding:12px;">
             <div style="font-weight:700;color:var(--green-1);margin-bottom:6px;">Steward Plus</div>
             <div style="font-size:12.5px;line-height:1.6;color:var(--grey);">Everything a Steward can do, plus the <b>Investigations</b> workflow and the <b>Draft a grievance</b> AI bot (inside Investigations).</div>
           </div>
-          <div style="border:1.5px solid var(--green-line);border-radius:var(--radius);padding:12px;">
+          <div style="border:1.5px solid var(--line);border-radius:var(--radius);padding:12px;">
             <div style="font-weight:700;color:var(--green-1);margin-bottom:6px;">Admin</div>
             <div style="font-size:12.5px;line-height:1.6;color:var(--grey);">Full access — all features, all locations, plus Settings (manage users, locations, setup lists, org info, email configuration) and the <b>Audit log</b> (Reports tab).</div>
           </div>
@@ -928,15 +928,15 @@ h1,h2,h3{letter-spacing:-0.012em;}
           <p style="margin-bottom:10px;">The app sends the following emails. All include your AFSCME Local number in the subject line and body if it has been entered in <b>Settings → Local chapter info</b>.</p>
           <table style="width:100%;border-collapse:collapse;font-size:12.5px;">
             <thead><tr style="background:var(--green-soft);">
-              <th style="text-align:left;padding:7px 10px;border:1px solid var(--green-line);">Email type</th>
-              <th style="text-align:left;padding:7px 10px;border:1px solid var(--green-line);">Who receives it</th>
-              <th style="text-align:left;padding:7px 10px;border:1px solid var(--green-line);">When</th>
+              <th style="text-align:left;padding:7px 10px;border:1px solid var(--line);">Email type</th>
+              <th style="text-align:left;padding:7px 10px;border:1px solid var(--line);">Who receives it</th>
+              <th style="text-align:left;padding:7px 10px;border:1px solid var(--line);">When</th>
             </tr></thead>
             <tbody>
-              <tr><td style="padding:7px 10px;border:1px solid var(--green-line);"><b>Steward deadline reminder</b></td><td style="padding:7px 10px;border:1px solid var(--green-line);">The assigned steward</td><td style="padding:7px 10px;border:1px solid var(--green-line);">Daily — lists deadlines within 3 days and any past-due cases</td></tr>
-              <tr><td style="padding:7px 10px;border:1px solid var(--green-line);"><b>Hand-off notice</b></td><td style="padding:7px 10px;border:1px solid var(--green-line);">The steward receiving the grievance</td><td style="padding:7px 10px;border:1px solid var(--green-line);">When a grievance is handed off — sent to the email on that steward's account in Manage users</td></tr>
-              <tr><td style="padding:7px 10px;border:1px solid var(--green-line);"><b>Grievant step notification</b></td><td style="padding:7px 10px;border:1px solid var(--green-line);">The grievant (if an email is on file)</td><td style="padding:7px 10px;border:1px solid var(--green-line);">When Step 1, 2, or 3 is first filed on a case</td></tr>
-              <tr><td style="padding:7px 10px;border:1px solid var(--green-line);"><b>Courtesy notice to management</b></td><td style="padding:7px 10px;border:1px solid var(--green-line);">Management contact(s) configured per location</td><td style="padding:7px 10px;border:1px solid var(--green-line);">On demand — steward clicks the courtesy notice button on a case</td></tr>
+              <tr><td style="padding:7px 10px;border:1px solid var(--line);"><b>Steward deadline reminder</b></td><td style="padding:7px 10px;border:1px solid var(--line);">The assigned steward</td><td style="padding:7px 10px;border:1px solid var(--line);">Daily — lists deadlines within 3 days and any past-due cases</td></tr>
+              <tr><td style="padding:7px 10px;border:1px solid var(--line);"><b>Hand-off notice</b></td><td style="padding:7px 10px;border:1px solid var(--line);">The steward receiving the grievance</td><td style="padding:7px 10px;border:1px solid var(--line);">When a grievance is handed off — sent to the email on that steward's account in Manage users</td></tr>
+              <tr><td style="padding:7px 10px;border:1px solid var(--line);"><b>Grievant step notification</b></td><td style="padding:7px 10px;border:1px solid var(--line);">The grievant (if an email is on file)</td><td style="padding:7px 10px;border:1px solid var(--line);">When Step 1, 2, or 3 is first filed on a case</td></tr>
+              <tr><td style="padding:7px 10px;border:1px solid var(--line);"><b>Courtesy notice to management</b></td><td style="padding:7px 10px;border:1px solid var(--line);">Management contact(s) configured per location</td><td style="padding:7px 10px;border:1px solid var(--line);">On demand — steward clicks the courtesy notice button on a case</td></tr>
             </tbody>
           </table>
           <p style="margin-top:10px;font-size:12.5px;color:var(--grey);">&#9432; Emails require <b>BREVO_API_KEY</b> and <b>BREVO_SENDER_EMAIL</b> to be set in your Render environment variables. See Settings → Email status for the current configuration state.</p>
@@ -1650,7 +1650,7 @@ $('handoffBtn').addEventListener('click', async function(){
     // Select — options built via DOM API so displayName/username are never innerHTML
     const sel = document.createElement('select');
     sel.id = '_handoffSelect';
-    sel.style.cssText = 'width:100%;margin-bottom:14px;padding:8px;border:1.5px solid var(--green-line);border-radius:10px;font-size:13px;';
+    sel.style.cssText = 'width:100%;margin-bottom:14px;padding:8px;border:1.5px solid var(--line);border-radius:10px;font-size:13px;';
     allUsers.forEach(u => {
       const opt = document.createElement('option');
       opt.value = u.username;
@@ -2363,7 +2363,7 @@ function attachmentsSectionHtml(rec){
   const isAdminUser = !!(CURRENT_USER && (CURRENT_USER.role === 'admin' || !CURRENT_USER.username));
   const rows = files.map(a => {
     const canDelete = isAdminUser || (CURRENT_USER && a.uploadedBy === CURRENT_USER.username);
-    return `<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--green-line);font-size:13px;">
+    return `<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--line);font-size:13px;">
       <a href="/api/grievance/attachment/${encodeURIComponent(a.id)}" style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHtml(a.filename)}</a>
       <span style="color:var(--grey);font-size:12px;white-space:nowrap;">${formatFileSize(a.sizeBytes)} &middot; ${escapeHtml(a.uploadedBy)}</span>
       ${canDelete ? `<button class="btn btn-secondary btn-tiny" data-del-attachment="${escapeHtml(a.id)}">Delete</button>` : ''}
@@ -2371,7 +2371,7 @@ function attachmentsSectionHtml(rec){
   }).join('');
 
   const readOnly = !!(CURRENT_USER && CURRENT_USER.role === 'read_only');
-  return `<hr style="border:none;border-top:1px solid var(--green-line);margin:14px 0;">
+  return `<hr style="border:none;border-top:1px solid var(--line);margin:14px 0;">
     <p style="margin-bottom:6px;"><b>Attachments</b></p>
     <div id="attachmentsList">${rows || '<p style="color:var(--grey);font-size:13px;">No files attached yet.</p>'}</div>
     ${readOnly ? '' : `<div style="margin-top:8px;">
@@ -2443,7 +2443,7 @@ function courtesyNoticeSectionHtml(rec, d){
   }
 
   if(!rows.length) return '';
-  return `<hr style="border:none;border-top:1px solid var(--green-line);margin:14px 0;">
+  return `<hr style="border:none;border-top:1px solid var(--line);margin:14px 0;">
     <p style="margin-bottom:4px;"><b>Courtesy reminder to management</b></p>
     <p style="font-size:12px;color:var(--grey);margin-bottom:2px;">One-time, optional. Sent to the management contact set in Settings. Does not waive or extend any deadline.</p>
     <div style="display:flex;flex-direction:column;gap:6px;align-items:flex-start;">${rows.join('')}</div>`;
@@ -2463,7 +2463,7 @@ function openDetail(gid){
     <p><b>CBA reference:</b> ${escapeHtml(cbaRef(rec))}</p>
     <p><b>Remedy sought:</b> ${escapeHtml(rec.remedy||'—')}</p>
     <p><b>Status:</b> ${escapeHtml(rec.status||'')} &middot; <b>Current step:</b> ${escapeHtml(currentStep(rec))}</p>
-    <hr style="border:none;border-top:1px solid var(--green-line);margin:14px 0;">
+    <hr style="border:none;border-top:1px solid var(--line);margin:14px 0;">
     <p><b>Awareness:</b> ${escapeHtml(rec.awareness||'—')} &middot; <b>15-WD deadline:</b> ${rec.awareness?fmt(workday(rec.awareness,15)):'—'}</p>
     <p><b>Step 1 filed:</b> ${escapeHtml(rec.step1filed||'—')} &middot; <b>due:</b> ${d.step1Due?fmt(d.step1Due):'—'} &middot; <b>response:</b> ${escapeHtml(rec.step1resp||'—')}</p>
     <p><b>Step 2 filed:</b> ${escapeHtml(rec.step2filed||'—')} &middot; <b>answer due:</b> ${d.step2AnswerDue?fmt(d.step2AnswerDue):'—'} &middot; <b>response:</b> ${escapeHtml(rec.step2resp||'—')}</p>
@@ -2815,7 +2815,7 @@ function renderLocationBackfillPanel(){
   } else {
     el1.innerHTML = `<p style="font-size:13px;font-weight:600;margin-bottom:6px;">${unassignedG.length} grievance(s) with no location:</p>` +
       '<div style="display:flex;flex-wrap:wrap;gap:6px;">' +
-      unassignedG.map(g => `<a class="row-link" data-gid="${escapeHtml(g.id)}" style="border:1px solid var(--green-line);padding:3px 8px;border-radius:10px;font-size:12.5px;">${escapeHtml(g.id)} — ${escapeHtml(g.employee||'')}</a>`).join('') +
+      unassignedG.map(g => `<a class="row-link" data-gid="${escapeHtml(g.id)}" style="border:1px solid var(--line);padding:3px 8px;border-radius:10px;font-size:12.5px;">${escapeHtml(g.id)} — ${escapeHtml(g.employee||'')}</a>`).join('') +
       '</div>';
     el1.querySelectorAll('.row-link').forEach(a=>a.addEventListener('click', ()=>openDetail(a.dataset.gid)));
   }
@@ -2904,7 +2904,7 @@ async function _renderPoolPanel(statusId, logId){
     if(numbers.length){
       statusHtml += `<details style="margin-top:10px;">
         <summary style="cursor:pointer;color:var(--green-1);font-weight:600;">Show the ${numbers.length} unused number(s)</summary>
-        <div style="margin-top:8px;max-height:220px;overflow:auto;font-family:monospace;font-size:12.5px;line-height:1.7;background:#fff;border:1px solid var(--green-line);border-radius:10px;padding:8px 12px;">
+        <div style="margin-top:8px;max-height:220px;overflow:auto;font-family:monospace;font-size:12.5px;line-height:1.7;background:#fff;border:1px solid var(--line);border-radius:10px;padding:8px 12px;">
           ${numbers.map((n, i) => `<div>${i === 0 ? '<b>' : ''}${escapeHtml(n)}${i === 0 ? '</b> <span style="font-family:inherit;color:var(--grey);font-size:11.5px;">(next)</span>' : ''}</div>`).join('')}
         </div>
       </details>`;
@@ -2923,7 +2923,7 @@ async function _renderPoolPanel(statusId, logId){
         </tr>`
       ).join('');
       logDiv.innerHTML = `<table style="width:100%;border-collapse:collapse;font-size:12.5px;">
-        <thead><tr style="border-bottom:1px solid var(--green-line);">
+        <thead><tr style="border-bottom:1px solid var(--line);">
           <th style="text-align:left;padding-bottom:4px;color:var(--grey);">Number</th>
           <th style="text-align:left;padding-bottom:4px;color:var(--grey);">Assigned to</th>
           <th style="text-align:left;padding-bottom:4px;color:var(--grey);">Date</th>
@@ -3437,7 +3437,7 @@ function renderLocationContactsPanel(){
   }
   grid.innerHTML = locations.map(loc => {
     const cfg = LOCATION_DETAILS[loc] || {};
-    return `<div style="border:1px solid var(--green-line);border-radius:var(--radius);padding:12px;">
+    return `<div style="border:1px solid var(--line);border-radius:var(--radius);padding:12px;">
       <div style="font-weight:600;font-size:13.5px;margin-bottom:8px;">${escapeHtml(loc)}</div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
         <div class="field" style="margin:0;">
@@ -3563,11 +3563,11 @@ function renderInvestigationList(){
   }
   container.innerHTML = invs.map(inv=>{
     const isSelected = INV_STATE.current && INV_STATE.current.id === inv.id;
-    return `<div class="inv-list-card${isSelected?' inv-list-selected':''}" data-inv-id="${escapeHtml(inv.id)}" style="border:1.5px solid ${isSelected?'var(--green-2)':'var(--green-line)'};border-radius:var(--radius);background:${isSelected?'var(--green-soft)':'#fff'};padding:12px;cursor:pointer;opacity:${inv.archived?'0.6':'1'};">
+    return `<div class="inv-list-card${isSelected?' inv-list-selected':''}" data-inv-id="${escapeHtml(inv.id)}" style="border:1.5px solid ${isSelected?'var(--green-2)':'var(--line)'};border-radius:var(--radius);background:${isSelected?'var(--green-soft)':'#fff'};padding:12px;cursor:pointer;opacity:${inv.archived?'0.6':'1'};">
       <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;">
         <span style="font-weight:700;font-size:13.5px;color:var(--green-1);">${escapeHtml(inv.id)}</span>
         <div style="display:flex;gap:4px;flex-wrap:wrap;align-items:center;">
-          ${inv.archived?'<span style="font-size:11px;color:var(--grey);border:1px solid var(--green-line);border-radius:8px;padding:1px 7px;">archived</span>':''}
+          ${inv.archived?'<span style="font-size:11px;color:var(--grey);border:1px solid var(--line);border-radius:8px;padding:1px 7px;">archived</span>':''}
           ${invStatusPill(inv.status, inv.closeReason)}
         </div>
       </div>
@@ -3648,7 +3648,7 @@ function renderInvestigationDetail(inv){
   // Logbook
   const entries = inv.logbook || [];
   $('invLogbookEntries').innerHTML = entries.length
-    ? entries.map(e=>`<div style="border-left:3px solid var(--green-line);padding:6px 10px;font-size:13px;">
+    ? entries.map(e=>`<div style="border-left:3px solid var(--line);padding:6px 10px;font-size:13px;">
         <div style="font-size:11.5px;color:var(--grey);margin-bottom:3px;">${escapeHtml(e.date)} &middot; ${escapeHtml(e.steward)}</div>
         <div style="white-space:pre-wrap;">${escapeHtml(e.entry)}</div>
       </div>`).join('')
@@ -4076,7 +4076,7 @@ function userRowHtml(idx, username, displayName, isExisting, role, locations, em
     <div class="ur-locations-wrap" style="margin-top:8px;${locsHidden}">
       <label style="font-size:12px;color:var(--grey);">Locations (check one, or several for a steward covering multiple sites — none checked means they see nothing until assigned)</label>
       <div class="ur-locations-list" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:4px;">
-        ${allLocations.length ? allLocations.map(loc => `<label style="display:flex;align-items:center;gap:4px;font-size:12.5px;border:1px solid var(--green-line);padding:3px 8px;border-radius:12px;cursor:pointer;">
+        ${allLocations.length ? allLocations.map(loc => `<label style="display:flex;align-items:center;gap:4px;font-size:12.5px;border:1px solid var(--line);padding:3px 8px;border-radius:12px;cursor:pointer;">
           <input type="checkbox" class="ur-location-cb" value="${escapeHtml(loc)}" ${userLocs.includes(loc)?'checked':''}> ${escapeHtml(loc)}
         </label>`).join('') : '<span style="font-size:12.5px;color:var(--grey);">No locations set up yet — add some under Settings first.</span>'}
       </div>
