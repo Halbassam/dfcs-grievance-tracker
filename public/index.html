@@ -253,6 +253,22 @@ footer.app-foot{text-align:center;color:var(--grey);font-size:11.5px;padding:30p
 .empty-state .icon .ico{width:34px;height:34px;color:var(--green-3);}
 select{appearance:none;-webkit-appearance:none;background-color:#fff;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1.5l5 5 5-5' fill='none' stroke='%23587062' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 11px center;padding-right:32px;}
 h1,h2,h3{letter-spacing:-0.012em;}
+/* Navigation icons (all widths) */
+.tab-btn{gap:10px;}
+.tab-btn .ico{width:18px;height:18px;flex-shrink:0;}
+
+/* Desktop: navigation as a left sidebar (phones keep the menu) */
+@media (min-width:921px){
+  .menu-toggle{display:none!important;}
+  .tabs{position:fixed;top:64px;left:0;bottom:0;width:232px;flex-direction:column;flex-wrap:nowrap;align-items:stretch;gap:3px;padding:16px 12px 12px;background:var(--green-1);overflow-y:auto;z-index:90;box-shadow:none;}
+  .tabs .tab-btn{width:100%;text-align:left;display:flex;align-items:center;gap:11px;padding:10px 12px;font-size:14px;}
+  .tabs .tab-btn .ico{width:18px;height:18px;opacity:0.85;}
+  .tabs .tab-btn .count{margin-left:auto;}
+  .tabs .new-grievance-btn{width:100%;justify-content:center;margin:0 0 14px;}
+  #currentUserBadge{margin-top:auto;flex-direction:column!important;align-items:flex-start!important;gap:8px!important;padding:14px 12px 4px!important;border-top:1px solid rgba(255,255,255,0.12);white-space:normal!important;}
+  #currentUserBadge #logoutBtn{margin-top:2px;}
+  #mainApp{margin-left:232px;}
+}
 </style>
 </head>
 <body>
@@ -289,11 +305,11 @@ h1,h2,h3{letter-spacing:-0.012em;}
   <button class="menu-toggle" id="menuToggle">&#9776;</button>
   <nav class="tabs" id="tabs">
     <button class="btn btn-primary new-grievance-btn" id="newGrievanceBtn">+ New grievance</button>
-    <button class="tab-btn active" data-tab="grievances">Grievances <span class="count" id="navOverdueCount">0</span></button>
-    <button class="tab-btn" data-tab="investigations" id="investigationsTabBtn">Investigations</button>
-    <button class="tab-btn" data-tab="reports" id="reportsTabBtn">Reports</button>
-    <button class="tab-btn" data-tab="settings">Settings</button>
-    <button class="tab-btn" data-tab="help" title="Help"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M9.1 9a3 3 0 0 1 5.8 1c0 2-3 3-3 3"/><path d="M12 17h.01"/></svg></button>
+    <button class="tab-btn active" data-tab="grievances"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg><span>Grievances</span> <span class="count" id="navOverdueCount">0</span></button>
+    <button class="tab-btn" data-tab="investigations" id="investigationsTabBtn"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg><span>Investigations</span></button>
+    <button class="tab-btn" data-tab="reports" id="reportsTabBtn"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 3v18h18"/><path d="M7 15v-4M12 15V8M17 15v-7"/></svg><span>Reports</span></button>
+    <button class="tab-btn" data-tab="settings"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h10M18 18h2"/><circle cx="16" cy="6" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="16" cy="18" r="2"/></svg><span>Settings</span></button>
+    <button class="tab-btn" data-tab="help" title="Help"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M9.1 9a3 3 0 0 1 5.8 1c0 2-3 3-3 3"/><path d="M12 17h.01"/></svg><span>Help</span></button>
     <span id="currentUserBadge" class="hidden" style="display:flex;align-items:center;gap:10px;padding:10px 14px;color:rgba(255,255,255,0.85);font-size:12.5px;white-space:nowrap;">
       <span id="currentUserName"></span>
       <span id="locationScopeBadge" class="hidden" style="background:rgba(255,255,255,0.12);padding:3px 9px;border-radius:10px;font-size:11px;"></span>
@@ -2004,7 +2020,7 @@ function renderLog(){
   if(clearBtn) clearBtn.style.display = logFiltersActive() ? '' : 'none';
   if(!STATE.grievances.length){
     if(countEl) countEl.textContent = '';
-    body.innerHTML = `<tr><td colspan="13"><div class="empty-state"><div class="icon"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg></div><h3>Log is empty</h3><p>Records appear here after you submit the Intake Form.</p></div></td></tr>`;
+    body.innerHTML = `<tr><td colspan="13"><div class="empty-state"><div class="icon"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg></div><h3>Log is empty</h3><p>Records appear here after you submit the Intake Form.</p><button class="btn btn-primary" style="margin-top:14px;" onclick="document.getElementById('newGrievanceBtn').click()">+ New grievance</button></div></td></tr>`;
     return;
   }
   const filtered = getFilteredLogRows();
