@@ -18,6 +18,7 @@ const path = require('path');
   await pool.query(`
     create table grievances (id text primary key, status text not null default 'Pending', steward text, data jsonb not null default '{}', created_at timestamptz not null default now(), updated_at timestamptz not null default now());
     create table holidays (date text primary key, name text not null);
+    create table users (username text primary key, display_name text not null, password_hash text not null, role text not null default 'steward', locations jsonb not null default '[]', email text not null default '', is_steward boolean not null default false, created_at timestamptz not null default now());
   `);
   const db = require(path.resolve(__dirname, '..', 'server/db.js'));
 

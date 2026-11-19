@@ -735,6 +735,8 @@ function chicagoDateISO(instant) {
   return `${map.year}-${map.month}-${map.day}`;
 }
 
+function normalizeName(n) { return String(n || "").trim().toLowerCase().replace(/\s+/g, " "); }
+
 /**
  * Finds every non-resolved grievance whose next deadline is either
  * already overdue (any number of days in the past) or coming up
@@ -742,11 +744,20 @@ function chicagoDateISO(instant) {
  * so callers (the email scheduler) can flag them distinctly.
  */
 async function findUpcomingDeadlines(withinDays = 3) {
-  const [grievancesRes, holidaysRes] = await Promise.all([
+  const [grievancesRes, holidaysRes, usersRes] = await Promise.all([
     query("select data from grievances"),
-    query("select date, name from holidays")
+    query("select date, name from holidays"),
+    query("select display_name, email, is_steward from users where email <> ''")
   ]);
   const holidaySet = buildHolidaySet(holidaysRes.rows);
+  // Reminders go to the email on the steward's current user record (matched
+  // by name), so an email changed in Manage users applies to open grievances
+  // too. Stewards are preferred over other accounts with the same name.
+  const emailByName = new Map();
+  for (const u of usersRes.rows.sort((a, b) => Number(b.is_steward) - Number(a.is_steward))) {
+    const key = normalizeName(u.display_name);
+    if (key && !emailByName.has(key)) emailByName.set(key, String(u.email).trim());
+  }
   const todayMid = todayInChicago();
   const results = [];
   for (const row of grievancesRes.rows) {
@@ -758,9 +769,11 @@ async function findUpcomingDeadlines(withinDays = 3) {
     // No lower bound — a deadline missed 80 days ago must still surface.
     // Upper bound still limits how far into the future we look.
     if (diffDays <= withinDays) {
+      // Fall back to the address saved on the grievance if no user matches.
+      const currentEmail = emailByName.get(normalizeName(rec.steward));
       results.push({
         id: rec.id, employee: rec.employee, steward: rec.steward,
-        stewardEmail: rec.stewardEmail, deadlineLabel: nd.label,
+        stewardEmail: currentEmail || rec.stewardEmail || "", deadlineLabel: nd.label,
         deadlineDate: toISODate(nd.date), daysAway: diffDays
       });
     }

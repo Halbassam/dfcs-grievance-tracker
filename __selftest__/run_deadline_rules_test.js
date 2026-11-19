@@ -60,6 +60,7 @@ async function serverRules() {
     create table grievances (id text primary key, status text not null default 'Pending', steward text, locked_to text, data jsonb not null default '{}', created_at timestamptz not null default now(), updated_at timestamptz not null default now());
     create table archive (id text primary key, status text, steward text, archived_at text, data jsonb not null default '{}', created_at timestamptz not null default now());
     create table holidays (date text primary key, name text not null);
+    create table users (username text primary key, display_name text not null, password_hash text not null, role text not null default 'steward', locations jsonb not null default '[]', email text not null default '', is_steward boolean not null default false, created_at timestamptz not null default now());
   `);
   const db = require(path.resolve(__dirname, '..', 'server/db.js'));
   const put = (id, data) => pool.query(`insert into grievances (id, status, steward, data) values ($1,'Pending','S',$2::jsonb)`,

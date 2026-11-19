@@ -87,6 +87,20 @@ const path = require('path');
   assert.ok(r.users.some(u => u.username === 'erin'), 'the account still exists');
   console.log('✓ Removing steward status keeps the account');
 
+  // 8. Reminders use the steward's current email, even for open grievances saved earlier.
+  const isoDaysAgo = n => { const d = new Date(); d.setDate(d.getDate() - n); return d.toISOString().slice(0, 10); };
+  await db.submitGrievance({ id: 'G-R1', employee: 'E', steward: 'Rita Ortiz', stewardEmail: 'old@x.gov',
+    status: 'Pending', location: 'L1', step1filed: isoDaysAgo(30), actingUser: 'x', actorUsername: 'boss' });
+  await db.upsertUser({ username: 'rita', displayName: 'Rita Ortiz', isSteward: true, email: 'new.address@x.gov' });
+  let up = await db.findUpcomingDeadlines(3);
+  assert.strictEqual(up.find(u => u.id === 'G-R1').stewardEmail, 'new.address@x.gov', 'reminder must use the current email on the steward record');
+  // A steward with no matching user keeps the address saved on the grievance.
+  await db.submitGrievance({ id: 'G-R2', employee: 'E', steward: 'Unknown Person', stewardEmail: 'saved@x.gov',
+    status: 'Pending', location: 'L1', step1filed: isoDaysAgo(30), actingUser: 'x', actorUsername: 'boss' });
+  up = await db.findUpcomingDeadlines(3);
+  assert.strictEqual(up.find(u => u.id === 'G-R2').stewardEmail, 'saved@x.gov', 'with no matching user, the saved address is used');
+  console.log('✓ Reminders use the steward\'s current email, falling back to the saved one when no user matches');
+
   console.log('\nALL STEWARD ROSTER TESTS PASSED');
   process.exit(0);
 })().catch(e => { console.error('\n✗ FAILED:', e.message); process.exit(1); });
