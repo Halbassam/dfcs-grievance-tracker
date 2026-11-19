@@ -67,15 +67,31 @@ function buildEmailBody(stewardName, items, localNo) {
   return lines.join("\n");
 }
 
-async function runDeadlineCheck() {
+// A day is only marked "done" once everyone due a reminder has actually been
+// emailed. If some sends fail (Brevo outage, one bad address) the hourly check
+// retries just the people who were missed. After this many automatic attempts
+// it gives up for the day, so a permanently bad address can't make the check
+// hit Brevo every hour all day.
+const MAX_AUTOMATIC_ATTEMPTS_PER_DAY = 3;
+
+/**
+ * @param {{manual?: boolean}} [options] manual = an admin pressed "Run
+ *   deadline check now": re-sends to everyone (as it always has) and doesn't
+ *   use up one of the day's automatic retry attempts.
+ */
+async function runDeadlineCheck({ manual = false } = {}) {
   const apiKey = process.env.BREVO_API_KEY || "";
   const senderEmail = process.env.BREVO_SENDER_EMAIL || "";
-  const summary = { sent: 0, skippedNoEmail: 0, errors: [], stewardsNotified: [] };
+  const summary = { sent: 0, skippedNoEmail: 0, skippedAlreadySent: 0, errors: [], stewardsNotified: [], retryScheduled: false };
 
   if (!apiKey || !senderEmail) {
     summary.errors.push("BREVO_API_KEY or BREVO_SENDER_EMAIL not set — no emails sent. See server/mailer.js for setup steps.");
     return summary;
   }
+
+  const today = todayISO();
+  const runState = await db.getEmailRunState(today);
+  const alreadySent = new Set(manual ? [] : runState.sentTo);
 
   const localNo = await db.getOrgLocalNo().catch(() => "");
   const localTag = localNo ? `AFSCME Local ${localNo}` : "FCRC Grievance Tracker";
@@ -91,6 +107,7 @@ async function runDeadlineCheck() {
   }
 
   for (const [email, group] of byEmail.entries()) {
+    if (alreadySent.has(email)) { summary.skippedAlreadySent++; continue; }
     const overdueCount = group.items.filter(i => i.daysAway < 0).length;
     const subject = overdueCount
       ? `\u26A0 [${localTag}] ${overdueCount} OVERDUE deadline${overdueCount > 1 ? "s" : ""}`
@@ -102,6 +119,7 @@ async function runDeadlineCheck() {
         text: buildEmailBody(group.stewardName, group.items, localNo)
       });
       summary.sent++;
+      if (!runState.sentTo.includes(email)) runState.sentTo.push(email);
       summary.stewardsNotified.push({ steward: group.stewardName, email, count: group.items.length });
       await db.logEmailAttempt({
         kind: "steward-deadline-digest", steward: group.stewardName, to: email,
@@ -126,12 +144,26 @@ async function runDeadlineCheck() {
   }
 
   // Individual send attempts are already logged per-steward above via
-  // db.logEmailAttempt(), so only lastEmailRunDate needs persisting here
-  // (used to avoid re-running the daily check twice on the same day).
-  await db.withLock(async () => {
-    await db.writeRawAtomic({ lastEmailRunDate: todayISO() });
-    return null;
-  });
+  // db.logEmailAttempt(). Here we decide whether today's run is finished.
+  const everyoneNotified = [...byEmail.keys()].every(e => runState.sentTo.includes(e));
+  if (!manual) runState.attempts += 1;
+  const gaveUp = !manual && runState.attempts >= MAX_AUTOMATIC_ATTEMPTS_PER_DAY;
+  await db.saveEmailRunState(runState);
+
+  if (everyoneNotified || gaveUp) {
+    // lastEmailRunDate is what stops the hourly check from re-running today.
+    await db.withLock(async () => {
+      await db.writeRawAtomic({ lastEmailRunDate: today });
+      return null;
+    });
+    if (!everyoneNotified) {
+      summary.errors.push(`Giving up for today after ${runState.attempts} attempts; some reminders were not delivered.`);
+    }
+  } else {
+    // Someone was missed. Leave today un-marked so the next hourly check
+    // retries only those people.
+    summary.retryScheduled = true;
+  }
 
   return summary;
 }

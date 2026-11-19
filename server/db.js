@@ -868,6 +868,31 @@ async function writeRawAtomic(data) {
   });
 }
 
+/**
+ * Per-day bookkeeping for the steward reminder run: which addresses were
+ * already emailed today and how many automatic attempts have been made.
+ * Lets a retry after a partial failure email only the people who were
+ * missed, instead of re-sending to everyone who already got theirs.
+ */
+async function getEmailRunState(today) {
+  const res = await query("select value from app_meta where key = 'emailRunState'");
+  try {
+    const s = JSON.parse((res.rows[0] && res.rows[0].value) || "{}");
+    if (s && s.date === today) {
+      return { date: today, attempts: Number(s.attempts) || 0, sentTo: Array.isArray(s.sentTo) ? s.sentTo : [] };
+    }
+  } catch { /* corrupt or missing -> start the day fresh */ }
+  return { date: today, attempts: 0, sentTo: [] };
+}
+
+async function saveEmailRunState(state) {
+  await query(
+    `insert into app_meta (key, value) values ('emailRunState', $1)
+     on conflict (key) do update set value = excluded.value`,
+    [JSON.stringify({ date: state.date, attempts: state.attempts, sentTo: state.sentTo })]
+  );
+}
+
 // ============================================================
 // INVESTIGATION WORKFLOW
 // ============================================================
@@ -1336,6 +1361,7 @@ async function getAuditLog(limit = 200, filterUsername = null, filterActions = [
 
 module.exports = {
   getAll, readRaw, writeRawAtomic, withLock, logEmailAttempt, pingKeepAlive,
+  getEmailRunState, saveEmailRunState,
   submitGrievance, logActivity, archiveClosed, sendCourtesyNotice,
   updateStewards, updateSetupList, getSetupList, updateHolidays, updateOrgSettings,
   getLocationDetails, updateLocationDetails, getOrgLocalNo,

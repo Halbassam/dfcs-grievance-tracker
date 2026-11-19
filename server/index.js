@@ -712,7 +712,7 @@ const server = http.createServer(async (req, res) => {
 
     if (pathname === "/api/email/run-now" && req.method === "POST") {
       if (!isAdmin(currentUser)) return sendJson(res, 403, { error: "Only admins can trigger the email run." });
-      const summary = await scheduler.runDeadlineCheck();
+      const summary = await scheduler.runDeadlineCheck({ manual: true });
       return sendJson(res, 200, summary);
     }
 
