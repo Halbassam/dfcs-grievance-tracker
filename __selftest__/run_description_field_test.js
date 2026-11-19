@@ -19,6 +19,7 @@ async function testBackendPersistence() {
   delete require.cache[dbPath];
   await pool.query(`
     create table grievances (id text primary key, status text not null default 'Pending', steward text, locked_to text, data jsonb not null default '{}', created_at timestamptz not null default now(), updated_at timestamptz not null default now());
+    create table archive (id text primary key, status text, steward text, archived_at text, data jsonb not null default '{}', created_at timestamptz not null default now());
   `);
   const db = require(dbPath);
 
