@@ -8,13 +8,13 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Caveat:wght@400..700&family=Inter:wght@400..700&display=swap">
 <style>
 :root{
-  --ink:#0e2518;--green-1:#00421e;--green-2:#00662e;--green-3:#00853c;
-  --brand:#00a94f;
-  --green-soft:#e9fbf1;--green-line:#bae8cf;--paper:#faf9f4;--paper-2:#f1efe6;
-  --amber:#b7791f;--amber-bg:#fdf3da;--red:#9c0006;--red-bg:#fdeceb;--grey:#6b7268;--ok-bg:#e7f9ef;
+  --ink:#0e1a25;--green-1:#002342;--green-2:#003666;--green-3:#004785;
+  --brand:#005daa;
+  --green-soft:#e9f3fb;--green-line:#bad3e8;--paper:#faf9f4;--paper-2:#f1efe6;
+  --amber:#b7791f;--amber-bg:#fdf3da;--red:#9c0006;--red-bg:#fdeceb;--grey:#686d72;--ok-bg:#e7f1f9;
   --serif:'Source Serif Pro','Iowan Old Style',Georgia,serif;
   --sans:'Inter',-apple-system,BlinkMacSystemFont,sans-serif;
-  --mono:'IBM Plex Mono',monospace;--radius:8px;--shadow:0 1px 2px rgba(14,37,24,0.06),0 4px 14px rgba(14,37,24,0.05);
+  --mono:'IBM Plex Mono',monospace;--radius:8px;--shadow:0 1px 2px rgba(14,26,37,0.06),0 4px 14px rgba(14,26,37,0.05);
 }
 *{box-sizing:border-box;}
 html,body{margin:0;padding:0;}
@@ -23,7 +23,7 @@ body{font-family:var(--sans);background:var(--paper);color:var(--ink);font-size:
 
 .topbar{background:var(--green-1);color:#fff;padding:0 24px;display:flex;align-items:center;justify-content:space-between;height:64px;border-bottom:3px solid var(--brand);position:sticky;top:0;z-index:100;box-shadow:0 2px 8px rgba(0,0,0,0.15);}
 .brand{display:flex;align-items:center;gap:14px;}
-.brand-mark{width:38px;height:38px;border-radius:50%;background:var(--brand);display:flex;align-items:center;justify-content:center;font-family:var(--sans);font-weight:700;font-size:17px;color:var(--ink);flex-shrink:0;border:2px solid rgba(255,255,255,0.25);}
+.brand-mark{width:38px;height:38px;border-radius:50%;background:var(--brand);display:flex;align-items:center;justify-content:center;font-family:var(--sans);font-weight:700;font-size:17px;color:#fff;flex-shrink:0;border:2px solid rgba(255,255,255,0.25);}
 .brand-text h1{font-family:var(--sans);font-size:17px;margin:0;font-weight:600;}
 .brand-text p{font-size:11px;margin:0;opacity:0.72;}
 .tabs{display:flex;gap:2px;flex-wrap:wrap;}
@@ -42,7 +42,7 @@ main{max-width:1280px;margin:0 auto;padding:28px 24px 80px;}
 
 .btn{font-family:var(--sans);font-size:13.5px;font-weight:600;padding:10px 18px;border-radius:var(--radius);border:1.5px solid transparent;cursor:pointer;display:inline-flex;align-items:center;gap:7px;}
 .btn:active{transform:translateY(1px);}
-.btn-primary{background:var(--brand);color:var(--ink);}
+.btn-primary{background:var(--brand);color:#fff;}
 .btn-primary:hover{background:var(--green-2);color:#fff;}
 .btn-secondary{background:#fff;color:var(--green-2);border-color:var(--green-line);}
 .btn-secondary:hover{background:var(--green-soft);}
@@ -62,8 +62,8 @@ main{max-width:1280px;margin:0 auto;padding:28px 24px 80px;}
 .field label{font-size:12.5px;font-weight:600;color:var(--green-1);display:flex;align-items:center;gap:6px;}
 .field label .req{color:var(--red);}
 .field label .hint-icon{color:var(--grey);cursor:help;font-size:11px;border:1px solid var(--grey);border-radius:50%;width:14px;height:14px;display:inline-flex;align-items:center;justify-content:center;}
-input[type=text],input[type=date],select,textarea{font-family:var(--sans);font-size:14px;padding:9px 12px;border:1px solid #cdd8d0;border-radius:var(--radius);background:#fff;color:var(--ink);width:100%;min-height:40px;transition:border-color .15s,box-shadow .15s;}
-input:focus,select:focus,textarea:focus{outline:none;border-color:var(--brand);box-shadow:0 0 0 3px rgba(0,169,79,0.18);}
+input[type=text],input[type=date],select,textarea{font-family:var(--sans);font-size:14px;padding:9px 12px;border:1px solid #cdd3d8;border-radius:var(--radius);background:#fff;color:var(--ink);width:100%;min-height:40px;transition:border-color .15s,box-shadow .15s;}
+input:focus,select:focus,textarea:focus{outline:none;border-color:var(--brand);box-shadow:0 0 0 3px rgba(0,90,169,0.18);}
 textarea{resize:vertical;min-height:64px;}
 .readonly-box{background:var(--green-soft);border:1.5px solid var(--green-line);color:var(--green-1);font-weight:600;font-size:13.5px;padding:9px 11px;border-radius:var(--radius);}
 .field-note{font-size:11.5px;color:var(--grey);margin-top:2px;}
@@ -78,7 +78,7 @@ textarea{resize:vertical;min-height:64px;}
 .deadline-item .dl-label{font-size:11.5px;color:var(--green-2);font-weight:600;}
 .deadline-item .dl-value{font-family:var(--mono);font-size:13.5px;color:var(--green-1);font-weight:600;}
 .status-banner{grid-column:1/-1;padding:12px 16px;border-radius:10px;font-weight:600;font-size:13.5px;border:1.5px solid;}
-.status-open{background:var(--ok-bg);border-color:#9bd4b5;color:var(--green-1);}
+.status-open{background:var(--ok-bg);border-color:#9bb9d4;color:var(--green-1);}
 .status-closed{background:var(--red-bg);border-color:#e3a8a5;color:var(--red);}
 .status-wait{background:var(--paper-2);border-color:#d8d5c8;color:var(--grey);}
 .form-footer{grid-column:1/-1;display:flex;justify-content:flex-end;gap:12px;margin-top:8px;padding-top:18px;border-top:1px solid var(--green-line);}
@@ -96,9 +96,9 @@ textarea{resize:vertical;min-height:64px;}
 
 .table-wrap{overflow-x:auto;border:1px solid var(--green-line);border-radius:10px;background:#fff;}
 table{width:100%;border-collapse:collapse;font-size:13px;}
-thead th{background:#f6f9f7;color:var(--grey);text-align:left;padding:11px 12px;font-weight:600;font-size:11.5px;letter-spacing:.02em;white-space:nowrap;border-bottom:1.5px solid var(--green-line);}
+thead th{background:#f6f8f9;color:var(--grey);text-align:left;padding:11px 12px;font-weight:600;font-size:11.5px;letter-spacing:.02em;white-space:nowrap;border-bottom:1.5px solid var(--green-line);}
 tbody td{padding:10px 12px;border-bottom:1px solid #ece9dd;white-space:nowrap;}
-tbody tr:hover{background:#f7fbf8;}
+tbody tr:hover{background:#f7f9fb;}
 tbody tr.row-red{background:var(--red-bg);}
 tbody tr.row-amber{background:#fff3b0;}
 tbody tr.row-green{background:var(--ok-bg);}
@@ -138,7 +138,7 @@ tbody tr.row-blue a.row-link{color:#fff;text-decoration:underline;}
 .breakdown-grid{display:grid;grid-template-columns:1fr 1fr;gap:20px;}
 @media (max-width:880px){.breakdown-grid{grid-template-columns:1fr;}}
 
-.modal-overlay{position:fixed;inset:0;background:rgba(14,37,24,0.55);display:none;align-items:center;justify-content:center;z-index:200;padding:20px;}
+.modal-overlay{position:fixed;inset:0;background:rgba(14,26,37,0.55);display:none;align-items:center;justify-content:center;z-index:200;padding:20px;}
 .modal-overlay.show{display:flex;}
 .modal{background:#fff;border-radius:8px;max-width:560px;width:100%;box-shadow:0 20px 50px rgba(0,0,0,0.25);overflow:hidden;}
 .modal-head{background:var(--green-1);color:#fff;padding:18px 22px;display:flex;align-items:center;gap:10px;}
@@ -260,7 +260,7 @@ h1,h2,h3{letter-spacing:-0.012em;}
 <div id="loginScreen" class="hidden" style="position:fixed;inset:0;background:var(--paper);display:flex;align-items:center;justify-content:center;z-index:500;padding:20px;">
   <div style="max-width:380px;width:100%;background:#fff;border:1px solid var(--green-line);border-radius:8px;box-shadow:0 8px 30px rgba(0,0,0,0.12);padding:32px;">
     <div style="text-align:center;margin-bottom:24px;">
-      <div style="width:52px;height:52px;border-radius:50%;background:var(--brand);display:inline-flex;align-items:center;justify-content:center;font-family:var(--sans);font-weight:700;font-size:22px;color:var(--ink);margin-bottom:12px;">31</div>
+      <div style="width:52px;height:52px;border-radius:50%;background:var(--brand);display:inline-flex;align-items:center;justify-content:center;font-family:var(--sans);font-weight:700;font-size:22px;color:#fff;margin-bottom:12px;">31</div>
       <h2 style="font-family:var(--sans);color:var(--green-1);margin:0;font-size:20px;">FCRC Grievance Tracker</h2>
       <p style="color:var(--grey);font-size:12.5px;margin:4px 0 0;">AFSCME Council 31 &middot; Sign in to continue</p>
       <p style="font-weight:700;font-size:1.05em;color:var(--green-1);margin:10px 0 0;">Developed by Hazem Albassam</p>
@@ -420,7 +420,7 @@ h1,h2,h3{letter-spacing:-0.012em;}
     <div class="legend">
       <span><i class="dot" style="background:#9c0006"></i>Response overdue</span>
       <span><i class="dot" style="background:#b7791f"></i>Due within 7 days</span>
-      <span><i class="dot" style="background:#00853c"></i>Resolved</span>
+      <span><i class="dot" style="background:#004785"></i>Resolved</span>
       <span><i class="dot" style="background:#c7c4b7"></i>Active / on track</span>
     </div>
     <div class="table-wrap"><table><thead><tr><th>Grievance ID</th><th>Employee</th><th>Type</th><th>CBA reference</th><th>Current step</th><th>Next deadline</th><th>Status</th><th>Days open</th></tr></thead><tbody id="dashboardBody"></tbody></table></div>
@@ -751,7 +751,7 @@ h1,h2,h3{letter-spacing:-0.012em;}
       <h3 style="font-family:var(--sans);color:var(--green-1);margin:0 0 6px;font-size:17px;">Grievance number pool</h3>
       <p style="font-size:13px;color:var(--grey);margin:6px 0 14px;">The union president assigns batches of preset grievance numbers. Paste them here and the Intake Form will auto-assign the next one automatically. When the pool is empty, stewards type a number manually.</p>
 
-      <div id="poolStatusDisplay" style="margin-bottom:16px;padding:12px 16px;border-radius:10px;background:var(--panel-alt,#f2f8f4);font-size:13.5px;"></div>
+      <div id="poolStatusDisplay" style="margin-bottom:16px;padding:12px 16px;border-radius:10px;background:var(--panel-alt,#f2f5f8);font-size:13.5px;"></div>
 
       <div style="margin-bottom:16px;">
         <label style="font-weight:600;font-size:13px;display:block;margin-bottom:6px;">Add numbers to pool</label>
@@ -772,7 +772,7 @@ h1,h2,h3{letter-spacing:-0.012em;}
     <div class="panel panel-pad" id="myPoolPanel" style="margin-bottom:24px;">
       <h3 style="font-family:var(--sans);color:var(--green-1);margin:0 0 6px;font-size:17px;">Grievance number pool</h3>
       <p style="font-size:13px;color:var(--grey);margin:6px 0 14px;">Add preset grievance numbers so the Intake Form can auto-assign them. Numbers already in the pool or already used are skipped automatically.</p>
-      <div id="myPoolStatusDisplay" style="margin-bottom:16px;padding:12px 16px;border-radius:10px;background:var(--panel-alt,#f2f8f4);font-size:13.5px;"></div>
+      <div id="myPoolStatusDisplay" style="margin-bottom:16px;padding:12px 16px;border-radius:10px;background:var(--panel-alt,#f2f5f8);font-size:13.5px;"></div>
       <div style="margin-bottom:16px;">
         <label style="font-weight:600;font-size:13px;display:block;margin-bottom:6px;">Add numbers to pool</label>
         <textarea id="myPoolNumbersInput" rows="4" style="width:100%;box-sizing:border-box;font-family:monospace;font-size:13px;padding:8px 10px;border:1px solid var(--green-line);border-radius:10px;resize:vertical;" placeholder="FCRC-2026-001&#10;FCRC-2026-002&#10;FCRC-2026-003&#10;(one per line, or comma-separated)"></textarea>
@@ -2863,7 +2863,7 @@ function updateIntakePoolUI(){
     // Pool has numbers — show badge, show Assign button, lock field until assigned
     badge.style.display = 'inline-block';
     badge.textContent = `${remaining} in pool`;
-    badge.style.background = remaining <= 3 ? 'var(--amber,#f0ad4e)' : 'var(--green-3,#0d773d)';
+    badge.style.background = remaining <= 3 ? 'var(--amber,#f0ad4e)' : 'var(--green-3,#0d4677)';
     badge.style.color = remaining <= 3 ? '#7a4800' : '#fff';
     if(assignBtn) assignBtn.style.display = 'inline-block';
     // Show low-pool warning at 3 or fewer
@@ -2897,7 +2897,7 @@ async function _renderPoolPanel(statusId, logId){
     } else if(remaining <= 3){
       statusHtml = `<span style="color:#b8660c;font-weight:600;">&#9888; Low: ${remaining} number(s) remaining.</span> Add a new batch soon.`;
     } else {
-      statusHtml = `<span style="color:var(--green-2,#0d773d);font-weight:600;">&#10003; ${remaining} number(s) available</span> — intake form will auto-assign.`;
+      statusHtml = `<span style="color:var(--green-2,#0d4677);font-weight:600;">&#10003; ${remaining} number(s) available</span> — intake form will auto-assign.`;
     }
     // Read-only list of the unused numbers, in the order they will be assigned.
     const numbers = Array.isArray(data.numbers) ? data.numbers : [];
@@ -3181,7 +3181,7 @@ async function refreshEmailStatus(){
     const box = $('emailStatusBox');
     if(data.emailConfigured){
       box.style.background = 'var(--ok-bg)';
-      box.style.border = '1px solid #9bd4b5';
+      box.style.border = '1px solid #9bb9d4';
       box.style.color = 'var(--green-1)';
       box.innerHTML = `<b>&#10003; Configured.</b> Last run: ${data.lastEmailRunDate || 'never yet'}.`;
     } else {
