@@ -137,6 +137,11 @@ async function submitGrievance(record) {
   return withTransaction(async (client) => {
     const existing = await client.query("select data, locked_to from grievances where id = $1", [id]);
     const isNew = existing.rows.length === 0;
+    if (isNew) {
+      // Never reuse an ID that already lives in the archive.
+      const arch = await client.query("select 1 from archive where id = $1", [id]);
+      if (arch.rows.length) throw new Error(`Grievance ID ${id} already exists in the archive.`);
+    }
     const target = isNew ? { id } : { ...existing.rows[0].data };
     // Carry the existing lock forward (hand-offs update locked_to directly via
     // handoffGrievance — not through submitGrievance).
