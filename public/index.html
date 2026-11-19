@@ -242,6 +242,10 @@ footer.app-foot{text-align:center;color:var(--grey);font-size:11.5px;padding:30p
 }
 .wiz-launch-btn:hover{background:var(--green-2);}
 .wiz-launch-btn svg{flex-shrink:0;}
+.view-bar{display:flex;gap:6px;flex-wrap:wrap;margin:0 0 16px;}
+.view-bar button{background:var(--paper-2);border:1px solid var(--green-line);color:var(--green-1);font-family:var(--sans);font-size:13px;font-weight:600;padding:6px 14px;border-radius:999px;cursor:pointer;}
+.view-bar button:hover{border-color:var(--green-1);}
+.view-bar button.active{background:var(--green-1);color:#fff;border-color:var(--green-1);}
 </style>
 </head>
 <body>
@@ -277,17 +281,12 @@ footer.app-foot{text-align:center;color:var(--grey);font-size:11.5px;padding:30p
   </div>
   <button class="menu-toggle" id="menuToggle">&#9776;</button>
   <nav class="tabs" id="tabs">
-    <button class="tab-btn active" data-tab="intake" id="intakeTabBtn">Intake Form</button>
-    <button class="tab-btn" data-tab="draftbot" id="draftbotTabBtn">Draft a Grievance</button>
+    <button class="tab-btn active" data-tab="grievances">Grievances <span class="count" id="navOverdueCount">0</span></button>
     <button class="tab-btn" data-tab="investigations" id="investigationsTabBtn">Investigations</button>
-    <button class="tab-btn" data-tab="dashboard">Priority Dashboard <span class="count" id="navOverdueCount">0</span></button>
-    <button class="tab-btn" data-tab="log">Grievance Log</button>
-    <button class="tab-btn" data-tab="activity">Activity Log</button>
-    <button class="tab-btn" data-tab="workload">Steward Workload</button>
-    <button class="tab-btn" data-tab="archive">Archive</button>
+    <button class="tab-btn" data-tab="reports" id="reportsTabBtn">Reports</button>
     <button class="tab-btn" data-tab="settings">Settings</button>
-    <button class="tab-btn admin-only-tab" data-tab="audit" style="display:none;">&#128065; Audit Log</button>
-    <button class="tab-btn" data-tab="help">&#10067; Help</button>
+    <button class="tab-btn" data-tab="help" title="Help">&#10067;</button>
+    <button class="btn btn-primary" id="newGrievanceBtn" style="margin-left:auto;">+ New grievance</button>
     <span id="currentUserBadge" class="hidden" style="display:flex;align-items:center;gap:10px;padding:10px 14px;color:rgba(255,255,255,0.85);font-size:12.5px;white-space:nowrap;">
       <span id="currentUserName"></span>
       <span id="locationScopeBadge" class="hidden" style="background:rgba(255,255,255,0.12);padding:3px 9px;border-radius:10px;font-size:11px;"></span>
@@ -301,7 +300,7 @@ footer.app-foot{text-align:center;color:var(--grey);font-size:11.5px;padding:30p
   <div id="connBanner"></div>
 
   <!-- INTAKE -->
-  <section id="tab-intake">
+  <section class="page hidden" id="tab-intake">
     <div class="section-head">
       <div><h2>Grievance Intake</h2><div class="sub">Master Contract 2023&ndash;2027 &middot; Art. V Grievance Procedure</div></div>
       <button class="btn btn-ghost" id="clearFormBtn">Clear form</button>
@@ -403,41 +402,60 @@ footer.app-foot{text-align:center;color:var(--grey);font-size:11.5px;padding:30p
         </div>
       </form>
     </div>
-  </section>
-
-  <!-- DRAFT A GRIEVANCE (AI ASSISTANT) -->
-  <section id="tab-draftbot" class="hidden">
+  </section><section class="page" id="tab-grievances"><div class="view-bar"><button type="button" data-view="log" class="active">All cases</button><button type="button" data-view="dashboard">Deadlines</button><button type="button" data-view="activity">Activity</button><button type="button" data-view="archive">Archived</button></div><div class="view hidden" id="tab-dashboard">
+    <div class="section-head"><div><h2>Priority Case Monitor</h2><div class="sub">Active grievances ranked by next contractual deadline</div></div><select id="adminLocationFilter" class="hidden" style="height:34px;"><option value="">All locations</option></select></div>
+    <div class="kpi-row">
+      <div class="kpi"><div class="num" id="kpiPending">0</div><div class="lbl">Total pending</div></div>
+      <div class="kpi red"><div class="num" id="kpiOverdue">0</div><div class="lbl">Response overdue</div></div>
+      <div class="kpi amber"><div class="num" id="kpiSoon">0</div><div class="lbl">Due within 7 days</div></div>
+      <div class="kpi"><div class="num" id="kpiArb">0</div><div class="lbl">At arbitration</div></div>
+    </div>
+    <div class="legend">
+      <span><i class="dot" style="background:#9c0006"></i>Response overdue</span>
+      <span><i class="dot" style="background:#b7791f"></i>Due within 7 days</span>
+      <span><i class="dot" style="background:#2e7d32"></i>Resolved</span>
+      <span><i class="dot" style="background:#c7c4b7"></i>Active / on track</span>
+    </div>
+    <div class="table-wrap"><table><thead><tr><th>Grievance ID</th><th>Employee</th><th>Type</th><th>CBA reference</th><th>Current step</th><th>Next deadline</th><th>Status</th><th>Days open</th></tr></thead><tbody id="dashboardBody"></tbody></table></div>
+  </div><div class="view" id="tab-log">
     <div class="section-head">
-      <div><h2>Draft a Grievance</h2><div class="sub">Describe the situation — the assistant will ask what it needs and cite the relevant Master Contract articles</div></div>
-      <button class="btn btn-ghost" id="clearDraftBtn">Clear conversation</button>
-    </div>
-    <div class="panel panel-pad">
-      <div class="notice-box notice-amber" style="margin-bottom:16px;">&#9888;&#65039; <span>This is a drafting aid, not legal advice. Double-check every fact, date, and contract citation before filing, and loop in your local grievance chair on anything unusual or high-stakes.</span></div>
-      <div id="draftbotThread" style="display:flex;flex-direction:column;gap:14px;max-height:52vh;overflow-y:auto;padding:4px 2px;margin-bottom:14px;"></div>
-      <div id="draftbotDraftCard" class="hidden" style="border:1.5px solid var(--green-line);border-radius:var(--radius);background:var(--green-soft);padding:14px;margin-bottom:14px;">
-        <div style="font-family:var(--serif);color:var(--green-1);font-weight:600;margin-bottom:6px;">Latest draft</div>
-        <div id="draftbotDraftSummary" style="font-size:13.5px;line-height:1.6;"></div>
-        <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:10px;">
-          <button class="btn btn-primary" id="useDraftBtn">Use this draft in the Intake Form</button>
-          <button class="btn btn-secondary" id="copyDraftBtn">Copy as document</button>
-        </div>
-        <textarea id="draftbotDocText" readonly style="width:100%;margin-top:10px;min-height:180px;font-family:var(--mono);font-size:12.5px;line-height:1.6;"></textarea>
-        <div id="copyDraftNote" class="field-note hidden">Copied — paste into Word, an email, or wherever you're filing this.</div>
-        <div id="useDraftWarning" class="hidden" style="color:var(--red);font-size:12.5px;margin-top:8px;"></div>
+      <div><h2>Grievance Log</h2><div class="sub">Complete master ledger</div></div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;">
+        <input type="text" id="logSearchInput" placeholder="Search by employee, ID, steward, or description&hellip;" style="padding:8px 12px;border:1px solid var(--green-line);border-radius:6px;font-family:inherit;font-size:13.5px;min-width:240px;">
+        <select id="logLevelFilter" style="width:auto;flex:1 1 170px;padding:8px 12px;border:1px solid var(--green-line);border-radius:6px;font-family:inherit;font-size:13.5px;">
+          <option value="">All levels</option>
+          <option value="Intake">Intake</option>
+          <option value="Step 1 — Immediate Supervisor">Step 1</option>
+          <option value="Step 2 — Intermediate Admin">Step 2</option>
+          <option value="Step 3 — Agency Head">Step 3</option>
+          <option value="Step 4 / Arbitration">Step 4 / Arbitration</option>
+        </select>
+        <select id="logStatusFilter" style="width:auto;flex:1 1 170px;padding:8px 12px;border:1px solid var(--green-line);border-radius:6px;font-family:inherit;font-size:13.5px;">
+          <option value="">All statuses</option>
+        </select>
+        <label style="display:flex;align-items:center;gap:6px;font-size:12.5px;color:var(--grey);margin:0;white-space:nowrap;">Filed from
+          <input type="date" id="logDateFrom" style="width:auto;padding:7px 8px;border:1px solid var(--green-line);border-radius:6px;font-family:inherit;font-size:13px;">
+        </label>
+        <label style="display:flex;align-items:center;gap:6px;font-size:12.5px;color:var(--grey);margin:0;white-space:nowrap;">to
+          <input type="date" id="logDateTo" style="width:auto;padding:7px 8px;border:1px solid var(--green-line);border-radius:6px;font-family:inherit;font-size:13px;">
+        </label>
+        <button class="btn btn-ghost" id="logClearFiltersBtn" style="display:none;">Clear filters</button>
+        <button class="btn btn-secondary" id="logExportCsvBtn">Export CSV</button>
+        <button class="btn btn-secondary" id="archiveClosedBtn">Archive closed</button>
       </div>
-      <div id="draftbotError" class="hidden" style="color:var(--red);font-size:13px;margin-bottom:10px;"></div>
-      <form id="draftbotForm" style="display:flex;gap:10px;align-items:flex-end;">
-        <div class="field wide" style="margin:0;flex:1;"><textarea id="draftbotInput" placeholder="e.g. My grievant was given a written warning for tardiness but was never verbally counseled first..." style="min-height:56px;"></textarea></div>
-        <button type="submit" class="btn btn-primary btn-lg" id="draftbotSendBtn">Send</button>
-      </form>
-      <div id="draftbotArticlesUsed" class="field-note" style="margin-top:8px;"></div>
     </div>
-  </section>
-
-  </section>
-
-  <!-- INVESTIGATIONS -->
-  <section id="tab-investigations" class="hidden">
+    <div id="logResultCount" style="font-size:12.5px;color:var(--grey);margin:0 0 8px;"></div>
+    <div class="table-wrap"><table><thead><tr><th>ID</th><th>Employee</th><th>Job class</th><th>Steward</th><th>Type</th><th>Status</th><th>Step</th><th>Step 1 filed</th><th>Step 1 due</th><th>Step 2 filed</th><th>Step 3 filed</th><th>Days open</th><th></th></tr></thead><tbody id="logBody"></tbody></table></div>
+  </div><div class="view hidden" id="tab-activity">
+    <div class="section-head">
+      <div><h2>Activity Log</h2><div class="sub">Paper trail &mdash; every action recorded</div></div>
+      <button class="btn btn-primary" id="addActivityBtn">+ Log activity</button>
+    </div>
+    <div class="panel"><div class="panel-pad" id="activityList"></div></div>
+  </div><div class="view hidden" id="tab-archive">
+    <div class="section-head"><div><h2>Archive</h2><div class="sub">Closed grievances &middot; Art. V Sec. 3(a) record retention</div></div><button class="btn btn-secondary" id="archiveExportCsvBtn">Export CSV</button></div>
+    <div class="table-wrap"><table><thead><tr><th>ID</th><th>Employee</th><th>Type</th><th>Status</th><th>Archived on</th></tr></thead><tbody id="archiveBody"></tbody></table></div>
+  </div></section><section class="page hidden" id="tab-investigations"><div class="view-bar"><button type="button" data-view="cases" class="active">Cases</button><button type="button" data-view="draftbot">Draft a grievance</button></div><div class="view" id="tab-cases">
     <div class="section-head">
       <div><h2>Investigations</h2><div class="sub">Pre-grievance fact-finding cases</div></div>
       <div style="display:flex;gap:8px;align-items:center;">
@@ -568,69 +586,33 @@ footer.app-foot{text-align:center;color:var(--grey);font-size:11.5px;padding:30p
         </div>
       </div>
     </div>
-  </section>
-
-  <!-- DASHBOARD -->
-  <section id="tab-dashboard" class="hidden">
-    <div class="section-head"><div><h2>Priority Case Monitor</h2><div class="sub">Active grievances ranked by next contractual deadline</div></div><select id="adminLocationFilter" class="hidden" style="height:34px;"><option value="">All locations</option></select></div>
-    <div class="kpi-row">
-      <div class="kpi"><div class="num" id="kpiPending">0</div><div class="lbl">Total pending</div></div>
-      <div class="kpi red"><div class="num" id="kpiOverdue">0</div><div class="lbl">Response overdue</div></div>
-      <div class="kpi amber"><div class="num" id="kpiSoon">0</div><div class="lbl">Due within 7 days</div></div>
-      <div class="kpi"><div class="num" id="kpiArb">0</div><div class="lbl">At arbitration</div></div>
-    </div>
-    <div class="legend">
-      <span><i class="dot" style="background:#9c0006"></i>Response overdue</span>
-      <span><i class="dot" style="background:#b7791f"></i>Due within 7 days</span>
-      <span><i class="dot" style="background:#2e7d32"></i>Resolved</span>
-      <span><i class="dot" style="background:#c7c4b7"></i>Active / on track</span>
-    </div>
-    <div class="table-wrap"><table><thead><tr><th>Grievance ID</th><th>Employee</th><th>Type</th><th>CBA reference</th><th>Current step</th><th>Next deadline</th><th>Status</th><th>Days open</th></tr></thead><tbody id="dashboardBody"></tbody></table></div>
-  </section>
-
-  <!-- LOG -->
-  <section id="tab-log" class="hidden">
+  </div><div class="view hidden" id="tab-draftbot">
     <div class="section-head">
-      <div><h2>Grievance Log</h2><div class="sub">Complete master ledger</div></div>
-      <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;">
-        <input type="text" id="logSearchInput" placeholder="Search by employee, ID, steward, or description&hellip;" style="padding:8px 12px;border:1px solid var(--green-line);border-radius:6px;font-family:inherit;font-size:13.5px;min-width:240px;">
-        <select id="logLevelFilter" style="width:auto;flex:1 1 170px;padding:8px 12px;border:1px solid var(--green-line);border-radius:6px;font-family:inherit;font-size:13.5px;">
-          <option value="">All levels</option>
-          <option value="Intake">Intake</option>
-          <option value="Step 1 — Immediate Supervisor">Step 1</option>
-          <option value="Step 2 — Intermediate Admin">Step 2</option>
-          <option value="Step 3 — Agency Head">Step 3</option>
-          <option value="Step 4 / Arbitration">Step 4 / Arbitration</option>
-        </select>
-        <select id="logStatusFilter" style="width:auto;flex:1 1 170px;padding:8px 12px;border:1px solid var(--green-line);border-radius:6px;font-family:inherit;font-size:13.5px;">
-          <option value="">All statuses</option>
-        </select>
-        <label style="display:flex;align-items:center;gap:6px;font-size:12.5px;color:var(--grey);margin:0;white-space:nowrap;">Filed from
-          <input type="date" id="logDateFrom" style="width:auto;padding:7px 8px;border:1px solid var(--green-line);border-radius:6px;font-family:inherit;font-size:13px;">
-        </label>
-        <label style="display:flex;align-items:center;gap:6px;font-size:12.5px;color:var(--grey);margin:0;white-space:nowrap;">to
-          <input type="date" id="logDateTo" style="width:auto;padding:7px 8px;border:1px solid var(--green-line);border-radius:6px;font-family:inherit;font-size:13px;">
-        </label>
-        <button class="btn btn-ghost" id="logClearFiltersBtn" style="display:none;">Clear filters</button>
-        <button class="btn btn-secondary" id="logExportCsvBtn">Export CSV</button>
-        <button class="btn btn-secondary" id="archiveClosedBtn">Archive closed</button>
+      <div><h2>Draft a Grievance</h2><div class="sub">Describe the situation — the assistant will ask what it needs and cite the relevant Master Contract articles</div></div>
+      <button class="btn btn-ghost" id="clearDraftBtn">Clear conversation</button>
+    </div>
+    <div class="panel panel-pad">
+      <div class="notice-box notice-amber" style="margin-bottom:16px;">&#9888;&#65039; <span>This is a drafting aid, not legal advice. Double-check every fact, date, and contract citation before filing, and loop in your local grievance chair on anything unusual or high-stakes.</span></div>
+      <div id="draftbotThread" style="display:flex;flex-direction:column;gap:14px;max-height:52vh;overflow-y:auto;padding:4px 2px;margin-bottom:14px;"></div>
+      <div id="draftbotDraftCard" class="hidden" style="border:1.5px solid var(--green-line);border-radius:var(--radius);background:var(--green-soft);padding:14px;margin-bottom:14px;">
+        <div style="font-family:var(--serif);color:var(--green-1);font-weight:600;margin-bottom:6px;">Latest draft</div>
+        <div id="draftbotDraftSummary" style="font-size:13.5px;line-height:1.6;"></div>
+        <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:10px;">
+          <button class="btn btn-primary" id="useDraftBtn">Use this draft in the Intake Form</button>
+          <button class="btn btn-secondary" id="copyDraftBtn">Copy as document</button>
+        </div>
+        <textarea id="draftbotDocText" readonly style="width:100%;margin-top:10px;min-height:180px;font-family:var(--mono);font-size:12.5px;line-height:1.6;"></textarea>
+        <div id="copyDraftNote" class="field-note hidden">Copied — paste into Word, an email, or wherever you're filing this.</div>
+        <div id="useDraftWarning" class="hidden" style="color:var(--red);font-size:12.5px;margin-top:8px;"></div>
       </div>
+      <div id="draftbotError" class="hidden" style="color:var(--red);font-size:13px;margin-bottom:10px;"></div>
+      <form id="draftbotForm" style="display:flex;gap:10px;align-items:flex-end;">
+        <div class="field wide" style="margin:0;flex:1;"><textarea id="draftbotInput" placeholder="e.g. My grievant was given a written warning for tardiness but was never verbally counseled first..." style="min-height:56px;"></textarea></div>
+        <button type="submit" class="btn btn-primary btn-lg" id="draftbotSendBtn">Send</button>
+      </form>
+      <div id="draftbotArticlesUsed" class="field-note" style="margin-top:8px;"></div>
     </div>
-    <div id="logResultCount" style="font-size:12.5px;color:var(--grey);margin:0 0 8px;"></div>
-    <div class="table-wrap"><table><thead><tr><th>ID</th><th>Employee</th><th>Job class</th><th>Steward</th><th>Type</th><th>Status</th><th>Step</th><th>Step 1 filed</th><th>Step 1 due</th><th>Step 2 filed</th><th>Step 3 filed</th><th>Days open</th><th></th></tr></thead><tbody id="logBody"></tbody></table></div>
-  </section>
-
-  <!-- ACTIVITY -->
-  <section id="tab-activity" class="hidden">
-    <div class="section-head">
-      <div><h2>Activity Log</h2><div class="sub">Paper trail &mdash; every action recorded</div></div>
-      <button class="btn btn-primary" id="addActivityBtn">+ Log activity</button>
-    </div>
-    <div class="panel"><div class="panel-pad" id="activityList"></div></div>
-  </section>
-
-  <!-- WORKLOAD -->
-  <section id="tab-workload" class="hidden">
+  </div></section><section class="page hidden" id="tab-reports"><div class="view-bar"><button type="button" data-view="workload" class="active">Steward workload</button><button type="button" data-view="audit" class="admin-only-tab" style="display:none;">Audit log</button></div><div class="view" id="tab-workload">
     <div class="section-head">
       <div><h2>Steward Workload</h2><div class="sub">Live counts &middot; Art. V Sec. 5 quarterly steward list</div></div>
       <button class="btn btn-secondary" id="manageStewardsBtn">Manage stewards</button>
@@ -640,16 +622,41 @@ footer.app-foot{text-align:center;color:var(--grey);font-size:11.5px;padding:30p
       
       <div><h3 style="font-family:var(--serif);color:var(--green-1);font-size:15px;margin-bottom:10px;" id="workloadLocationHeading">By location</h3><div class="table-wrap"><table><thead><tr><th>Location</th><th>Active</th><th>Overdue</th></tr></thead><tbody id="locationBody"></tbody></table></div></div>
     </div>
-  </section>
-
-  <!-- ARCHIVE -->
-  <section id="tab-archive" class="hidden">
-    <div class="section-head"><div><h2>Archive</h2><div class="sub">Closed grievances &middot; Art. V Sec. 3(a) record retention</div></div><button class="btn btn-secondary" id="archiveExportCsvBtn">Export CSV</button></div>
-    <div class="table-wrap"><table><thead><tr><th>ID</th><th>Employee</th><th>Type</th><th>Status</th><th>Archived on</th></tr></thead><tbody id="archiveBody"></tbody></table></div>
-  </section>
-
-  <!-- SETTINGS -->
-  <section id="tab-settings" class="hidden">
+  </div><div class="view hidden" id="tab-audit">
+    <div class="section-head">
+      <div><h2>&#128065; Audit Log</h2><div class="sub">Login events, tab navigation, and record access — admin view only</div></div>
+      <div style="display:flex;gap:8px;align-items:center;">
+        <select id="auditUserFilter" style="font-size:13px;padding:5px 10px;border:1.5px solid var(--green-line);border-radius:6px;background:var(--paper);color:var(--ink);">
+          <option value="">All users</option>
+        </select>
+        <select id="auditActionFilter" style="font-size:13px;padding:5px 10px;border:1.5px solid var(--green-line);border-radius:6px;background:var(--paper);color:var(--ink);">
+          <option value="">All activity</option>
+          <option value="login,session,logout">Logins only</option>
+          <option value="tab">Tab clicks only</option>
+          <option value="record_open">Records opened only</option>
+        </select>
+        <button class="btn btn-secondary" id="auditRefreshBtn" style="font-size:12.5px;">&#8635; Refresh</button>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="panel-pad" style="overflow-x:auto;">
+        <table id="auditTable" style="width:100%;border-collapse:collapse;font-size:12.5px;">
+          <thead>
+            <tr style="text-align:left;border-bottom:2px solid var(--green-line);">
+              <th style="padding:8px 12px;white-space:nowrap;color:var(--green-1);">When</th>
+              <th style="padding:8px 12px;color:var(--green-1);">User</th>
+              <th style="padding:8px 12px;color:var(--green-1);">Action</th>
+              <th style="padding:8px 12px;color:var(--green-1);">Detail</th>
+              <th style="padding:8px 12px;color:var(--green-1);">IP</th>
+            </tr>
+          </thead>
+          <tbody id="auditTableBody">
+            <tr><td colspan="5" style="padding:24px;text-align:center;color:var(--grey);">Loading…</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div></section><section class="page hidden" id="tab-settings">
     <div class="section-head"><div><h2>Settings</h2><div class="sub">User accounts, holiday list, FCRC locations, and deadline email reminders</div></div></div>
 
         <div class="panel panel-pad" style="margin-bottom:24px;" id="orgSettingsPanel">
@@ -784,47 +791,7 @@ footer.app-foot{text-align:center;color:var(--grey);font-size:11.5px;padding:30p
         <button class="btn btn-primary" id="cpSaveBtn" style="align-self:flex-start;">Change password</button>
       </div>
     </div>
-  </section>
-
-  <!-- AUDIT LOG (admin only) -->
-  <section id="tab-audit" class="hidden">
-    <div class="section-head">
-      <div><h2>&#128065; Audit Log</h2><div class="sub">Login events, tab navigation, and record access — admin view only</div></div>
-      <div style="display:flex;gap:8px;align-items:center;">
-        <select id="auditUserFilter" style="font-size:13px;padding:5px 10px;border:1.5px solid var(--green-line);border-radius:6px;background:var(--paper);color:var(--ink);">
-          <option value="">All users</option>
-        </select>
-        <select id="auditActionFilter" style="font-size:13px;padding:5px 10px;border:1.5px solid var(--green-line);border-radius:6px;background:var(--paper);color:var(--ink);">
-          <option value="">All activity</option>
-          <option value="login,session,logout">Logins only</option>
-          <option value="tab">Tab clicks only</option>
-          <option value="record_open">Records opened only</option>
-        </select>
-        <button class="btn btn-secondary" id="auditRefreshBtn" style="font-size:12.5px;">&#8635; Refresh</button>
-      </div>
-    </div>
-    <div class="panel">
-      <div class="panel-pad" style="overflow-x:auto;">
-        <table id="auditTable" style="width:100%;border-collapse:collapse;font-size:12.5px;">
-          <thead>
-            <tr style="text-align:left;border-bottom:2px solid var(--green-line);">
-              <th style="padding:8px 12px;white-space:nowrap;color:var(--green-1);">When</th>
-              <th style="padding:8px 12px;color:var(--green-1);">User</th>
-              <th style="padding:8px 12px;color:var(--green-1);">Action</th>
-              <th style="padding:8px 12px;color:var(--green-1);">Detail</th>
-              <th style="padding:8px 12px;color:var(--green-1);">IP</th>
-            </tr>
-          </thead>
-          <tbody id="auditTableBody">
-            <tr><td colspan="5" style="padding:24px;text-align:center;color:var(--grey);">Loading…</td></tr>
-          </tbody>
-        </table>
-      </div>
-    </div>
-  </section>
-
-  <!-- HELP -->
-  <section id="tab-help" class="hidden">
+  </section><section class="page hidden" id="tab-help">
     <div class="section-head"><div><h2>Help &amp; User Guide</h2><div class="sub">How to use the FCRC Grievance Tracker</div></div></div>
 
     <div style="max-width:780px;">
@@ -843,9 +810,9 @@ footer.app-foot{text-align:center;color:var(--grey);font-size:11.5px;padding:30p
         <h3 style="font-family:var(--serif);color:var(--green-1);margin:0 0 14px;">Quick start</h3>
         <p style="font-size:13.5px;line-height:1.7;margin-bottom:10px;">This app tracks grievances and pre-grievance investigations for your AFSCME local. Here is the typical workflow:</p>
         <ol style="font-size:13.5px;line-height:1.9;padding-left:20px;">
-          <li><b>File a grievance</b> — go to <b>Intake Form</b>, fill in the employee details, pick the CBA article and grievance type, and save. The app calculates contractual deadlines automatically.</li>
-          <li><b>Track it</b> — the <b>Dashboard</b> shows all active cases ranked by next deadline and flags overdue ones in red with the number of days overdue. The <b>Grievance Log</b> lists every case and can be searched, filtered, and exported.</li>
-          <li><b>Log activity</b> — inside any grievance detail view, use the <b>Activity Log</b> to record meetings, phone calls, and next steps.</li>
+          <li><b>File a grievance</b> — click <b>+ New grievance</b>, fill in the employee details, pick the CBA article and grievance type, and save. The app calculates contractual deadlines automatically.</li>
+          <li><b>Track it</b> — the <b>Deadlines</b> view of the Grievances tab shows all active cases ranked by next deadline and flags overdue ones in red with the number of days overdue. The <b>All cases</b> view lists every case and can be searched, filtered, and exported.</li>
+          <li><b>Log activity</b> — inside any grievance detail view, click <b>+ Add activity</b> to record meetings, phone calls, and next steps.</li>
           <li><b>Advance through steps</b> — fill in the Step 1, 2, and 3 date fields as the grievance progresses. The app updates deadlines automatically.</li>
           <li><b>Archive resolved cases</b> — once a case is settled, withdrawn, or denied, use the <b>Archive</b> button to move it out of the active list.</li>
         </ol>
@@ -939,7 +906,7 @@ footer.app-foot{text-align:center;color:var(--grey);font-size:11.5px;padding:30p
         <h3 style="font-family:var(--serif);color:var(--green-1);margin:0 0 14px;">Dashboard</h3>
         <div style="font-size:13.5px;line-height:1.7;">
           <p style="margin-bottom:8px;"><b>Priority Case Monitor</b> — active grievances sorted by next contractual deadline. Red rows are overdue, and the Next deadline column spells it out with a <b>"N days overdue"</b> or <b>"Due today"</b> label. Cases past Step 3 are not shown here — Council 31 tracks Step 4 and arbitration separately.</p>
-          <p style="margin-bottom:8px;"><b>Steward Workload</b> — one card per steward showing their active caseload by step. A red border means they have at least one overdue deadline. Admins see a location filter dropdown in the header to narrow the view by office.</p>
+          <p style="margin-bottom:8px;"><b>Steward workload</b> (Reports tab) — one card per steward showing their active caseload by step. A red border means they have at least one overdue deadline. Admins see a location filter dropdown in the header to narrow the view by office.</p>
           <p style="margin-bottom:0;"><b>Location filter (admin only)</b> — use the dropdown in the top-right of the Priority Monitor to filter the entire dashboard view to one office. Stewards always see only their own location(s) and can't switch.</p>
         </div>
       </div>
@@ -996,7 +963,7 @@ footer.app-foot{text-align:center;color:var(--grey);font-size:11.5px;padding:30p
       <div class="panel panel-pad" style="margin-bottom:20px;">
         <h3 style="font-family:var(--serif);color:var(--green-1);margin:0 0 14px;">Audit Log (Admin only)</h3>
         <div style="font-size:13.5px;line-height:1.7;">
-          <p style="margin-bottom:8px;">The <b>Audit Log</b> tab shows who used the system and when. Only admins can see the tab. Each row shows the date and time, the user, what they did, and the IP address it came from.</p>
+          <p style="margin-bottom:8px;">The <b>Audit log</b> view on the <b>Reports</b> tab shows who used the system and when. Only admins can see it. Each row shows the date and time, the user, what they did, and the IP address it came from.</p>
           <p style="margin-bottom:8px;"><b>What is recorded</b> — <b>Login</b> (signed in with username and password), <b>Returned (still signed in)</b> (opened the app while their earlier sign-in was still valid — a sign-in lasts 30 days, so this is how most visits appear), <b>Logout</b>, <b>Tab</b> (which tab they clicked), and <b>Record opened</b> (which grievance they opened).</p>
           <p style="margin-bottom:8px;"><b>Filters</b> — choose a user to see only that person, and choose <b>Logins only</b> to hide tab clicks and see just sign-ins, returns, and sign-outs. Click <b>Refresh</b> for the latest entries. The tab shows the 200 most recent matching entries.</p>
           <p style="margin-bottom:8px;"><b>Limits</b> — returning visits are recorded at most once every 10 minutes per user, so refreshing the page does not add rows. Tab clicks and record opens are sent by the browser and are best-effort. This log is separate from the <b>Edit history</b> on each grievance, which records who saved changes.</p>
@@ -1015,7 +982,7 @@ footer.app-foot{text-align:center;color:var(--grey);font-size:11.5px;padding:30p
           <p style="margin-bottom:8px;"><b>I am locked out of logging in</b> — after 10 wrong passwords in a row the account is locked for 15 minutes. Wait and try again, or ask an admin to reset your password in Manage users.</p>
           <p style="margin-bottom:8px;"><b>I cannot save a grievance</b> — it is locked to another steward. Ask them to hand it off to you, or ask an admin to make the change.</p>
           <p style="margin-bottom:8px;"><b>The hand-off email did not arrive</b> — the receiving steward must be listed in <b>Settings → Manage stewards</b> with an email, and the steward name there must match their login display name. The Email Log shows whether the notice was sent or why it was skipped.</p>
-          <p style="margin-bottom:0;"><b>I want to see archived grievances</b> — go to the <b>Archive</b> tab. Archived cases are read-only. If a case needs to be re-opened (e.g. a denial was appealed), contact an admin — there is no un-archive button by design, since re-opening requires a judgment call.</p>
+          <p style="margin-bottom:0;"><b>I want to see archived grievances</b> — go to the <b>Grievances</b> tab and choose <b>Archived</b>. Archived cases are read-only. If a case needs to be re-opened (e.g. a denial was appealed), contact an admin — there is no un-archive button by design, since re-opening requires a judgment call.</p>
         </div>
       </div>
 
@@ -2635,19 +2602,40 @@ function auditPing(action, detail){
   }).catch(()=>{}); // silent — best-effort
 }
 
-function switchTab(tab){
-  document.querySelectorAll('section[id^="tab-"]').forEach(s=>s.classList.add('hidden'));
-  $('tab-'+tab).classList.remove('hidden');
-  document.querySelectorAll('.tab-btn').forEach(b=>b.classList.toggle('active', b.dataset.tab===tab));
+// Pages (top-level tabs) and the views inside them. Old names keep working,
+// so the guided tour and any other caller can still ask for "log" or "audit".
+let currentPage = 'grievances';
+let currentView = 'log';
+const PAGE_OF_VIEW = { log:'grievances', dashboard:'grievances', activity:'grievances', archive:'grievances',
+                       cases:'investigations', draftbot:'investigations', workload:'reports', audit:'reports' };
+const DEFAULT_VIEW = { grievances:'log', investigations:'cases', reports:'workload' };
+function switchTab(target){
+  const page = PAGE_OF_VIEW[target] || target;
+  const view = PAGE_OF_VIEW[target] ? target : (DEFAULT_VIEW[page] || null);
+  document.querySelectorAll('section.page').forEach(s=>s.classList.add('hidden'));
+  const pageEl = $('tab-'+page);
+  if(pageEl) pageEl.classList.remove('hidden');
+  if(view && pageEl){
+    pageEl.querySelectorAll(':scope > .view').forEach(v=>v.classList.add('hidden'));
+    const viewEl = $('tab-'+view);
+    if(viewEl) viewEl.classList.remove('hidden');
+    pageEl.querySelectorAll('.view-bar [data-view]').forEach(b=>b.classList.toggle('active', b.dataset.view===view));
+  }
+  document.querySelectorAll('.tab-btn').forEach(b=>b.classList.toggle('active', b.dataset.tab===page));
+  currentPage = page; currentView = view;
   $('tabs').classList.remove('open');
   window.scrollTo(0,0);
   // Refresh pool UI when switching to intake
-  if(tab === 'intake') updateIntakePoolUI();
+  if(page === 'intake') updateIntakePoolUI();
   // Audit: record tab navigation
-  auditPing('tab', tab);
+  auditPing('tab', view || page);
   // Refresh audit log when admin opens it
-  if(tab === 'audit') loadAuditLog();
+  if(view === 'audit') loadAuditLog();
 }
+document.querySelectorAll('.view-bar [data-view]').forEach(b=>{
+  b.addEventListener('click', ()=>switchTab(b.dataset.view));
+});
+$('newGrievanceBtn').addEventListener('click', ()=>switchTab('intake'));
 document.querySelectorAll('.tab-btn').forEach(btn=>{
   btn.addEventListener('click', ()=>switchTab(btn.dataset.tab));
 });
@@ -3992,10 +3980,10 @@ function applyRoleVisibility(user){
   // Draft-a-Grievance bot: admin or steward_plus only. Hiding the button is
   // just a convenience — the real check is server-side on every request.
   const botAllowed = !!(user && (user.role === 'admin' || user.role === 'steward_plus' || !user.username));
-  const draftTabBtn = $('draftbotTabBtn');
-  if(draftTabBtn){
-    draftTabBtn.style.display = botAllowed ? '' : 'none';
-    if(!botAllowed && draftTabBtn.classList.contains('active')) switchTab('intake');
+  const draftViewBtn = document.querySelector('[data-view="draftbot"]');
+  if(draftViewBtn){
+    draftViewBtn.style.display = botAllowed ? '' : 'none';
+    if(!botAllowed && draftViewBtn.classList.contains('active')) switchTab('cases');
   }
 
   // Read-only accounts: hide the write-only tabs and action buttons. This
@@ -4003,15 +3991,15 @@ function applyRoleVisibility(user){
   // every write request from a read-only account regardless of what the
   // UI shows.
   const readOnly = !!(user && user.role === 'read_only');
-  const intakeTabBtn = $('intakeTabBtn');
-  if(intakeTabBtn){
-    intakeTabBtn.style.display = readOnly ? 'none' : '';
-    if(readOnly && intakeTabBtn.classList.contains('active')) switchTab('log');
+  const newGrievanceBtn = $('newGrievanceBtn');
+  if(newGrievanceBtn){
+    newGrievanceBtn.style.display = readOnly ? 'none' : '';
+    if(readOnly && currentPage === 'intake') switchTab('grievances');
   }
   const investigationsTabBtn = $('investigationsTabBtn');
   if(investigationsTabBtn){
     investigationsTabBtn.style.display = readOnly ? 'none' : '';
-    if(readOnly && investigationsTabBtn.classList.contains('active')) switchTab('log');
+    if(readOnly && currentPage === 'investigations') switchTab('grievances');
   }
   const addActivityBtn = $('addActivityBtn');
   if(addActivityBtn) addActivityBtn.style.display = readOnly ? 'none' : '';
@@ -4355,7 +4343,7 @@ function startBackgroundPolling(){
 
   // Show/hide the tab button based on role
   function updateAuditTabVisibility(){
-    const btn = document.querySelector('.admin-only-tab[data-tab="audit"]');
+    const btn = document.querySelector('[data-view="audit"]');
     if(btn) btn.style.display = (CURRENT_USER && CURRENT_USER.role === 'admin') ? '' : 'none';
   }
 
@@ -4395,7 +4383,7 @@ function startBackgroundPolling(){
     },
     {
       title: 'File a grievance — Intake Form',
-      body:  'Click the <b>Intake Form</b> tab to open the filing screen. Fill in the Grievance ID, employee name, awareness date, CBA article, and location, then click <b>Save grievance</b>.',
+      body:  'Click <b>+ New grievance</b> to open the filing screen. Fill in the Grievance ID, employee name, awareness date, CBA article, and location, then click <b>Save grievance</b>.',
       tab:   'intake',
       target: '#tab-intake',
       scroll: true
@@ -4443,14 +4431,14 @@ function startBackgroundPolling(){
     },
     {
       title: 'Find a case — Grievance Log',
-      body:  'The <b>Grievance Log</b> lists every case. Search by name or ID, filter by level, status (including <b>Overdue</b>), or filed-date range, then click <b>Export CSV</b> to download exactly what is showing.',
+      body:  'The <b>Grievances</b> tab (<b>All cases</b> view) lists every case. Search by name or ID, filter by level, status (including <b>Overdue</b>), or filed-date range, then click <b>Export CSV</b> to download exactly what is showing.',
       tab:   'log',
       target: '#logStatusFilter',
       scroll: true
     },
     {
       title: 'Log activity on a case',
-      body:  'Go to the <b>Activity Log</b> tab to see all open cases. Click any case row to open its detail panel, then click <b>+ Add activity</b> to record meetings, phone calls, and next steps.',
+      body:  'Open a case from the <b>Grievances</b> tab (click its row) and click <b>+ Add activity</b> to record meetings, phone calls, and next steps. The <b>Activity</b> view lists everything logged so far.',
       tab:   'log',
       target: '#tab-log',
       scroll: true
@@ -4464,7 +4452,7 @@ function startBackgroundPolling(){
     },
     {
       title: 'Archive resolved cases',
-      body:  'Once a grievance is settled, withdrawn, or denied, open its detail view and click <b>Archive</b>. Archived cases move to the <b>Archive</b> tab and are read-only.',
+      body:  'Once a grievance is settled, withdrawn, or denied, open its detail view and click <b>Archive</b>. Archived cases move to the <b>Archived</b> view of the <b>Grievances</b> tab and are read-only.',
       tab:   'archive',
       target: '#tab-archive',
       scroll: true
@@ -4497,7 +4485,7 @@ function startBackgroundPolling(){
     },
     {
       title: 'Find a case — Grievance Log',
-      body:  'The <b>Grievance Log</b> lists every case you have access to. Search by name or ID, filter by level, status (including <b>Overdue</b>), or filed-date range, then click <b>Export CSV</b> to download exactly what is showing.',
+      body:  'The <b>Grievances</b> tab lists every case you have access to. Search by name or ID, filter by level, status (including <b>Overdue</b>), or filed-date range, then click <b>Export CSV</b> to download exactly what is showing.',
       tab:   'log',
       target: '#logStatusFilter',
       scroll: true
@@ -4511,7 +4499,7 @@ function startBackgroundPolling(){
     },
     {
       title: 'Steward Workload',
-      body:  'The <b>Steward Workload</b> tab breaks down open cases by location, so you can see where things stand at a glance.',
+      body:  'The <b>Reports</b> tab, <b>Steward workload</b> view, breaks down open cases by location, so you can see where things stand at a glance.',
       tab:   'workload',
       target: '#tab-workload',
       scroll: true
@@ -4553,7 +4541,7 @@ function startBackgroundPolling(){
     },
     {
       title: 'AI Drafting Bot',
-      body:  'Open the <b>Draft a Grievance</b> tab. Describe the situation in plain language. The bot will ask follow-up questions and produce a full draft with Relief Sought.',
+      body:  'Open <b>Investigations</b> and choose <b>Draft a grievance</b>. Describe the situation in plain language. The bot will ask follow-up questions and produce a full draft with Relief Sought.',
       tab:   'draftbot',
       target: '#tab-draftbot',
       scroll: true
@@ -4598,7 +4586,7 @@ function startBackgroundPolling(){
     },
     {
       title: 'Audit Log',
-      body:  'The <b>Audit Log</b> tab (admins only) shows who signed in and when, which tabs they clicked, and which grievances they opened. Choose <b>Logins only</b> to see just sign-ins and return visits, or pick one user.',
+      body:  'The <b>Audit log</b> view of the <b>Reports</b> tab (admins only) shows who signed in and when, which tabs they clicked, and which grievances they opened. Choose <b>Logins only</b> to see just sign-ins and return visits, or pick one user.',
       tab:   'audit',
       target: '#auditActionFilter',
       scroll: true
