@@ -469,7 +469,7 @@ async function logActivity(record) {
  */
 async function archiveClosed(allowedLocations, actorUsername) {
   return withTransaction(async (client) => {
-    const archivedAt = new Date().toISOString().slice(0, 10);
+    const archivedAt = chicagoDateISO(new Date());
     const placeholders = TERMINAL_STATUSES.map((_, i) => `$${i + 1}`).join(", ");
     // allowedLocations === null means "no location restriction" (admin caller).
     // A steward/steward_plus caller passes their own assigned locations so
@@ -733,6 +733,16 @@ function todayInChicago() {
   const map = {};
   for (const p of parts) map[p.type] = p.value;
   return new Date(Number(map.year), Number(map.month) - 1, Number(map.day));
+}
+
+/** The Chicago calendar date (YYYY-MM-DD) for an instant, matching todayInChicago. */
+function chicagoDateISO(instant) {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/Chicago", year: "numeric", month: "2-digit", day: "2-digit"
+  }).formatToParts(instant);
+  const map = {};
+  for (const p of parts) map[p.type] = p.value;
+  return `${map.year}-${map.month}-${map.day}`;
 }
 
 /**
@@ -1557,7 +1567,7 @@ async function getAuditLog(limit = 200, filterUsername = null, filterActions = [
 
 module.exports = {
   getAll, readRaw, writeRawAtomic, withLock, logEmailAttempt, pingKeepAlive,
-  getEmailRunState, saveEmailRunState, getLastEmailRunDate, linkGrievanceToInvestigation, deleteOtherSessions,
+  getEmailRunState, saveEmailRunState, getLastEmailRunDate, linkGrievanceToInvestigation, deleteOtherSessions, chicagoDateISO,
   submitGrievance, logActivity, archiveClosed, sendCourtesyNotice,
   updateStewards, updateSetupList, getSetupList, updateHolidays, updateOrgSettings,
   getLocationDetails, updateLocationDetails, getOrgLocalNo,

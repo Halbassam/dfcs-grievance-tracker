@@ -104,11 +104,39 @@ function sendJson(res, status, data) {
 
 function readBody(req) {
   return new Promise((resolve, reject) => {
-    let body = "";
-    req.on("data", chunk => { body += chunk; if (body.length > 1e6) req.destroy(); });
-    req.on("end", () => { try { resolve(JSON.parse(body || "{}")); } catch (e) { resolve({}); } });
+    const chunks = [];
+    let total = 0, tooLarge = false;
+    req.on("data", chunk => {
+      if (tooLarge) return;
+      total += chunk.length;
+      if (total > 1e6) {
+        // Answer right away and stop buffering, rather than tearing the
+        // connection down under the client before it can read the reply.
+        tooLarge = true;
+        return reject(httpError(413, "That request is too large."));
+      }
+      chunks.push(chunk);
+    });
+    req.on("end", () => {
+      if (tooLarge) return;
+      try { resolve(JSON.parse(Buffer.concat(chunks).toString("utf8") || "{}")); }
+      catch (e) { reject(httpError(400, "The request body isn't valid JSON.")); }
+    });
     req.on("error", reject);
   });
+}
+
+function httpError(statusCode, message) {
+  const err = new Error(message);
+  err.statusCode = statusCode;
+  return err;
+}
+
+/** Content-Disposition with an ASCII fallback and a UTF-8 filename* so
+ *  non-Latin-1 characters (e.g. an en dash from Word) can't break the header. */
+function contentDisposition(filename) {
+  const fallback = String(filename).replace(/[^\x20-\x7e]/g, "_").replace(/["\\]/g, "");
+  return `attachment; filename="${fallback}"; filename*=UTF-8''${encodeURIComponent(filename)}`;
 }
 
 // Attachment uploads arrive as base64 JSON, which inflates ~33% over the
@@ -137,7 +165,7 @@ function readBodyWithLimit(req, maxBytes) {
 function serveStatic(req, res, urlPath) {
   let filePath = urlPath === "/" ? "/index.html" : urlPath;
   let fullPath = path.join(PUBLIC_DIR, filePath);
-  if (!fullPath.startsWith(PUBLIC_DIR)) fullPath = path.join(PUBLIC_DIR, "index.html");
+  if (fullPath !== PUBLIC_DIR && !fullPath.startsWith(PUBLIC_DIR + path.sep)) fullPath = path.join(PUBLIC_DIR, "index.html");
 
   fs.readFile(fullPath, (err, data) => {
     if (err) {
@@ -404,7 +432,10 @@ const server = http.createServer(async (req, res) => {
       if (buffer.length === 0 || buffer.length > MAX_ATTACHMENT_BYTES) {
         return sendJson(res, 400, { error: "Files must be under 10MB." });
       }
-      const storagePath = `${gid}/${Date.now()}-${crypto.randomUUID()}-${filename.replace(/[^a-zA-Z0-9._-]/g, "_")}`;
+      // Flat path (no "/"): the storage API treats slashes in object names
+      // inconsistently with the encoding used here. The grievance is recorded
+      // in the attachments table, so the folder isn't needed.
+      const storagePath = `${Date.now()}-${crypto.randomUUID()}-${filename.replace(/[^a-zA-Z0-9._-]/g, "_")}`;
       try {
         await storage.uploadObject(storagePath, buffer, contentType);
       } catch (err) {
@@ -435,7 +466,7 @@ const server = http.createServer(async (req, res) => {
       }
       res.writeHead(200, {
         "Content-Type": record.contentType || "application/octet-stream",
-        "Content-Disposition": `attachment; filename="${record.filename.replace(/"/g, "")}"`,
+        "Content-Disposition": contentDisposition(record.filename),
         "Content-Length": buffer.length
       });
       return res.end(buffer);
@@ -1007,7 +1038,8 @@ Additional details: ${sub.otherDetails || ""}`;
       if (!isAdmin(currentUser)) return sendJson(res, 403, { error: "Only admins can view the audit log." });
       const url = new URL(req.url, "http://x");
       const filterUser = url.searchParams.get("user") || null;
-      const limit = Math.min(parseInt(url.searchParams.get("limit") || "200", 10), 500);
+      const requestedLimit = parseInt(url.searchParams.get("limit") || "200", 10);
+      const limit = Number.isFinite(requestedLimit) && requestedLimit > 0 ? Math.min(requestedLimit, 500) : 200;
       const AUDIT_ACTIONS = new Set(["login", "logout", "session", "tab", "record_open"]);
       const filterActions = (url.searchParams.get("actions") || "")
         .split(",").map(s => s.trim()).filter(a => AUDIT_ACTIONS.has(a));
@@ -1018,6 +1050,7 @@ Additional details: ${sub.otherDetails || ""}`;
     return sendJson(res, 404, { error: "Unknown API route" });
 
   } catch (err) {
+    if (err && err.statusCode) return sendJson(res, err.statusCode, { error: err.message });
     console.error("Server error:", err);
     sendJson(res, 500, { error: "Internal server error." });
   }

@@ -64,6 +64,9 @@ async function deleteObject(path) {
     method: "DELETE",
     headers: { Authorization: `Bearer ${key}`, apikey: key }
   });
+  // Already gone (e.g. removed in the Supabase dashboard): treat as deleted, so
+  // the record can still be cleaned up instead of staying undeletable forever.
+  if (res.status === 404) return;
   if (!res.ok) {
     const text = await res.text().catch(() => "");
     throw new Error(`Supabase Storage delete failed (${res.status}): ${text.slice(0, 300)}`);
