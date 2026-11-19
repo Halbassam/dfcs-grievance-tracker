@@ -168,20 +168,56 @@ async function runDeadlineCheck({ manual = false } = {}) {
   return summary;
 }
 
-function startScheduler() {
-  setInterval(async () => {
-    try {
-      const data = await db.readRaw();
-      const today = todayISO();
-      if (data.lastEmailRunDate === today) return;
-      console.log(`[scheduler] Running daily deadline check for ${today}...`);
-      const summary = await runDeadlineCheck();
-      console.log(`[scheduler] Done. Sent ${summary.sent} email(s), ${summary.errors.length} error(s).`);
-    } catch (err) {
-      console.error("[scheduler] Unexpected error during daily check:", err);
-    }
-  }, CHECK_INTERVAL_MS);
+// Callers that aren't the scheduler's own timer (the public health ping) can't
+// make the check run more often than this, however often they're hit.
+const MIN_GAP_BETWEEN_TRIGGERED_CHECKS_MS = 10 * 60 * 1000;
+const STARTUP_CHECK_DELAY_MS = 30 * 1000; // let the DB pool warm up first
+
+let checkInFlight = false;
+let lastCheckStartedAt = 0;
+
+/**
+ * Runs today's reminder check if it hasn't finished yet; does nothing if it
+ * has. Safe to call from anywhere, as often as you like: overlapping calls
+ * collapse into one, and the work is only done when today is still unfinished.
+ *
+ * Why this isn't just a setInterval: on a host that sleeps when idle (such as
+ * Render's free tier) the process, and its timer, only exist while the app is
+ * awake. A timer that first fires an hour after startup never gets to run on
+ * a service that is woken for a minute and put back to sleep. So the check
+ * also runs at startup and whenever the keep-alive ping arrives.
+ *
+ * @param {{force?: boolean}} [options] force = skip the minimum-gap throttle
+ *   (used by the scheduler's own timer and the startup check).
+ * @returns the run summary, or null if nothing ran.
+ */
+async function runDailyCheckIfDue({ force = false } = {}) {
+  if (checkInFlight) return null;
+  const now = Date.now();
+  if (!force && now - lastCheckStartedAt < MIN_GAP_BETWEEN_TRIGGERED_CHECKS_MS) return null;
+  checkInFlight = true;
+  lastCheckStartedAt = now;
+  try {
+    const today = todayISO();
+    if ((await db.getLastEmailRunDate()) === today) return null;
+    console.log(`[scheduler] Running daily deadline check for ${today}...`);
+    const summary = await runDeadlineCheck();
+    console.log(`[scheduler] Done. Sent ${summary.sent} email(s), ${summary.errors.length} error(s)${summary.retryScheduled ? ", will retry the rest" : ""}.`);
+    return summary;
+  } catch (err) {
+    console.error("[scheduler] Unexpected error during daily check:", err);
+    return null;
+  } finally {
+    checkInFlight = false;
+  }
+}
+
+function startScheduler({ startupDelayMs = STARTUP_CHECK_DELAY_MS } = {}) {
+  setInterval(() => { runDailyCheckIfDue({ force: true }); }, CHECK_INTERVAL_MS);
+  // unref: a pending startup check must never keep a process alive on its own.
+  const startupCheck = setTimeout(() => { runDailyCheckIfDue({ force: true }); }, startupDelayMs);
+  if (startupCheck.unref) startupCheck.unref();
   console.log("[scheduler] Daily deadline email scheduler started.");
 }
 
-module.exports = { runDeadlineCheck, startScheduler };
+module.exports = { runDeadlineCheck, runDailyCheckIfDue, startScheduler };

@@ -1,8 +1,11 @@
 name: Keep app and database alive
 
-# Runs every 3 days, well inside Supabase's 7-day inactivity window and
-# Render's much shorter sleep timer -- so both stay awake even during a
-# quiet stretch with nobody actively using the app.
+# Runs once a day. That keeps the database inside Supabase's 7-day
+# inactivity window, and it wakes Render's free web service if it has gone
+# to sleep. Waking the app is also what makes the daily deadline reminder
+# emails go out: the app checks whether today's reminders are still owed
+# every time this ping arrives (and when it starts up), so on a host that
+# sleeps this daily ping is what guarantees a daily check.
 #
 # What it does: hits the app's public /api/health endpoint, which wakes
 # Render's free web service if it's asleep (the request itself does
@@ -20,7 +23,7 @@ name: Keep app and database alive
 
 on:
   schedule:
-    - cron: "0 13 */3 * *"  # 13:00 UTC every 3rd day
+    - cron: "0 13 * * *"  # 13:00 UTC every day (7-8am Central)
   workflow_dispatch: {}
 
 jobs:

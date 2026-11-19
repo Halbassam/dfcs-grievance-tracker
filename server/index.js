@@ -262,6 +262,11 @@ const server = http.createServer(async (req, res) => {
     if (pathname === "/api/health" && req.method === "GET") {
       try {
         await db.pingKeepAlive();
+        // The ping is what wakes a sleeping host, so it's also the moment to
+        // make sure today's reminders have gone out. Fire-and-forget: never
+        // slows or fails the health response (and it's throttled, so hitting
+        // this public URL repeatedly can't trigger repeated work).
+        scheduler.runDailyCheckIfDue().catch(() => {});
         return sendJson(res, 200, { ok: true, time: new Date().toISOString() });
       } catch (err) {
         return sendJson(res, 500, { ok: false, error: err.message });

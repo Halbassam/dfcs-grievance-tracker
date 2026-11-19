@@ -874,6 +874,12 @@ async function writeRawAtomic(data) {
  * Lets a retry after a partial failure email only the people who were
  * missed, instead of re-sending to everyone who already got theirs.
  */
+/** The date (YYYY-MM-DD, Chicago) of the last finished reminder run, or "". */
+async function getLastEmailRunDate() {
+  const res = await query("select value from app_meta where key = 'lastEmailRunDate'");
+  return (res.rows[0] && res.rows[0].value) || "";
+}
+
 async function getEmailRunState(today) {
   const res = await query("select value from app_meta where key = 'emailRunState'");
   try {
@@ -1361,7 +1367,7 @@ async function getAuditLog(limit = 200, filterUsername = null, filterActions = [
 
 module.exports = {
   getAll, readRaw, writeRawAtomic, withLock, logEmailAttempt, pingKeepAlive,
-  getEmailRunState, saveEmailRunState,
+  getEmailRunState, saveEmailRunState, getLastEmailRunDate,
   submitGrievance, logActivity, archiveClosed, sendCourtesyNotice,
   updateStewards, updateSetupList, getSetupList, updateHolidays, updateOrgSettings,
   getLocationDetails, updateLocationDetails, getOrgLocalNo,
