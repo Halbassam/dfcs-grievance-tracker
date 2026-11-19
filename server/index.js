@@ -207,7 +207,9 @@ function scopeDataToUser(data, currentUser) {
   const activity = data.activity.filter(a => visibleGids.has(a.gid));
   const attachments = (data.attachments || []).filter(a => visibleGids.has(a.gid));
 
-  return { ...data, grievances, activity, archive, attachments };
+  // The email log records grievant and steward addresses and grievance IDs
+  // from every location, so it's admin-only rather than location-filtered.
+  return { ...data, grievances, activity, archive, attachments, emailLog: [] };
 }
 
 const server = http.createServer(async (req, res) => {
@@ -702,7 +704,9 @@ const server = http.createServer(async (req, res) => {
       return sendJson(res, 200, {
         emailConfigured,
         lastEmailRunDate: data.lastEmailRunDate || "",
-        emailLog: (data.emailLog || []).slice(0, 20)
+        // Admin-only: entries name grievants' and stewards' email addresses
+        // across every location.
+        emailLog: isAdmin(currentUser) ? (data.emailLog || []).slice(0, 20) : []
       });
     }
 

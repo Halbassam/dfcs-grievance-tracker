@@ -719,7 +719,7 @@ footer.app-foot{text-align:center;color:var(--grey);font-size:11.5px;padding:30p
     </div>
 
 
-    <div class="panel panel-pad">
+    <div class="panel panel-pad" id="emailRemindersPanel">
       <h3 style="font-family:var(--serif);color:var(--green-1);margin:0 0 6px;font-size:17px;">Deadline email reminders</h3>
       <p style="font-size:13px;color:var(--grey);margin:6px 0 14px;">Every day, the system checks for grievance deadlines coming up within 3 days and emails each affected steward a summary.</p>
 
@@ -3925,6 +3925,8 @@ function applyRoleVisibility(user){
   if(locationContactsPanel) locationContactsPanel.style.display = admin ? '' : 'none';
   const otherListsPanel = $('otherListsPanel');
   if(otherListsPanel) otherListsPanel.style.display = admin ? '' : 'none';
+  const emailRemindersPanel = $('emailRemindersPanel');
+  if(emailRemindersPanel) emailRemindersPanel.style.display = admin ? '' : 'none';
   const poolPanel = $('grievanceNumberPoolPanel');
   if(poolPanel) poolPanel.style.display = admin ? '' : 'none';
   // Non-admins get the add-only pool panel; admins already have the full one above.
