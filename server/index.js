@@ -545,16 +545,34 @@ const server = http.createServer(async (req, res) => {
       if (!lockInfo) {
         return sendJson(res, 404, { error: `Grievance ${gid} not found.` });
       }
-      if (!isAdmin(currentUser) && lockInfo.lockedTo !== currentUser.username) {
-        return sendJson(res, 403, {
-          error: `Only the current lock holder (${lockInfo.lockedTo}) or an admin can hand off this grievance.`
-        });
+      // An unlocked grievance has no holder to hand it off, so anyone who can
+      // access its location may assign it. A locked one can only be passed on
+      // by its holder (or an admin).
+      if (!isAdmin(currentUser)) {
+        if (lockInfo.lockedTo) {
+          if (lockInfo.lockedTo !== currentUser.username) {
+            return sendJson(res, 403, {
+              error: `Only the current lock holder (${lockInfo.lockedTo}) or an admin can hand off this grievance.`
+            });
+          }
+        } else if (!canAccessLocation(currentUser, lockInfo.location)) {
+          return sendJson(res, 403, { error: "You don't have access to this grievance." });
+        }
       }
       // Validate the target user exists so we can't orphan a grievance to a phantom username.
       const allUsers = await db.listUsersSafe();
       const targetUser = allUsers.find(u => u.username === toUsername);
       if (!targetUser) {
         return sendJson(res, 400, { error: `User "${toUsername}" not found. They may have been deleted.` });
+      }
+      // The receiver must be able to act on the case. A read-only account
+      // can't edit it, and a steward at another location can't see it, so
+      // either would leave the grievance locked to someone who can't work it.
+      if (targetUser.role === "read_only") {
+        return sendJson(res, 400, { error: `${targetUser.displayName || toUsername} has a read-only account and can't take over a grievance.` });
+      }
+      if (targetUser.role !== "admin" && !targetUser.locations.includes(lockInfo.location)) {
+        return sendJson(res, 400, { error: `${targetUser.displayName || toUsername} doesn't have access to this grievance's location (${lockInfo.location || "none set"}).` });
       }
       try {
         const result = await db.handoffGrievance(gid, toUsername);

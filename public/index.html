@@ -1608,9 +1608,15 @@ $('handoffBtn').addEventListener('click', async function(){
   const gid = this.dataset.gid;
   if(!gid){ toast('No grievance loaded.', 'err'); return; }
 
-  // Build steward list for the picker (everyone except the current user)
+  // Only offer people who can actually work this case: not the current user,
+  // not read-only accounts, and (unless admin) only those assigned to the
+  // grievance's location. The server enforces the same rules.
+  const handoffRec = (STATE.grievances || []).find(g => g.id === gid) || (STATE.archive || []).find(g => g.id === gid);
+  const handoffLoc = handoffRec ? (handoffRec.location || '') : '';
   const allUsers = (STATE.users || []).filter(u =>
-    u.username !== (CURRENT_USER && CURRENT_USER.username)
+    u.username !== (CURRENT_USER && CURRENT_USER.username) &&
+    u.role !== 'read_only' &&
+    (u.role === 'admin' || (Array.isArray(u.locations) && u.locations.includes(handoffLoc)))
   );
   if(!allUsers.length){
     toast('No other users found to hand off to.', 'err');
