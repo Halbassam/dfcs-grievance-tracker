@@ -1213,6 +1213,18 @@ function getScopedGrievances(){
 let ORG_SETTINGS = { agency: '', localNo: '', bureau: '', location: '', county: '', shift: '', managementEmail: '' };
 
 const $ = id => document.getElementById(id);
+/** Sets a dropdown to a saved value. If that value has since been removed from
+ *  the list, keep it as an extra option so the next save doesn't blank it. */
+function setSelectKeepingValue(el, value){
+  if(!el) return;
+  const v = value || '';
+  if(v && ![...el.options].some(o=>o.value===v)){
+    const opt = document.createElement('option');
+    opt.value = v; opt.textContent = v + ' (no longer in list)';
+    el.appendChild(opt);
+  }
+  el.value = v;
+}
 function fillSelect(sel, items, withBlank=true){
   const previousValue = sel.value; // remember what the user had selected
   sel.innerHTML = (withBlank? '<option value=""></option>' : '') +
@@ -1540,7 +1552,7 @@ async function submitAndClear(){
   const existing = STATE.grievances.find(g=>g.id===gid);
   const isNew = !existing;
   const stewardIdx = (SETUP.Steward||[]).indexOf($('f-steward').value);
-  const stewardEmail = stewardIdx>=0 ? (SETUP.StewardEmail||[])[stewardIdx] : "";
+  const stewardEmail = stewardIdx>=0 ? (SETUP.StewardEmail||[])[stewardIdx] : (existing ? (existing.stewardEmail||"") : "");
 
   const record = {
     id: gid, employee: name, grievantEmail: $('f-grievant-email').value.trim(), jobClass: $('f-job').value, bu: $('f-bu').value,
@@ -1558,15 +1570,24 @@ async function submitAndClear(){
   btn.disabled = true; btn.textContent = 'Saving…';
   try{
     const result = await apiPost('/api/grievance', record);
-    await apiPost('/api/activity', {
-      id: uid(), gid, date: toISO(today()),
-      type: isNew ? "Step 1 - Oral Grievance Raised with Supervisor" : "Note - General Update",
-      steward: record.steward, step: currentStep(result.record),
-      notes: `Submitted via web form. Status: ${record.status}`,
-      followup: "No", followupDate: ""
-    });
+    // The grievance itself is saved at this point; a failed activity note
+    // must not look like a failed save (a retry would re-save the grievance).
+    let activityError = null;
+    try{
+      await apiPost('/api/activity', {
+        id: uid(), gid, date: toISO(today()),
+        type: isNew ? "Step 1 - Oral Grievance Raised with Supervisor" : "Note - General Update",
+        steward: record.steward, step: currentStep(result.record),
+        notes: `Submitted via web form. Status: ${record.status}`,
+        followup: "No", followupDate: ""
+      });
+    }catch(err){ activityError = err; }
     toast(isNew ? `Grievance ${gid} added.` : `Grievance ${gid} updated.`);
-    _pendingPoolNumber = null; // number was saved — don't return it to pool
+    if(activityError) toast(`Grievance ${gid} was saved, but its activity note did not save: ${activityError.message}`, 'err');
+    // If an assigned pool number wasn't the one used for this grievance, it
+    // goes back to the pool rather than being lost.
+    if(_pendingPoolNumber && _pendingPoolNumber !== gid) await returnPendingPoolNumber();
+    _pendingPoolNumber = null;
     _pendingInvestigationId = null;
     clearForm();
     await refresh();
@@ -2510,15 +2531,15 @@ function loadIntoForm(rec){
   if(nameLockNote) nameLockNote.style.display = '';
   $('f-grievant-email').value = rec.grievantEmail||'';
   $('f-description').value = rec.description||'';
-  $('f-job').value = rec.jobClass||'';
-  $('f-bu').value = rec.bu||'';
+  setSelectKeepingValue($('f-job'), rec.jobClass);
+  setSelectKeepingValue($('f-bu'), rec.bu);
   setLocationFieldValue(rec.location||'');
-  $('f-gtype').value = rec.gtype||'';
-  $('f-article').value = rec.article||'';
+  setSelectKeepingValue($('f-gtype'), rec.gtype);
+  setSelectKeepingValue($('f-article'), rec.article);
   $('f-article').dispatchEvent(new Event('change'));
   $('f-section').value = rec.section||'';
   $('f-remedy').value = rec.remedy||'';
-  $('f-steward').value = rec.steward||'';
+  setSelectKeepingValue($('f-steward'), rec.steward);
   $('f-steward').dispatchEvent(new Event('change'));
   // Populate all date fields from the record so the steward can see
   // what's already saved. The server preserves any date that isn't
@@ -2531,7 +2552,7 @@ function loadIntoForm(rec){
   $('f-step3filed').value = rec.step3filed||'';
   $('f-step3resp').value = rec.step3resp||'';
   $('f-step4filed').value = rec.step4filed||'';
-  $('f-status').value = rec.status||'';
+  setSelectKeepingValue($('f-status'), rec.status);
   $('gidNote').textContent = `Existing record — submitting will UPDATE "${rec.id}" (historic dates are preserved).`;
   recalcDeadlines();
 
@@ -3044,11 +3065,12 @@ $('poolClearBtn')?.addEventListener('click', async ()=>{
 
 /** Return a pending pool number silently if one is set. Fire-and-forget. */
 function returnPendingPoolNumber(){
-  if(!_pendingPoolNumber) return;
+  if(!_pendingPoolNumber) return Promise.resolve();
   const num = _pendingPoolNumber;
   _pendingPoolNumber = null;
-  fetch('/api/grievance-pool/return', {
-    method: 'POST',
+  // keepalive lets the request finish even if the page is closing.
+  return fetch('/api/grievance-pool/return', {
+    method: 'POST', keepalive: true,
     headers: {'Content-Type':'application/json'},
     body: JSON.stringify({ number: num })
   }).then(r => r.json()).then(data => {
@@ -3056,6 +3078,7 @@ function returnPendingPoolNumber(){
     updateIntakePoolUI();
   }).catch(()=>{});
 }
+window.addEventListener('pagehide', ()=>{ returnPendingPoolNumber(); });
 
 // Assign Next button on intake form
 $('assignNextBtn')?.addEventListener('click', async ()=>{
@@ -4037,6 +4060,7 @@ $('loginPassword').addEventListener('keydown', e=>{ if(e.key==='Enter') attemptL
 $('loginUsername').addEventListener('keydown', e=>{ if(e.key==='Enter') $('loginPassword').focus(); });
 
 $('logoutBtn').addEventListener('click', async ()=>{
+  await returnPendingPoolNumber();
   try{ await fetch('/api/auth/logout', { method:'POST' }); }catch(err){}
   CURRENT_USER = null;
   $('loginUsername').value = '';
