@@ -523,8 +523,15 @@ async function updateStewards(stewards, emails) {
     throw new Error("Stewards and emails must both be arrays.");
   if (stewards.length !== emails.length)
     throw new Error("Steward names and emails must be the same length.");
-  const cleanStewards = stewards.map(s => String(s || "").trim()).filter(s => s !== "");
-  const cleanEmails = emails.slice(0, cleanStewards.length).map(e => String(e || "").trim());
+  // Pair each name with its own email BEFORE dropping blank names. Filtering
+  // the names alone shifted every later email up a row, so a blank row meant
+  // the stewards after it were given the wrong addresses. (The admin UI
+  // happens to skip blank rows in lockstep; this has to hold for any caller.)
+  const pairs = stewards
+    .map((s, i) => [String(s || "").trim(), String(emails[i] || "").trim()])
+    .filter(([name]) => name !== "");
+  const cleanStewards = pairs.map(([name]) => name);
+  const cleanEmails = pairs.map(([, email]) => email);
   await withTransaction(async (client) => {
     await client.query(
       `insert into setup_lists (key, items) values ('Steward', $1::jsonb)
