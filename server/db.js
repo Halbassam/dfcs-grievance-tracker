@@ -1193,7 +1193,7 @@ async function addToGrievanceNumberPool(numbers, addedBy) {
     // Also exclude IDs already present in live grievances or archive
     const [liveRes, archiveRes] = await Promise.all([
       query(`select id from grievances`),
-      query(`select data->>'id' as id from archive`)
+      query(`select id from archive`)
     ]);
     for (const row of liveRes.rows)    usedSet.add(row.id);
     for (const row of archiveRes.rows) if (row.id) usedSet.add(row.id);
@@ -1231,7 +1231,7 @@ async function returnGrievanceNumber(number) {
     // Don't return if it's already in use in the DB (edge case: submitted on another tab)
     const [liveRes, archiveRes] = await Promise.all([
       query(`select id from grievances where id = $1`, [number]),
-      query(`select data->>'id' as id from archive where data->>'id' = $1`, [number])
+      query(`select id from archive where id = $1`, [number])
     ]);
     if (liveRes.rows.length > 0 || archiveRes.rows.length > 0) {
       return { ok: false, reason: "already_used" };
@@ -1263,7 +1263,7 @@ async function consumeNextGrievanceNumber(assignedBy) {
     // Build set of already-used IDs from both live grievances and archive
     const [liveRes, archiveRes] = await Promise.all([
       query(`select id from grievances`),
-      query(`select data->>'id' as id from archive`)
+      query(`select id from archive`)
     ]);
     const existingIds = new Set();
     for (const row of liveRes.rows)    existingIds.add(row.id);
