@@ -898,12 +898,16 @@ async function verifyLogin(username, password) {
   };
 }
 
-const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000;
+// A session ends after 30 minutes with no user activity. expires_at is the
+// idle deadline: it starts at login and is moved forward only by
+// touchSession(), which the browser calls on real user input. Background
+// polling never extends it, so an unattended open tab signs out.
+const SESSION_IDLE_MS = 30 * 60 * 1000;
 
 async function createSession(username) {
   const uname = normalizeUsername(username);
   const token = crypto.randomBytes(32).toString("hex");
-  const expiresAt = new Date(Date.now() + SESSION_TTL_MS);
+  const expiresAt = new Date(Date.now() + SESSION_IDLE_MS);
   await withTransaction(async (client) => {
     await client.query(
       "insert into sessions (token, username, expires_at) values ($1,$2,$3)",
@@ -929,6 +933,16 @@ async function getSessionUser(token) {
     role: res.rows[0].role || "steward",
     locations: Array.isArray(res.rows[0].locations) ? res.rows[0].locations : []
   };
+}
+
+/** Moves an active session's idle deadline to 30 minutes from now. An expired
+ *  session is not revived. */
+async function touchSession(token) {
+  if (!token) return;
+  await query(
+    "update sessions set expires_at=$2 where token=$1 and expires_at>now()",
+    [token, new Date(Date.now() + SESSION_IDLE_MS)]
+  );
 }
 
 /** Signs a user out everywhere except the session in `keepToken`. */
@@ -1579,7 +1593,7 @@ module.exports = {
   getLocationDetails, updateLocationDetails, getOrgLocalNo,
   findUpcomingDeadlines, SIMPLE_SETUP_KEYS, getGrievanceLocationById, getGrievanceLock, handoffGrievance,
   hasAnyUsers, listUsersSafe, upsertUser, deleteUser,
-  verifyLogin, createSession, getSessionUser, destroySession,
+  verifyLogin, createSession, getSessionUser, destroySession, touchSession,
   // Investigation workflow
   createInvestigation, getInvestigation, getAllInvestigations, updateInvestigation,
   addInvestigationLogEntry, closeInvestigation, convertInvestigationToGrievance,

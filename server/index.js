@@ -342,7 +342,7 @@ const server = http.createServer(async (req, res) => {
       const user = await getCurrentUser(req);
       if (!user) return sendJson(res, 401, { error: "Not logged in." });
       db.pingKeepAlive().catch(err => console.error("[index] Keep-alive ping failed:", err.message));
-      // The session cookie lasts 30 days, so most visits never pass through
+      // The session stays valid while the user is active (30 minutes idle limit), so most visits never pass through
       // the login form. Record those visits too ("session" = opened the app
       // while still signed in). Throttled so page refreshes don't flood the log.
       if (user.username && sessionVisitShouldLog(user.username)) {
@@ -381,8 +381,15 @@ const server = http.createServer(async (req, res) => {
     // account self-service, not grievance data. Every other state-changing
     // request is blocked here, centrally, rather than in each route, so a
     // new write endpoint can't accidentally be left unguarded.
-    if (currentUser.role === "read_only" && req.method !== "GET" && pathname !== "/api/auth/change-password") {
+    if (currentUser.role === "read_only" && req.method !== "GET" && pathname !== "/api/auth/change-password" && pathname !== "/api/auth/activity") {
       return sendJson(res, 403, { error: "This is a read-only account. Ask an admin for edit access if you need to make changes." });
+    }
+
+    // Browser reports real user input (at most about once a minute). This is
+    // the only thing that extends the 30-minute idle timeout for a session.
+    if (pathname === "/api/auth/activity" && req.method === "POST") {
+      await db.touchSession(getSessionTokenFromRequest(req));
+      return sendJson(res, 200, { ok: true });
     }
 
     if (pathname === "/api/data" && req.method === "GET") {
