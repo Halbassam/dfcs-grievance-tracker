@@ -2188,7 +2188,8 @@ $('archiveConfirmBtn').addEventListener('click', async ()=>{
   try{
     const result = await apiPost('/api/archive', {});
     $('archiveModalOverlay').classList.remove('show');
-    toast(`${result.archivedCount} grievance(s) archived.`);
+    const dups = (result.skippedDuplicates||[]);
+    toast(`${result.archivedCount} grievance(s) archived.` + (dups.length ? ` Skipped ${dups.join(', ')}: that number already exists in the archive. Ask an admin to renumber.` : ''), dups.length ? 'err' : undefined);
     await refresh();
   }catch(err){ toast(err.message, 'err'); }
 });

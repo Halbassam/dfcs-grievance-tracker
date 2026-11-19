@@ -137,6 +137,11 @@ async function submitGrievance(record) {
   return withTransaction(async (client) => {
     const existing = await client.query("select data, locked_to from grievances where id = $1", [id]);
     const isNew = existing.rows.length === 0;
+    if (isNew) {
+      // Never reuse an ID that already lives in the archive.
+      const arch = await client.query("select 1 from archive where id = $1", [id]);
+      if (arch.rows.length) throw new Error(`Grievance ID ${id} already exists in the archive.`);
+    }
     const target = isNew ? { id } : { ...existing.rows[0].data };
     // Carry the existing lock forward (hand-offs update locked_to directly via
     // handoffGrievance — not through submitGrievance).
@@ -393,29 +398,39 @@ async function archiveClosed(allowedLocations, actorUsername) {
       `select id, status, steward, locked_to, data from grievances where status in (${placeholders})${locationClause}`,
       params
     );
-    let archivedCount = 0;
+    // Never overwrite an archived case that shares an ID with a live one
+    // (that would silently destroy the archived record) -- leave it live
+    // and report it instead.
+    const idsInArchive = new Set();
+    if (res.rows.length) {
+      const dup = await client.query("select id from archive where id = any($1)", [res.rows.map(r => r.id)]);
+      for (const r of dup.rows) idsInArchive.add(r.id);
+    }
+    const toArchive = [];
+    const skippedDuplicates = [];
     for (const row of res.rows) {
       // Lock check: non-admins can only archive grievances locked to themselves.
       // actorUsername === null means admin caller — admins bypass the lock.
-      if (actorUsername !== null && row.locked_to && row.locked_to !== actorUsername) {
-        continue;
-      }
+      if (actorUsername !== null && row.locked_to && row.locked_to !== actorUsername) continue;
+      if (idsInArchive.has(row.id)) { skippedDuplicates.push(row.id); continue; }
+      toArchive.push(row);
+    }
+    // Delete from the live table first, then insert into the archive, so the
+    // ID is only ever in one table (the DB trigger enforces this too).
+    if (toArchive.length) {
+      await client.query(`delete from grievances where id = any($1)`, [toArchive.map(r => r.id)]);
+    }
+    let archivedCount = 0;
+    for (const row of toArchive) {
       const archivedRecord = { ...row.data, archivedAt };
       await client.query(
         `insert into archive (id, status, steward, archived_at, data)
-         values ($1, $2, $3, $4, $5::jsonb)
-         on conflict (id) do update
-           set status = excluded.status, steward = excluded.steward,
-               archived_at = excluded.archived_at, data = excluded.data`,
+         values ($1, $2, $3, $4, $5::jsonb)`,
         [row.id, row.status, row.steward, archivedAt, JSON.stringify(archivedRecord)]
       );
       archivedCount++;
     }
-    if (res.rows.length) {
-      const ids = res.rows.map(r => r.id);
-      await client.query(`delete from grievances where id = any($1)`, [ids]);
-    }
-    return { archivedCount };
+    return { archivedCount, skippedDuplicates };
   });
 }
 
@@ -1178,7 +1193,7 @@ async function addToGrievanceNumberPool(numbers, addedBy) {
     // Also exclude IDs already present in live grievances or archive
     const [liveRes, archiveRes] = await Promise.all([
       query(`select id from grievances`),
-      query(`select data->>'id' as id from archive`)
+      query(`select id from archive`)
     ]);
     for (const row of liveRes.rows)    usedSet.add(row.id);
     for (const row of archiveRes.rows) if (row.id) usedSet.add(row.id);
@@ -1216,7 +1231,7 @@ async function returnGrievanceNumber(number) {
     // Don't return if it's already in use in the DB (edge case: submitted on another tab)
     const [liveRes, archiveRes] = await Promise.all([
       query(`select id from grievances where id = $1`, [number]),
-      query(`select data->>'id' as id from archive where data->>'id' = $1`, [number])
+      query(`select id from archive where id = $1`, [number])
     ]);
     if (liveRes.rows.length > 0 || archiveRes.rows.length > 0) {
       return { ok: false, reason: "already_used" };
@@ -1248,7 +1263,7 @@ async function consumeNextGrievanceNumber(assignedBy) {
     // Build set of already-used IDs from both live grievances and archive
     const [liveRes, archiveRes] = await Promise.all([
       query(`select id from grievances`),
-      query(`select data->>'id' as id from archive`)
+      query(`select id from archive`)
     ]);
     const existingIds = new Set();
     for (const row of liveRes.rows)    existingIds.add(row.id);

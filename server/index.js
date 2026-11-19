@@ -469,7 +469,16 @@ const server = http.createServer(async (req, res) => {
         }
       }
 
-      const result = await db.submitGrievance(body);
+      let result;
+      try {
+        result = await db.submitGrievance(body);
+      } catch (err) {
+        // Duplicate grievance ID (app guard or DB trigger) -> clear 409, not a 500.
+        if (err && (err.code === "23505" || /already exists in/.test(err.message || ""))) {
+          return sendJson(res, 409, { error: err.message.replace(/^.*?(Grievance ID)/, "$1") });
+        }
+        throw err;
+      }
 
       // Fire-and-forget: notify the grievant of any step(s) newly filed
       // in this save. This never blocks or fails the actual save, which
