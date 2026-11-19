@@ -866,14 +866,23 @@ async function deleteUser(username) {
   });
 }
 
+// Hashed once at startup so a login for an unknown username costs the same
+// scrypt time as a wrong password. Otherwise the faster "no such user" reply
+// tells an attacker which usernames exist.
+const UNKNOWN_USER_HASH = hashPassword("unknown-user-placeholder");
+
 async function verifyLogin(username, password) {
   const uname = normalizeUsername(username);
   const res = await query(
     "select username, display_name, role, locations, password_hash from users where username=$1", [uname]
   );
-  if (res.rows.length === 0) return null;
+  const plain = String(password == null ? "" : password);
+  if (res.rows.length === 0) {
+    verifyPassword(plain, UNKNOWN_USER_HASH);
+    return null;
+  }
   const user = res.rows[0];
-  if (!verifyPassword(password, user.password_hash)) return null;
+  if (!verifyPassword(plain, user.password_hash)) return null;
   return {
     username: user.username, displayName: user.display_name, role: user.role || "steward",
     locations: Array.isArray(user.locations) ? user.locations : []
@@ -911,6 +920,11 @@ async function getSessionUser(token) {
     role: res.rows[0].role || "steward",
     locations: Array.isArray(res.rows[0].locations) ? res.rows[0].locations : []
   };
+}
+
+/** Signs a user out everywhere except the session in `keepToken`. */
+async function deleteOtherSessions(username, keepToken) {
+  await query("delete from sessions where username = $1 and token <> $2", [normalizeUsername(username), keepToken || ""]);
 }
 
 async function destroySession(token) {
@@ -1543,7 +1557,7 @@ async function getAuditLog(limit = 200, filterUsername = null, filterActions = [
 
 module.exports = {
   getAll, readRaw, writeRawAtomic, withLock, logEmailAttempt, pingKeepAlive,
-  getEmailRunState, saveEmailRunState, getLastEmailRunDate, linkGrievanceToInvestigation,
+  getEmailRunState, saveEmailRunState, getLastEmailRunDate, linkGrievanceToInvestigation, deleteOtherSessions,
   submitGrievance, logActivity, archiveClosed, sendCourtesyNotice,
   updateStewards, updateSetupList, getSetupList, updateHolidays, updateOrgSettings,
   getLocationDetails, updateLocationDetails, getOrgLocalNo,

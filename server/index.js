@@ -20,8 +20,10 @@ const PUBLIC_DIR = path.join(__dirname, "../public");
 
 /** Best-effort client IP — respects the X-Forwarded-For header set by Render's proxy. */
 function clientIp(req) {
+  // The proxy appends the address it saw, so the LAST entry is trustworthy.
+  // The first entry is whatever the client sent and can be forged.
   const fwd = req.headers["x-forwarded-for"];
-  if (fwd) return fwd.split(",")[0].trim();
+  if (fwd) return fwd.split(",").pop().trim();
   return req.socket && req.socket.remoteAddress || "";
 }
 
@@ -36,8 +38,13 @@ const LOGIN_MAX_FAILURES  = 10;
 const LOGIN_LOCKOUT_MS    = 15 * 60 * 1000; // 15 minutes
 const _loginFailures = new Map(); // username (lowercase) → { count, lockedUntil }
 
-function loginCheckLock(username) {
-  const key = username.toLowerCase();
+// Failures are counted per username AND client address. Counting per username
+// alone let one stranger lock the real steward out for 15 minutes from anywhere.
+function lockKey(username, ip) {
+  return `${String(username || "").trim().toLowerCase()}|${ip || ""}`;
+}
+
+function loginCheckLock(key) {
   const rec = _loginFailures.get(key);
   if (!rec) return null; // no history
   if (rec.lockedUntil && Date.now() < rec.lockedUntil) {
@@ -47,8 +54,7 @@ function loginCheckLock(username) {
   return null; // either not locked or lockout has expired
 }
 
-function loginRecordFailure(username) {
-  const key = username.toLowerCase();
+function loginRecordFailure(key) {
   const rec = _loginFailures.get(key) || { count: 0, lockedUntil: null };
   // If a previous lockout has expired, reset the counter
   if (rec.lockedUntil && Date.now() >= rec.lockedUntil) {
@@ -59,6 +65,12 @@ function loginRecordFailure(username) {
     rec.lockedUntil = Date.now() + LOGIN_LOCKOUT_MS;
   }
   _loginFailures.set(key, rec);
+  if (_loginFailures.size > 5000) {
+    const now = Date.now();
+    for (const [k, r] of _loginFailures) {
+      if (!r.lockedUntil || now >= r.lockedUntil) _loginFailures.delete(k);
+    }
+  }
 }
 
 // One "session" audit row per user per 10 minutes at most.
@@ -72,8 +84,8 @@ function sessionVisitShouldLog(username) {
   return true;
 }
 
-function loginRecordSuccess(username) {
-  _loginFailures.delete(username.toLowerCase());
+function loginRecordSuccess(key) {
+  _loginFailures.delete(key);
 }
 
 const MIME = {
@@ -279,15 +291,16 @@ const server = http.createServer(async (req, res) => {
       const rawUsername = String(body.username || "").trim();
 
       // Rate-limit check before hitting the DB
-      const lockMsg = loginCheckLock(rawUsername);
+      const attemptKey = lockKey(rawUsername, clientIp(req));
+      const lockMsg = loginCheckLock(attemptKey);
       if (lockMsg) return sendJson(res, 429, { error: lockMsg });
 
       const user = await db.verifyLogin(rawUsername, body.password);
       if (!user) {
-        loginRecordFailure(rawUsername);
+        loginRecordFailure(attemptKey);
         return sendJson(res, 401, { error: "Incorrect username or password." });
       }
-      loginRecordSuccess(rawUsername);
+      loginRecordSuccess(attemptKey);
       const token = await db.createSession(user.username);
       setSessionCookie(res, token);
       // Fire-and-forget keeps Supabase free-tier alive and records login.
@@ -728,6 +741,9 @@ const server = http.createServer(async (req, res) => {
         displayName: currentUser.displayName,
         password: newPassword
       });
+      // A changed password must lock out whoever had the old one. Keep only
+      // the session making this change.
+      await db.deleteOtherSessions(currentUser.username, getSessionTokenFromRequest(req));
       return sendJson(res, 200, { ok: true });
     }
 
