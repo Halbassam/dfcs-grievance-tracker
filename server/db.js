@@ -230,6 +230,13 @@ async function submitGrievance(record) {
 // treated as abandoned (the process died mid-send).
 const COURTESY_CLAIM_TTL_MS = 2 * 60 * 1000;
 
+/** A short, random pause before a compare-and-swap retry, so writers that
+ *  collided don't all retry in lockstep and collide again. */
+function casBackoff(attempt) {
+  const ms = Math.min(50, 2 + attempt * 3) * (0.5 + Math.random());
+  return new Promise(r => setTimeout(r, ms));
+}
+
 /**
  * Changes one grievance's JSON data without ever overwriting someone else's
  * concurrent change to it. Reads the record, lets `mutate` compute the new
@@ -240,7 +247,7 @@ const COURTESY_CLAIM_TTL_MS = 2 * 60 * 1000;
  * `mutate` gets a copy of the current data and returns the new data, or
  * null/undefined to leave the record alone. Returns { changed, data }.
  */
-async function updateGrievanceData(gid, mutate, maxAttempts = 8) {
+async function updateGrievanceData(gid, mutate, maxAttempts = 50) {
   for (let attempt = 0; attempt < maxAttempts; attempt++) {
     const cur = await query("select data from grievances where id = $1", [gid]);
     if (cur.rows.length === 0) throw new Error(`Grievance ${gid} not found.`);
@@ -254,6 +261,7 @@ async function updateGrievanceData(gid, mutate, maxAttempts = 8) {
       [gid, JSON.stringify(before), JSON.stringify(after)]
     );
     if (res.rows.length) return { changed: true, data: after };
+    await casBackoff(attempt);
   }
   throw new Error(`Could not update grievance ${gid} because it kept changing. Please try again.`);
 }
@@ -1090,17 +1098,22 @@ async function getAllInvestigations() {
  * (e.g. a grievant's submission arriving while a steward logs an entry) be
  * silently overwritten by a copy read before it landed.
  */
-async function updateInvestigation(id, patch, maxAttempts = 8) {
+async function updateInvestigation(id, patch, maxAttempts = 50) {
   for (let attempt = 0; attempt < maxAttempts; attempt++) {
     const res = await query("select data from investigations where id = $1", [id]);
     if (!res.rows.length) throw new Error(`Investigation ${id} not found.`);
     const current = res.rows[0].data;
-    const merged = Object.assign({}, current, patch, { id }); // id is immutable
+    // `patch` may be a function of the freshly read record, so a change that
+    // depends on the current contents (like appending to the logbook) is built
+    // from what is actually stored, not from an earlier read.
+    const delta = typeof patch === "function" ? patch(current) : patch;
+    const merged = Object.assign({}, current, delta, { id }); // id is immutable
     const written = await query(
       "update investigations set data = $3::jsonb where id = $1 and data = $2::jsonb returning id",
       [id, JSON.stringify(current), JSON.stringify(merged)]
     );
     if (written.rows.length) return merged;
+    await casBackoff(attempt);
   }
   throw new Error(`Investigation ${id} is being changed by someone else. Please try again.`);
 }
@@ -1116,8 +1129,10 @@ async function addInvestigationLogEntry(id, { date, steward, entry }) {
     entry: String(entry || "").trim(),
     createdAt: new Date().toISOString()
   };
-  const logbook = [...(inv.logbook || []), logEntry];
-  await updateInvestigation(id, { logbook });
+  await updateInvestigation(id, (current) => {
+    if (current.status !== "open") throw new Error("Investigation is closed — no new logbook entries.");
+    return { logbook: [...(current.logbook || []), logEntry] };
+  });
   return logEntry;
 }
 
