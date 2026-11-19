@@ -1230,12 +1230,14 @@ function updatePageTitle(){
   const h1 = document.querySelector('.brand-text h1');
   if(h1) h1.textContent = localNo ? 'FCRC Grievance Tracker — Local ' + localNo : 'FCRC Grievance Tracker';
 }
-function escapeHtml(s){ return String(s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function escapeHtml(s){ return String(s==null?'':s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 function toast(msg, type='ok'){
   const stack = $('toastStack');
   const el = document.createElement('div');
   el.className = 'toast' + (type==='err'?' err':'');
-  el.innerHTML = (type==='err'?'&#9888;&#65039; ':'&#10003; ') + msg;
+  // Plain text on purpose: messages can contain values from other users
+  // (grievance numbers, names), and must never be read as markup.
+  el.textContent = (type==='err'?'\u26A0\uFE0F ':'\u2713 ') + msg;
   stack.appendChild(el);
   setTimeout(()=>{ el.style.opacity='0'; el.style.transition='opacity 0.3s'; setTimeout(()=>el.remove(),300); }, 3400);
 }
@@ -2030,8 +2032,8 @@ function renderLog(){
       <td>${escapeHtml(rec.steward||'')}</td><td>${escapeHtml(rec.gtype||'')}</td>
       <td><span class="pill ${isResolved(rec)?'pill-resolved':'pill-pending'}">${escapeHtml(rec.status||'')}</span></td>
       <td>${escapeHtml(currentStep(rec))}</td>
-      <td>${rec.step1filed||''}</td><td>${d.step1Due?fmt(d.step1Due):''}</td>
-      <td>${rec.step2filed||''}</td><td>${rec.step3filed||''}</td>
+      <td>${escapeHtml(rec.step1filed||'')}</td><td>${d.step1Due?fmt(d.step1Due):''}</td>
+      <td>${escapeHtml(rec.step2filed||'')}</td><td>${escapeHtml(rec.step3filed||'')}</td>
       <td>${daysSinceFiled(rec)??''}</td>
       <td><button class="btn-tiny" data-gid="${escapeHtml(rec.id)}">View</button></td>
     </tr>`;
@@ -2046,9 +2048,9 @@ function renderActivity(){
     return;
   }
   list.innerHTML = STATE.activity.slice().reverse().map(a=>{
-    const followBadge = a.followup==='Yes' ? `<span class="followup-flag">Follow up ${a.followupDate||''}</span>` : '';
+    const followBadge = a.followup==='Yes' ? `<span class="followup-flag">Follow up ${escapeHtml(a.followupDate||'')}</span>` : '';
     return `<div class="activity-item">
-      <div class="activity-date">${a.date}</div>
+      <div class="activity-date">${escapeHtml(a.date)}</div>
       <div><span class="a-type">${escapeHtml(a.type)}</span><span class="a-gid">${escapeHtml(a.gid)}</span>
       <div class="a-notes">${escapeHtml(a.notes||'')}</div>
       <div class="a-meta">${escapeHtml(a.steward||'')} &middot; ${escapeHtml(a.step||'')}</div></div>
@@ -2467,11 +2469,11 @@ function openDetail(gid){
     <p><b>Remedy sought:</b> ${escapeHtml(rec.remedy||'—')}</p>
     <p><b>Status:</b> ${escapeHtml(rec.status||'')} &middot; <b>Current step:</b> ${escapeHtml(currentStep(rec))}</p>
     <hr style="border:none;border-top:1px solid var(--green-line);margin:14px 0;">
-    <p><b>Awareness:</b> ${rec.awareness||'—'} &middot; <b>15-WD deadline:</b> ${rec.awareness?fmt(workday(rec.awareness,15)):'—'}</p>
-    <p><b>Step 1 filed:</b> ${rec.step1filed||'—'} &middot; <b>due:</b> ${d.step1Due?fmt(d.step1Due):'—'} &middot; <b>response:</b> ${rec.step1resp||'—'}</p>
-    <p><b>Step 2 filed:</b> ${rec.step2filed||'—'} &middot; <b>answer due:</b> ${d.step2AnswerDue?fmt(d.step2AnswerDue):'—'} &middot; <b>response:</b> ${rec.step2resp||'—'}</p>
-    <p><b>Step 3 filed:</b> ${rec.step3filed||'—'} &middot; <b>sign-off due:</b> ${d.step3SignDue?fmt(d.step3SignDue):'—'} &middot; <b>response:</b> ${rec.step3resp||'—'}</p>
-    <p><b>Step 4/Arb filed:</b> ${rec.step4filed||'—'} &middot; <b>hearing due:</b> ${d.arbHearingDue?fmt(d.arbHearingDue):'—'}</p>
+    <p><b>Awareness:</b> ${escapeHtml(rec.awareness||'—')} &middot; <b>15-WD deadline:</b> ${rec.awareness?fmt(workday(rec.awareness,15)):'—'}</p>
+    <p><b>Step 1 filed:</b> ${escapeHtml(rec.step1filed||'—')} &middot; <b>due:</b> ${d.step1Due?fmt(d.step1Due):'—'} &middot; <b>response:</b> ${escapeHtml(rec.step1resp||'—')}</p>
+    <p><b>Step 2 filed:</b> ${escapeHtml(rec.step2filed||'—')} &middot; <b>answer due:</b> ${d.step2AnswerDue?fmt(d.step2AnswerDue):'—'} &middot; <b>response:</b> ${escapeHtml(rec.step2resp||'—')}</p>
+    <p><b>Step 3 filed:</b> ${escapeHtml(rec.step3filed||'—')} &middot; <b>sign-off due:</b> ${d.step3SignDue?fmt(d.step3SignDue):'—'} &middot; <b>response:</b> ${escapeHtml(rec.step3resp||'—')}</p>
+    <p><b>Step 4/Arb filed:</b> ${escapeHtml(rec.step4filed||'—')} &middot; <b>hearing due:</b> ${d.arbHearingDue?fmt(d.arbHearingDue):'—'}</p>
     ${courtesyNoticeSectionHtml(rec, d)}
     ${attachmentsSectionHtml(rec)}
   `;
