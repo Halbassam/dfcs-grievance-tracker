@@ -1090,24 +1090,44 @@ async function addInvestigationLogEntry(id, { date, steward, entry }) {
 async function closeInvestigation(id, { reason, notes }) {
   const VALID_REASONS = ["no_violation", "resolved", "withdrew", "other"];
   if (!VALID_REASONS.includes(reason)) throw new Error(`Invalid close reason: ${reason}`);
+  const inv = await getInvestigation(id);
+  if (!inv) throw new Error(`Investigation ${id} not found.`);
+  if (inv.status === "converted") {
+    throw new Error(`This investigation became grievance ${inv.convertedGrievanceId}, so it can't be closed. Work the case from the grievance instead.`);
+  }
   return updateInvestigation(id, {
     status: "closed",
     closeReason: reason,
     closeNotes: String(notes || "").trim(),
-    closedAt: new Date().toISOString()
+    closedAt: new Date().toISOString(),
+    pendingGrievanceId: null
   });
 }
 
 /** Converts an investigation to a formal grievance. Returns the new grievance's
  *  pre-filled record so the caller can route the steward into the intake form. */
+/**
+ * Starts converting an investigation to a formal grievance. This only records
+ * the grievance number that is pending and returns the pre-filled record. The
+ * investigation becomes "converted" only once a grievance with that number is
+ * actually saved (see linkGrievanceToInvestigation). Cancelling the intake
+ * form therefore leaves the investigation open and convertible again.
+ */
 async function convertInvestigationToGrievance(id, grievanceId, actingUser) {
   const inv = await getInvestigation(id);
   if (!inv) throw new Error(`Investigation ${id} not found.`);
   if (inv.status === "converted") throw new Error("Already converted.");
+  const gid = String(grievanceId || "").trim();
+  if (!gid) throw new Error("Enter a grievance ID for the new grievance.");
+  const taken = await query(
+    "select 1 from grievances where id = $1 union all select 1 from archive where id = $1",
+    [gid]
+  );
+  if (taken.rows.length) throw new Error(`Grievance ID ${gid} is already in use. Choose another.`);
   const sub = inv.grievantSubmission && inv.grievantSubmission.data;
   // Build a pre-filled grievance record from investigation data
   const pre = {
-    id: grievanceId,
+    id: gid,
     employee: sub ? (sub.name || inv.employee) : inv.employee,
     grievantEmail: sub ? (sub.email || inv.contactEmail) : inv.contactEmail,
     description: sub ? (sub.description || inv.incidentDescription) : inv.incidentDescription,
@@ -1117,12 +1137,25 @@ async function convertInvestigationToGrievance(id, grievanceId, actingUser) {
     investigationId: id,
     actingUser: actingUser || inv.steward
   };
-  await updateInvestigation(id, {
-    status: "converted",
-    convertedGrievanceId: grievanceId,
-    convertedAt: new Date().toISOString()
-  });
+  await updateInvestigation(id, { pendingGrievanceId: gid });
   return pre;
+}
+
+/**
+ * Marks an investigation converted, once the grievance it was pending for has
+ * really been saved. Does nothing unless that exact grievance number is the
+ * pending one, so a stray save can't convert the wrong investigation.
+ */
+async function linkGrievanceToInvestigation(investigationId, gid) {
+  const inv = await getInvestigation(investigationId);
+  if (!inv || inv.status === "converted" || inv.pendingGrievanceId !== gid) return false;
+  await updateInvestigation(investigationId, {
+    status: "converted",
+    convertedGrievanceId: gid,
+    convertedAt: new Date().toISOString(),
+    pendingGrievanceId: null
+  });
+  return true;
 }
 
 /** Creates a public-facing token for the grievant intake form or a witness statement.
@@ -1491,7 +1524,7 @@ async function getAuditLog(limit = 200, filterUsername = null, filterActions = [
 
 module.exports = {
   getAll, readRaw, writeRawAtomic, withLock, logEmailAttempt, pingKeepAlive,
-  getEmailRunState, saveEmailRunState, getLastEmailRunDate,
+  getEmailRunState, saveEmailRunState, getLastEmailRunDate, linkGrievanceToInvestigation,
   submitGrievance, logActivity, archiveClosed, sendCourtesyNotice,
   updateStewards, updateSetupList, getSetupList, updateHolidays, updateOrgSettings,
   getLocationDetails, updateLocationDetails, getOrgLocalNo,

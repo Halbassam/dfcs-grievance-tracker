@@ -499,6 +499,17 @@ const server = http.createServer(async (req, res) => {
         throw err;
       }
 
+      // If this grievance was started by converting an investigation, the
+      // investigation is only now complete. Link them if the caller can see it.
+      const investigationId = String(body.investigationId || "").trim();
+      if (investigationId) {
+        const inv = await db.getInvestigation(investigationId);
+        if (inv && canAccessLocation(currentUser, inv.location)) {
+          await db.linkGrievanceToInvestigation(investigationId, String(body.id).trim())
+            .catch(err => console.error("[investigation] link failed:", err.message));
+        }
+      }
+
       // Fire-and-forget: notify the grievant of any step(s) newly filed
       // in this save. This never blocks or fails the actual save, which
       // has already succeeded — a notification problem shouldn't stop a
@@ -800,8 +811,12 @@ const server = http.createServer(async (req, res) => {
       const inv = await db.getInvestigation(body.id);
       if (!inv) return sendJson(res, 404, { error: "Investigation not found." });
       if (!canAccessLocation(currentUser, inv.location)) return sendJson(res, 403, { error: "Access denied." });
-      const updated = await db.closeInvestigation(body.id, { reason: body.reason, notes: body.notes });
-      return sendJson(res, 200, { investigation: updated });
+      try {
+        const updated = await db.closeInvestigation(body.id, { reason: body.reason, notes: body.notes });
+        return sendJson(res, 200, { investigation: updated });
+      } catch (err) {
+        return sendJson(res, 400, { error: err.message });
+      }
     }
 
     if (pathname === "/api/investigation/convert" && req.method === "POST") {
@@ -809,10 +824,14 @@ const server = http.createServer(async (req, res) => {
       const inv = await db.getInvestigation(body.id);
       if (!inv) return sendJson(res, 404, { error: "Investigation not found." });
       if (!canAccessLocation(currentUser, inv.location)) return sendJson(res, 403, { error: "Access denied." });
-      const pre = await db.convertInvestigationToGrievance(
-        body.id, body.grievanceId, currentUser.displayName || currentUser.username
-      );
-      return sendJson(res, 200, { preFilledGrievance: pre });
+      try {
+        const pre = await db.convertInvestigationToGrievance(
+          body.id, body.grievanceId, currentUser.displayName || currentUser.username
+        );
+        return sendJson(res, 200, { preFilledGrievance: pre });
+      } catch (err) {
+        return sendJson(res, 400, { error: err.message });
+      }
     }
 
     if (pathname === "/api/investigation/grievant-link" && req.method === "POST") {

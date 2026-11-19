@@ -1196,6 +1196,9 @@ let STATE = { grievances: [], activity: [], archive: [], holidays: [], users: []
 // Tracks a pool number claimed via "Assign next" but not yet saved.
 // If the form is cleared or a different record is loaded, this gets returned to the pool.
 let _pendingPoolNumber = null;
+// Set when the intake form was pre-filled from converting an investigation;
+// sent with the save so the server can mark that investigation converted.
+let _pendingInvestigationId = null;
 let LOCATION_DETAILS = {}; // per-location { bureau, email } config, keyed by location name
 
 // Admin-only convenience filter: admins receive every location's data
@@ -1545,7 +1548,8 @@ async function submitAndClear(){
     section: $('f-section').value, remedy: $('f-remedy').value, status: $('f-status').value || 'Pending',
     awareness: $('f-awareness').value, step1filed: $('f-step1filed').value, step1resp: $('f-step1resp').value,
     step2filed: $('f-step2filed').value, step2resp: $('f-step2resp').value,
-    step3filed: $('f-step3filed').value, step3resp: $('f-step3resp').value, step4filed: $('f-step4filed').value
+    step3filed: $('f-step3filed').value, step3resp: $('f-step3resp').value, step4filed: $('f-step4filed').value,
+    investigationId: _pendingInvestigationId || undefined
   };
 
   const btn = $('submitBtn');
@@ -1561,6 +1565,7 @@ async function submitAndClear(){
     });
     toast(isNew ? `Grievance ${gid} added.` : `Grievance ${gid} updated.`);
     _pendingPoolNumber = null; // number was saved — don't return it to pool
+    _pendingInvestigationId = null;
     clearForm();
     await refresh();
   }catch(err){
@@ -1571,6 +1576,7 @@ async function submitAndClear(){
 }
 
 function clearForm(){
+  _pendingInvestigationId = null;
   ['f-gid','f-name','f-grievant-email','f-description','f-section','f-remedy'].forEach(id=>$(id).value='');
   ['f-job','f-bu','f-gtype','f-article','f-steward','f-status']
     .forEach(id=>$(id).value='');
@@ -3754,8 +3760,10 @@ $('convertInvConfirmBtn').addEventListener('click', async ()=>{
     const data = await apiPost('/api/investigation/convert', { id: INV_STATE.current.id, grievanceId: gid });
     const pre = data.preFilledGrievance;
     $('convertInvModalOverlay').classList.remove('show');
-    // Pre-fill the formal intake form and switch to it
-    resetForm();
+    // Pre-fill the formal intake form and switch to it. The investigation is
+    // only marked converted once this grievance is actually saved.
+    clearForm();
+    _pendingInvestigationId = pre.investigationId || null;
     $('f-gid').value = pre.id;
     $('f-name').value = pre.employee||'';
     $('f-grievant-email').value = pre.grievantEmail||'';
