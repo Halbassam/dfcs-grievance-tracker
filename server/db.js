@@ -221,6 +221,38 @@ async function submitGrievance(record) {
   });
 }
 
+// How long an in-progress courtesy-notice claim is honoured before it is
+// treated as abandoned (the process died mid-send).
+const COURTESY_CLAIM_TTL_MS = 2 * 60 * 1000;
+
+/**
+ * Changes one grievance's JSON data without ever overwriting someone else's
+ * concurrent change to it. Reads the record, lets `mutate` compute the new
+ * version, and writes it only if the record is still exactly what was read
+ * (compare-and-swap on the JSON); if it changed in between, it re-reads and
+ * tries again.
+ *
+ * `mutate` gets a copy of the current data and returns the new data, or
+ * null/undefined to leave the record alone. Returns { changed, data }.
+ */
+async function updateGrievanceData(gid, mutate, maxAttempts = 8) {
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    const cur = await query("select data from grievances where id = $1", [gid]);
+    if (cur.rows.length === 0) throw new Error(`Grievance ${gid} not found.`);
+    const before = cur.rows[0].data;
+    const after = mutate({ ...before });
+    if (after === null || after === undefined) return { changed: false, data: before };
+    const res = await query(
+      `update grievances set data = $3::jsonb, updated_at = now()
+        where id = $1 and data = $2::jsonb
+        returning id`,
+      [gid, JSON.stringify(before), JSON.stringify(after)]
+    );
+    if (res.rows.length) return { changed: true, data: after };
+  }
+  throw new Error(`Could not update grievance ${gid} because it kept changing. Please try again.`);
+}
+
 /**
  * Sends a one-time courtesy reminder email to management (the org-wide
  * management contact set in Settings) about a Step 1 or Step 2 response
@@ -251,54 +283,85 @@ async function sendCourtesyNotice(gid, step) {
     throw new Error('Courtesy notices are only available for "step1" or "step2".');
   }
 
+  const stepName = step === "step1" ? "Step 1" : "Step 2";
   const sentFlagKey = step === "step1" ? "step1CourtesySent" : "step2CourtesySent";
+  const claimKey = step === "step1" ? "step1CourtesyClaimedAt" : "step2CourtesyClaimedAt";
 
-  return withTransaction(async (client) => {
-    const existing = await client.query("select data from grievances where id = $1", [gid]);
-    if (existing.rows.length === 0) throw new Error(`Grievance ${gid} not found.`);
-    const rec = existing.rows[0].data;
+  // NOTE: deliberately not wrapped in one transaction. Sending email takes
+  // seconds; holding a database connection open for that long (and then
+  // writing back a copy of the record that was read before the send) would
+  // overwrite any edit a steward saved in the meantime.
+  const existing = await query("select data from grievances where id = $1", [gid]);
+  if (existing.rows.length === 0) throw new Error(`Grievance ${gid} not found.`);
+  const rec = existing.rows[0].data;
 
-    if (rec[sentFlagKey]) {
-      throw new Error(`A courtesy notice for ${step === "step1" ? "Step 1" : "Step 2"} has already been sent for this grievance.`);
+  if (rec[sentFlagKey]) {
+    throw new Error(`A courtesy notice for ${stepName} has already been sent for this grievance.`);
+  }
+
+  const metaRes = await query("select key, value from app_meta");
+  const metaMap = {};
+  for (const row of metaRes.rows) metaMap[row.key] = row.value;
+  const recipients = (() => {
+    // Prefer the per-location management email if one is configured for
+    // this grievance's location -- falls back to the org-wide email so
+    // existing setups without per-location config still work.
+    let locationEmail = "";
+    try {
+      const detailsRes = metaRes.rows.find(r => r.key === "orgLocationDetails");
+      const details = detailsRes ? JSON.parse(detailsRes.value || "{}") : {};
+      const loc = rec && rec.location;
+      if (loc && details[loc] && details[loc].email) {
+        locationEmail = details[loc].email;
+      }
+    } catch { /* fall through */ }
+    return parseEmailList(locationEmail || metaMap.orgManagementEmail || "");
+  })();
+  if (recipients.length === 0) {
+    throw new Error("No management contact email is set. Go to Settings → Local chapter info to add one.");
+  }
+
+  const apiKey = process.env.BREVO_API_KEY || "";
+  const senderEmail = process.env.BREVO_SENDER_EMAIL || "";
+  if (!apiKey || !senderEmail) {
+    throw new Error("Email is not configured (BREVO_API_KEY / BREVO_SENDER_EMAIL). See server/mailer.js for setup steps.");
+  }
+
+  const holidaysRes = await query("select date, name from holidays");
+  const holidaySet = buildHolidaySet(holidaysRes.rows);
+  const d = deriveDeadlinesServer(rec, holidaySet);
+  const dueDate = step === "step1" ? d.step1Due : d.step2AnswerDue;
+  if (!dueDate) {
+    throw new Error(`No ${step === "step1" ? "Step 1 response" : "Step 2 answer"} deadline could be calculated yet for this grievance.`);
+  }
+  const dueDateISO = toISODate(dueDate);
+
+  // Claim this step before sending: only a caller that actually writes the
+  // claim may send. Without this, two simultaneous clicks both passed the
+  // "already sent?" check above and both emailed management, breaking the
+  // one-time guarantee. A claim older than COURTESY_CLAIM_TTL_MS is treated
+  // as abandoned (the server died mid-send) so a crash can't block the
+  // notice forever.
+  const claimedAt = new Date().toISOString();
+  const staleBefore = new Date(Date.now() - COURTESY_CLAIM_TTL_MS).toISOString();
+  let blockedBy = null;
+  const claim = await updateGrievanceData(gid, (data) => {
+    if (data[sentFlagKey]) { blockedBy = "sent"; return null; }
+    if (data[claimKey] && data[claimKey] >= staleBefore) { blockedBy = "sending"; return null; }
+    blockedBy = null;
+    return { ...data, [claimKey]: claimedAt };
+  });
+  if (!claim.changed) {
+    if (blockedBy === "sent") {
+      throw new Error(`A courtesy notice for ${stepName} has already been sent for this grievance.`);
     }
+    throw new Error(`A courtesy notice for ${stepName} is already being sent for this grievance. Give it a moment, then check the grievance again.`);
+  }
 
-    const metaRes = await client.query("select key, value from app_meta");
-    const metaMap = {};
-    for (const row of metaRes.rows) metaMap[row.key] = row.value;
-    const recipients = (() => {
-      // Prefer the per-location management email if one is configured for
-      // this grievance's location -- falls back to the org-wide email so
-      // existing setups without per-location config still work.
-      let locationEmail = "";
-      try {
-        const detailsRes = metaRes.rows.find(r => r.key === "orgLocationDetails");
-        const details = detailsRes ? JSON.parse(detailsRes.value || "{}") : {};
-        const loc = rec && rec.location;
-        if (loc && details[loc] && details[loc].email) {
-          locationEmail = details[loc].email;
-        }
-      } catch { /* fall through */ }
-      return parseEmailList(locationEmail || metaMap.orgManagementEmail || "");
-    })();
-    if (recipients.length === 0) {
-      throw new Error("No management contact email is set. Go to Settings \u2192 Local chapter info to add one.");
-    }
-
-    const apiKey = process.env.BREVO_API_KEY || "";
-    const senderEmail = process.env.BREVO_SENDER_EMAIL || "";
-    if (!apiKey || !senderEmail) {
-      throw new Error("Email is not configured (BREVO_API_KEY / BREVO_SENDER_EMAIL). See server/mailer.js for setup steps.");
-    }
-
-    const holidaysRes = await client.query("select date, name from holidays");
-    const holidaySet = buildHolidaySet(holidaysRes.rows);
-    const d = deriveDeadlinesServer(rec, holidaySet);
-    const dueDate = step === "step1" ? d.step1Due : d.step2AnswerDue;
-    if (!dueDate) {
-      throw new Error(`No ${step === "step1" ? "Step 1 response" : "Step 2 answer"} deadline could be calculated yet for this grievance.`);
-    }
-    const dueDateISO = toISODate(dueDate);
-
+  // From here on the claim must be released (or replaced by the "sent" flag)
+  // no matter how we leave.
+  let finished = false;
+  try {
     const stepLabel = step === "step1" ? "Step 1 (Oral Grievance)" : "Step 2 (Written Grievance)";
     const localNo = await getOrgLocalNo().catch(() => "");
     const localTag = localNo ? `AFSCME Local ${localNo}` : "AFSCME Council 31";
@@ -344,11 +407,18 @@ async function sendCourtesyNotice(gid, step) {
       throw new Error(`Could not send the courtesy notice to any recipient. ${firstError || ""}`.trim());
     }
 
-    const updated = { ...rec, [sentFlagKey]: true, [`${step}CourtesySentAt`]: new Date().toISOString() };
-    await client.query(
-      `update grievances set data = $2::jsonb, updated_at = now() where id = $1`,
-      [gid, JSON.stringify(updated)]
-    );
+    // Record "sent" by changing only our own keys on the CURRENT record, not
+    // by writing back the copy read before the send: a steward may have saved
+    // an edit, or the other step's notice may have finished, while the
+    // emails were going out.
+    const sentAtIso = new Date().toISOString();
+    const done = await updateGrievanceData(gid, (data) => {
+      const next = { ...data, [sentFlagKey]: true, [`${step}CourtesySentAt`]: sentAtIso };
+      delete next[claimKey];
+      return next;
+    });
+    const updated = done.data;
+    finished = true;
 
     const failedCount = sendResults.filter(r => !r.ok).length;
     return {
@@ -359,7 +429,21 @@ async function sendCourtesyNotice(gid, step) {
       failedTo: sendResults.filter(r => !r.ok).map(r => r.to),
       partialFailure: failedCount > 0
     };
-  });
+  } finally {
+    if (!finished) {
+      // Nothing went out, so let the steward try again.
+      try {
+        await updateGrievanceData(gid, (data) => {
+          if (data[claimKey] !== claimedAt) return null; // not ours any more
+          const released = { ...data };
+          delete released[claimKey];
+          return released;
+        });
+      } catch (releaseErr) {
+        console.error("[db] Failed to release courtesy-notice claim:", releaseErr.message);
+      }
+    }
+  }
 }
 
 async function logActivity(record) {
