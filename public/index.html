@@ -1762,15 +1762,10 @@ function currentStep(rec){
 }
 function isResolved(rec){ return TERMINAL_STATUSES.includes(rec.status); }
 function isOverdue(rec){
-  if(isResolved(rec)) return false;
-  // Once Step 3 is filed, this system no longer tracks its deadlines —
-  // it gets its own distinct "at Step 3" styling instead of red/overdue.
-  if(rec.step3filed) return false;
-  const d = deriveDeadlines(rec);
-  const t = today();
-  if(d.step1Due && !rec.step1resp && d.step1Due < t) return true;
-  if(d.step2AnswerDue && !rec.step2resp && d.step2AnswerDue < t) return true;
-  return false;
+  // Overdue means the next deadline has passed. That includes the union's own
+  // filing deadlines (missing one waives the grievance), not just management's.
+  const nd = nextDeadline(rec);
+  return !!nd && nd < today();
 }
 function nextDeadline(rec){
   if(isResolved(rec)) return null;
@@ -1779,8 +1774,9 @@ function nextDeadline(rec){
   if(rec.step3filed) return null;
   const d = deriveDeadlines(rec);
   const candidates = [];
-  // Management response deadlines
-  if(d.step1Due && !rec.step1resp) candidates.push(d.step1Due);
+  // Management response deadlines. Once Step 2 is filed the Step 1 response
+  // question is moot (the grievance advanced), so it stops counting.
+  if(d.step1Due && !rec.step1resp && !rec.step2filed) candidates.push(d.step1Due);
   if(d.step2AnswerDue && !rec.step2resp) candidates.push(d.step2AnswerDue);
   // Union filing deadlines (missing these waives the grievance)
   if(d.step2FilingDue && !rec.step2filed) candidates.push(d.step2FilingDue);

@@ -717,7 +717,9 @@ function nextDeadlineServer(rec, holidaySet) {
   if (rec.step3filed) return null;
   const d = deriveDeadlinesServer(rec, holidaySet);
   const candidates = [];
-  if (d.step1Due       && !rec.step1resp)  candidates.push({ date: d.step1Due,       label: "Step 1 response due" });
+  // Once Step 2 is filed the grievance has advanced, so the Step 1 response
+  // deadline no longer applies (it used to stay overdue forever).
+  if (d.step1Due       && !rec.step1resp && !rec.step2filed) candidates.push({ date: d.step1Due,       label: "Step 1 response due" });
   if (d.step2AnswerDue && !rec.step2resp)  candidates.push({ date: d.step2AnswerDue, label: "Step 2 answer due" });
   if (d.step2FilingDue && !rec.step2filed) candidates.push({ date: d.step2FilingDue, label: "Step 2 filing deadline" });
   if (d.step3FilingDue && !rec.step3filed) candidates.push({ date: d.step3FilingDue, label: "Step 3 filing deadline" });
