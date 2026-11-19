@@ -1256,7 +1256,11 @@ function toast(msg, type='ok'){
 
 async function apiGet(url){
   const res = await fetch(url || '/api/data');
-  if(!res.ok) throw new Error('Server returned ' + res.status);
+  if(!res.ok){
+    const err = new Error('Server returned ' + res.status);
+    err.status = res.status;
+    throw err;
+  }
   return res.json();
 }
 async function apiPost(url, body){
@@ -1303,6 +1307,7 @@ async function refresh(isBackgroundPoll){
     renderAll();
     renderSettingsCounts(isBackgroundPoll);
   }catch(err){
+    if(err && err.status === 401){ showLoginScreen(); return; }
     $('connBanner').innerHTML = `<div class="banner banner-red"><b>Connection problem.</b> ${escapeHtml(err.message)} — the server may be waking up, try again in a few seconds.</div>`;
   }
 }
@@ -1835,8 +1840,12 @@ function cbaRef(rec){
 
 // ── CSV export ──────────────────────────────────────────────────────────
 function csvCell(val){
-  const s = (val===null||val===undefined) ? '' : String(val);
-  return /[",\n]/.test(s) ? `"${s.replace(/"/g,'""')}"` : s;
+  let s = (val===null||val===undefined) ? '' : String(val);
+  // Excel and Sheets run a cell starting with = + - @ (or a tab/CR) as a
+  // formula, so a name like =HYPERLINK(...) could make a file do things when
+  // an admin opens the export. Prefix those so they stay plain text.
+  if(/^[=+\-@\t\r]/.test(s)) s = "'" + s;
+  return /[",\n\r]/.test(s) ? `"${s.replace(/"/g,'""')}"` : s;
 }
 function toCSV(rows, columns){
   const head = columns.map(c=>csvCell(c.header)).join(',');
@@ -2207,7 +2216,11 @@ $('logClearFiltersBtn').addEventListener('click', ()=>{
 });
 
 $('archiveClosedBtn').addEventListener('click', ()=>{
-  const eligible = STATE.grievances.filter(isResolved);
+  // The server skips resolved cases locked to someone else (unless admin), so
+  // count only what will actually be archived.
+  const archiverIsAdmin = !!(CURRENT_USER && (CURRENT_USER.role === 'admin' || !CURRENT_USER.username));
+  const eligible = STATE.grievances.filter(g =>
+    isResolved(g) && (archiverIsAdmin || !g.lockedTo || g.lockedTo === (CURRENT_USER && CURRENT_USER.username)));
   $('archiveModalBody').innerHTML = eligible.length
     ? `This will move <b>${eligible.length}</b> grievance(s) marked Settled, Granted, Denied, Withdrawn, or Partially Granted to the Archive tab.`
     : `No closed grievances to archive right now.`;
@@ -3692,9 +3705,12 @@ function renderInvestigationDetail(inv){
   const sub = inv.grievantSubmission;
   if(sub && sub.data){
     $('invGrievantSubmission').innerHTML = `<div style="font-size:13px;background:var(--green-soft);border-radius:8px;padding:10px;line-height:1.6;">
-      <b>&#10003; Statement received</b> (${sub.submittedAt?sub.submittedAt.slice(0,10):''})<br>
-      <span style="color:var(--grey);">From:</span> ${escapeHtml(sub.data.name||'')} &lt;${escapeHtml(sub.data.email||'')}&gt;<br>
-      <span style="color:var(--grey);">Incident:</span> ${escapeHtml(sub.data.incidentDate||'')} — ${escapeHtml(sub.data.description||'').slice(0,160)}${(sub.data.description||'').length>160?'…':''}
+      <b>&#10003; Statement received</b> (${sub.submittedAt?escapeHtml(sub.submittedAt.slice(0,10)):''})<br>
+      <span style="color:var(--grey);">From:</span> ${escapeHtml(sub.data.name||'')} &lt;${escapeHtml(sub.data.email||'')}&gt;${sub.data.phone?` &middot; <span style="color:var(--grey);">Phone:</span> ${escapeHtml(sub.data.phone)}`:''}<br>
+      <span style="color:var(--grey);">Incident date:</span> ${escapeHtml(sub.data.incidentDate||'')}
+      <div style="white-space:pre-wrap;margin-top:6px;">${escapeHtml(sub.data.description||'')}</div>
+      ${sub.data.witnesses?`<div style="margin-top:6px;"><span style="color:var(--grey);">Witnesses named:</span> ${escapeHtml(sub.data.witnesses)}</div>`:''}
+      ${sub.data.otherDetails?`<div style="white-space:pre-wrap;margin-top:6px;"><span style="color:var(--grey);">Other details:</span> ${escapeHtml(sub.data.otherDetails)}</div>`:''}
     </div>`;
     $('invSendGrievantBtn').style.display = 'none';
   } else {
@@ -4047,6 +4063,7 @@ async function attemptLogin(){
       return;
     }
     showMainApp(data.user);
+    startBackgroundPolling();
     await bootApp();
   }catch(err){
     errBox.textContent = 'Could not reach the server. Try again.';
@@ -4062,6 +4079,7 @@ $('loginUsername').addEventListener('keydown', e=>{ if(e.key==='Enter') $('login
 $('logoutBtn').addEventListener('click', async ()=>{
   await returnPendingPoolNumber();
   try{ await fetch('/api/auth/logout', { method:'POST' }); }catch(err){}
+  clearForm(); // don't leave a half-entered case on screen for the next person
   CURRENT_USER = null;
   $('loginUsername').value = '';
   $('loginPassword').value = '';
