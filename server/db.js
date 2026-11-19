@@ -169,8 +169,13 @@ async function submitGrievance(record) {
     target.remedy       = record.remedy       || "";
     target.status       = record.status       || "Pending";
 
+    // A date key that is present but blank means the steward cleared it, so
+    // clear it. A key that is absent means the caller didn't mention that
+    // date, so the stored value stays. (The intake form always sends every
+    // date field, so a cleared field really does arrive as blank.)
     for (const field of DATE_FIELDS) {
-      if (record[field]) target[field] = record[field];
+      if (!(field in record)) continue;
+      target[field] = record[field] || "";
     }
 
     target.createdAt = target.createdAt || record.createdAt || new Date().toISOString();
