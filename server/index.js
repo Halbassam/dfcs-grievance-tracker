@@ -928,7 +928,10 @@ Additional details: ${sub.otherDetails || ""}`;
       const body = await readBody(req);
       const number = String(body.number || "").trim();
       if (!number) return sendJson(res, 400, { error: "number is required." });
-      const result = await db.returnGrievanceNumber(number);
+      const result = await db.returnGrievanceNumber(number, {
+        username: currentUser.username,
+        isAdmin: isAdmin(currentUser)
+      });
       return sendJson(res, 200, result);
     }
 

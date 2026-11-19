@@ -822,7 +822,25 @@ async function destroySession(token) {
   return { ok: true };
 }
 
-function withLock(fn) { return Promise.resolve().then(fn); }
+/**
+ * A real mutual-exclusion lock: callers run strictly one at a time, in the
+ * order they asked. This used to just run `fn` immediately, so two requests
+ * doing a read-modify-write on the same app_meta JSON (the grievance number
+ * pool) both read the old value -- two stewards clicking "Assign next" at
+ * once were handed the same number, and one add/log write silently
+ * overwrote the other.
+ *
+ * It is per process. That is enough here because the app runs as a single
+ * instance; the unique-ID triggers on grievances/archive remain the
+ * database-level backstop if that ever changes.
+ */
+let lockTail = Promise.resolve();
+function withLock(fn) {
+  const run = lockTail.then(fn);
+  // A failing fn must not wedge everyone queued behind it.
+  lockTail = run.catch(() => {});
+  return run;
+}
 
 /**
  * Records one email log entry — used both for the daily steward
@@ -1251,7 +1269,7 @@ async function clearGrievanceNumberPool() {
  * Called when a steward clicks "Assign next" but then clears the form
  * or navigates away without saving the grievance.
  */
-async function returnGrievanceNumber(number) {
+async function returnGrievanceNumber(number, { username = "", isAdmin = false } = {}) {
   if (!number || typeof number !== "string") return { ok: false };
   return withLock(async () => {
     // Don't return if it's already in use in the DB (edge case: submitted on another tab)
@@ -1262,9 +1280,19 @@ async function returnGrievanceNumber(number) {
     if (liveRes.rows.length > 0 || archiveRes.rows.length > 0) {
       return { ok: false, reason: "already_used" };
     }
-    const { pool } = await getGrievanceNumberPool();
+    const { pool, log } = await getGrievanceNumberPool();
     // Avoid duplicates in the pool
     if (pool.includes(number)) return { ok: true, reason: "already_in_pool" };
+    // Only whoever currently holds a number (its most recent assignment) may
+    // put it back. Otherwise anyone could return a number another steward is
+    // in the middle of using, and it would be handed out a second time.
+    // Admins may return any number, e.g. to clean up after a lost session.
+    if (!isAdmin) {
+      const lastAssignment = [...log].reverse().find(e => e.number === number);
+      if (!lastAssignment || lastAssignment.assignedBy !== username) {
+        return { ok: false, reason: "not_yours" };
+      }
+    }
     const newPool = [number, ...pool]; // put it back at the front
     await query(
       `insert into app_meta (key, value) values ('grievanceNumberPool', $1)
