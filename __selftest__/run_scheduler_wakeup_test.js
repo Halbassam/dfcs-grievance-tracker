@@ -58,7 +58,7 @@ async function freshWorld({ withGrievances = true } = {}) {
     create table holidays (date text primary key, name text not null);
     create table email_log (row_id serial primary key, run_at timestamptz not null default now(), data jsonb not null default '{}');
     create table app_meta (key text primary key, value text);
-    create table users (username text primary key, display_name text not null, password_hash text not null, role text not null default 'steward', locations jsonb not null default '[]', created_at timestamptz not null default now());
+    create table users (username text primary key, display_name text not null, password_hash text not null, role text not null default 'steward', locations jsonb not null default '[]', email text not null default '', is_steward boolean not null default false, created_at timestamptz not null default now());
     create table activity (row_id serial primary key, gid text not null, data jsonb not null default '{}', created_at timestamptz not null default now());
     create table archive (id text primary key, status text, steward text, archived_at text, data jsonb not null default '{}', created_at timestamptz not null default now());
     create table setup_lists (key text primary key, items jsonb not null default '[]');

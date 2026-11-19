@@ -687,13 +687,6 @@ const server = http.createServer(async (req, res) => {
       return sendJson(res, 200, result);
     }
 
-    if (pathname === "/api/setup/stewards" && req.method === "POST") {
-      if (!isAdmin(currentUser)) return sendJson(res, 403, { error: "Only admins can manage the steward roster." });
-      const body = await readBody(req);
-      const result = await db.updateStewards(body.stewards, body.emails);
-      return sendJson(res, 200, result);
-    }
-
     if (pathname === "/api/setup/list" && req.method === "POST") {
       if (!isAdmin(currentUser)) return sendJson(res, 403, { error: "Only admins can edit dropdown lists." });
       const body = await readBody(req);

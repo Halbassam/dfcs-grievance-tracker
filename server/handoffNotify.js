@@ -4,10 +4,8 @@
  * Hand-off notifications.
  *
  * Emails the receiving steward when a grievance is handed off to
- * them. Login accounts don't carry an email address, so the address
- * is looked up from the steward list (Settings → Manage stewards)
- * by matching the account's display name to a steward name — the
- * same name match the Steward Workload view already relies on.
+ * them. The address is the email on their user record (Settings →
+ * Manage users).
  *
  * Best-effort: if email isn't configured or no address is on file,
  * nothing is sent and the hand-off itself is unaffected. Every
@@ -44,20 +42,8 @@ function buildHandoffEmailBody({ toName, fromName, gid, employee, localNo }) {
  * Returns "" when there is no match or no address.
  */
 async function findStewardEmail(user) {
-  const [names, emails] = await Promise.all([
-    db.getSetupList("Steward"),
-    db.getSetupList("StewardEmail")
-  ]);
-  const norm = s => String(s || "").trim().toLowerCase();
-  const wanted = [norm(user.displayName), norm(user.username)].filter(Boolean);
-  for (const w of wanted) {
-    const idx = (names || []).findIndex(n => norm(n) === w);
-    if (idx !== -1) {
-      const email = String((emails || [])[idx] || "").trim();
-      if (email.includes("@")) return email;
-    }
-  }
-  return "";
+  const email = String((user && user.email) || "").trim();
+  return email.includes("@") ? email : "";
 }
 
 /**
@@ -80,7 +66,7 @@ async function sendHandoffNotification({ gid, employee, toUser, fromUser }) {
   if (!to) {
     await db.logEmailAttempt({
       ...logBase, to: "", ok: false,
-      error: `No email on file for ${toName}. Add them (same name as their login display name) with an email in Manage stewards.`
+      error: `No email on file for ${toName}. Add an email address for them in Settings → Manage users.`
     }).catch(err => console.error("[handoff] Failed to write email log entry:", err.message));
     return { sent: false, reason: "no-email" };
   }

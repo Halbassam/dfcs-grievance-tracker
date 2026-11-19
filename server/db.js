@@ -31,7 +31,7 @@ async function getAll() {
     query("select data from grievances order by created_at asc"),
     query("select data from activity order by row_id asc"),
     query("select data from archive order by created_at asc"),
-    query("select username, display_name, role, locations, created_at from users"),
+    query("select username, display_name, role, locations, email, is_steward, created_at from users"),
     query("select date, name from holidays order by date asc"),
     query("select key, items from setup_lists"),
     query("select data from email_log order by row_id desc limit 60"),
@@ -41,12 +41,20 @@ async function getAll() {
 
   const setup = {};
   for (const row of setupRes.rows) setup[row.key] = row.items || [];
+  // The steward lists are read from the user records, so a person is only
+  // ever edited in one place.
+  const stewardRows = usersRes.rows.filter(r => r.is_steward)
+    .sort((a, b) => String(a.display_name).localeCompare(String(b.display_name)));
+  setup.Steward = stewardRows.map(r => r.display_name);
+  setup.StewardEmail = stewardRows.map(r => r.email || "");
 
   const users = usersRes.rows.map(r => ({
     username: r.username,
     displayName: r.display_name,
     role: r.role || "steward",
     locations: Array.isArray(r.locations) ? r.locations : [],
+    email: r.email || "",
+    isSteward: !!r.is_steward,
     createdAt: r.created_at instanceof Date ? r.created_at.toISOString() : r.created_at
     // NOTE: password_hash is deliberately NOT included here. This response
     // goes to every logged-in user regardless of role (unlike /api/users,
@@ -526,34 +534,6 @@ async function archiveClosed(allowedLocations, actorUsername) {
   });
 }
 
-async function updateStewards(stewards, emails) {
-  if (!Array.isArray(stewards) || !Array.isArray(emails))
-    throw new Error("Stewards and emails must both be arrays.");
-  if (stewards.length !== emails.length)
-    throw new Error("Steward names and emails must be the same length.");
-  // Pair each name with its own email BEFORE dropping blank names. Filtering
-  // the names alone shifted every later email up a row, so a blank row meant
-  // the stewards after it were given the wrong addresses. (The admin UI
-  // happens to skip blank rows in lockstep; this has to hold for any caller.)
-  const pairs = stewards
-    .map((s, i) => [String(s || "").trim(), String(emails[i] || "").trim()])
-    .filter(([name]) => name !== "");
-  const cleanStewards = pairs.map(([name]) => name);
-  const cleanEmails = pairs.map(([, email]) => email);
-  await withTransaction(async (client) => {
-    await client.query(
-      `insert into setup_lists (key, items) values ('Steward', $1::jsonb)
-       on conflict (key) do update set items = excluded.items`,
-      [JSON.stringify(cleanStewards)]
-    );
-    await client.query(
-      `insert into setup_lists (key, items) values ('StewardEmail', $1::jsonb)
-       on conflict (key) do update set items = excluded.items`,
-      [JSON.stringify(cleanEmails)]
-    );
-  });
-  return { ok: true, count: cleanStewards.length };
-}
 
 async function updateSetupList(key, items) {
   if (!SIMPLE_SETUP_KEYS.includes(key)) throw new Error(`Unknown setup list: ${key}`);
@@ -798,25 +778,29 @@ async function hasAnyUsers() {
 
 async function listUsersSafe() {
   const res = await query(
-    "select username, display_name, role, locations, created_at from users order by created_at asc"
+    "select username, display_name, role, locations, email, is_steward, created_at from users order by created_at asc"
   );
   return res.rows.map(r => ({
     username: r.username, displayName: r.display_name, role: r.role || "steward",
     locations: Array.isArray(r.locations) ? r.locations : [],
+    email: r.email || "",
+    isSteward: !!r.is_steward,
     createdAt: r.created_at instanceof Date ? r.created_at.toISOString() : r.created_at
   }));
 }
 
 const VALID_ROLES = ["admin", "steward_plus", "steward", "read_only"];
 
-async function upsertUser({ username, displayName, password, role, locations }) {
+async function upsertUser({ username, displayName, password, role, locations, email, isSteward }) {
   const uname = normalizeUsername(username);
   if (!uname) throw new Error("Username is required.");
   if (!displayName || !String(displayName).trim()) throw new Error("Display name is required.");
-  let requestedRole = role && VALID_ROLES.includes(role) ? role : null;
+  const requestedRole = role && VALID_ROLES.includes(role) ? role : null;
   const cleanLocations = Array.isArray(locations)
     ? [...new Set(locations.map(l => String(l || "").trim()).filter(l => l !== ""))]
     : null; // null means "not provided" -- leave existing value alone on update
+  const cleanEmail = email === undefined ? null : String(email || "").trim();
+  const stewardFlag = isSteward === undefined ? null : !!isSteward;
 
   return withTransaction(async (client) => {
     const existing = await client.query(
@@ -825,14 +809,18 @@ async function upsertUser({ username, displayName, password, role, locations }) 
     const isNew = existing.rows.length === 0;
 
     if (isNew) {
-      if (!password) throw new Error("A password is required for a new user.");
-      const passwordHash = hashPassword(password);
+      // A steward with no login is stored with an empty password hash, which
+      // verifyPassword never accepts.
+      if (!password && !stewardFlag) throw new Error("A password is required for a new user, unless they are a steward with no login.");
+      const passwordHash = password ? hashPassword(password) : "";
       const countRes = await client.query("select count(*)::int as n from users");
       const isFirstEver = countRes.rows[0].n === 0;
       const finalRole = isFirstEver ? "admin" : (requestedRole || "steward");
       await client.query(
-        `insert into users (username, display_name, password_hash, role, locations, created_at) values ($1,$2,$3,$4,$5::jsonb,now())`,
-        [uname, String(displayName).trim(), passwordHash, finalRole, JSON.stringify(cleanLocations || [])]
+        `insert into users (username, display_name, password_hash, role, locations, email, is_steward, created_at)
+         values ($1,$2,$3,$4,$5::jsonb,$6,$7,now())`,
+        [uname, String(displayName).trim(), passwordHash, finalRole,
+         JSON.stringify(cleanLocations || []), cleanEmail || "", !!stewardFlag]
       );
       return { ok: true, isNew, role: finalRole };
     }
@@ -846,26 +834,14 @@ async function upsertUser({ username, displayName, password, role, locations }) 
         throw new Error(`Can't change "${uname}" to steward — they're the only admin account left.`);
     }
 
-    if (password) {
-      const passwordHash = hashPassword(password);
-      await client.query(
-        cleanLocations === null
-          ? `update users set display_name=$2, password_hash=$3, role=$4 where username=$1`
-          : `update users set display_name=$2, password_hash=$3, role=$4, locations=$5::jsonb where username=$1`,
-        cleanLocations === null
-          ? [uname, String(displayName).trim(), passwordHash, finalRole]
-          : [uname, String(displayName).trim(), passwordHash, finalRole, JSON.stringify(cleanLocations)]
-      );
-    } else {
-      await client.query(
-        cleanLocations === null
-          ? `update users set display_name=$2, role=$3 where username=$1`
-          : `update users set display_name=$2, role=$3, locations=$4::jsonb where username=$1`,
-        cleanLocations === null
-          ? [uname, String(displayName).trim(), finalRole]
-          : [uname, String(displayName).trim(), finalRole, JSON.stringify(cleanLocations)]
-      );
-    }
+    // Only the fields the caller sent are changed; an omitted password keeps the current one.
+    const sets = ["display_name = $2", "role = $3"];
+    const params = [uname, String(displayName).trim(), finalRole];
+    if (password) { params.push(hashPassword(password)); sets.push(`password_hash = $${params.length}`); }
+    if (cleanLocations !== null) { params.push(JSON.stringify(cleanLocations)); sets.push(`locations = $${params.length}::jsonb`); }
+    if (cleanEmail !== null) { params.push(cleanEmail); sets.push(`email = $${params.length}`); }
+    if (stewardFlag !== null) { params.push(stewardFlag); sets.push(`is_steward = $${params.length}`); }
+    await client.query(`update users set ${sets.join(", ")} where username = $1`, params);
     return { ok: true, isNew, role: finalRole };
   });
 }
@@ -1586,7 +1562,7 @@ module.exports = {
   getAll, readRaw, writeRawAtomic, withLock, logEmailAttempt, pingKeepAlive,
   getEmailRunState, saveEmailRunState, getLastEmailRunDate, linkGrievanceToInvestigation, deleteOtherSessions, chicagoDateISO,
   submitGrievance, logActivity, archiveClosed, sendCourtesyNotice,
-  updateStewards, updateSetupList, getSetupList, updateHolidays, updateOrgSettings,
+  updateSetupList, getSetupList, updateHolidays, updateOrgSettings,
   getLocationDetails, updateLocationDetails, getOrgLocalNo,
   findUpcomingDeadlines, SIMPLE_SETUP_KEYS, getGrievanceLocationById, getGrievanceLock, handoffGrievance,
   hasAnyUsers, listUsersSafe, upsertUser, deleteUser,
