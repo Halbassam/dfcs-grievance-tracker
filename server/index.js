@@ -962,11 +962,11 @@ Additional details: ${sub.otherDetails || ""}`;
     /* Grievance Number Pool (admin-only management + any-steward consume) */
     /* ------------------------------------------------------------------ */
 
-    // GET  /api/grievance-pool        — pool status (remaining count + log)
+    // GET  /api/grievance-pool        — pool status (remaining count, unused numbers in assignment order, log)
     if (pathname === "/api/grievance-pool" && req.method === "GET") {
       // Any logged-in user may see the pool status and assignment log.
       const result = await db.getGrievanceNumberPool();
-      return sendJson(res, 200, { remaining: result.pool.length, log: result.log });
+      return sendJson(res, 200, { remaining: result.pool.length, numbers: result.pool, log: result.log });
     }
 
     // POST /api/grievance-pool/add    — any user adds a batch of numbers

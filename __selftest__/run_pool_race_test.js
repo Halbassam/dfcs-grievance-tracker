@@ -158,8 +158,14 @@ async function freshDb() {
     assert.strictEqual(bobTries.json.reason, 'not_yours');
     const aliceReturns = await request(port, 'POST', '/api/grievance-pool/return', { cookie: alice, body: { number: 'H-1' } });
     assert.strictEqual(aliceReturns.json.ok, true);
+
+    // The Settings panel lists the unused numbers, in the order they will be assigned.
+    const status = await request(port, 'GET', '/api/grievance-pool', { cookie: bob });
+    assert.strictEqual(status.status, 200);
+    assert.strictEqual(status.json.remaining, status.json.numbers.length, 'remaining must match the listed numbers');
+    assert.ok(status.json.numbers.includes('H-1'), 'the returned number must appear in the unused list');
     server.close();
-    console.log("✓ Over HTTP: bob can't return alice's number; alice can");
+    console.log("✓ Over HTTP: bob can't return alice's number; alice can; unused numbers are listed");
   }
 
   console.log('\nALL POOL RACE TESTS PASSED');

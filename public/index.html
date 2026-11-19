@@ -2892,6 +2892,16 @@ async function _renderPoolPanel(statusId, logId){
     } else {
       statusHtml = `<span style="color:var(--green-2,#27ae60);font-weight:600;">&#10003; ${remaining} number(s) available</span> — intake form will auto-assign.`;
     }
+    // Read-only list of the unused numbers, in the order they will be assigned.
+    const numbers = Array.isArray(data.numbers) ? data.numbers : [];
+    if(numbers.length){
+      statusHtml += `<details style="margin-top:10px;">
+        <summary style="cursor:pointer;color:var(--green-1);font-weight:600;">Show the ${numbers.length} unused number(s)</summary>
+        <div style="margin-top:8px;max-height:220px;overflow:auto;font-family:monospace;font-size:12.5px;line-height:1.7;background:#fff;border:1px solid var(--green-line);border-radius:6px;padding:8px 12px;">
+          ${numbers.map((n, i) => `<div>${i === 0 ? '<b>' : ''}${escapeHtml(n)}${i === 0 ? '</b> <span style="font-family:inherit;color:var(--grey);font-size:11.5px;">(next)</span>' : ''}</div>`).join('')}
+        </div>
+      </details>`;
+    }
     statusDiv.innerHTML = statusHtml;
     const logDiv = $(logId);
     if(!logDiv) return;
