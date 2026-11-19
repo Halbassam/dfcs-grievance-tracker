@@ -4014,15 +4014,15 @@ $('logoutBtn').addEventListener('click', async ()=>{
 });
 
 /* ---------- Inactivity sign-out: 30 minutes with no user input ---------- */
-// Only real input counts. Background refreshes do not, so an open but
-// unattended tab signs out. The server enforces the same limit (sessions
+// Only clicks, key presses, scrolling and touch count. Moving the mouse alone does
+// not, and neither do background refreshes, so an open but unattended tab signs out. The server enforces the same limit (sessions
 // expire 30 minutes after the last activity ping), so a closed or
 // unattended browser cannot keep a session alive.
 const IDLE_SIGNOUT_MS = 30 * 60 * 1000;
 const ACTIVITY_PING_MS = 60 * 1000;
 let _lastInputAt = Date.now();
 let _lastPingAt = 0;
-['pointerdown','pointermove','keydown','wheel','touchstart','scroll'].forEach(ev =>
+['pointerdown','keydown','wheel','touchstart','scroll'].forEach(ev =>
   document.addEventListener(ev, () => { _lastInputAt = Date.now(); }, { capture:true, passive:true }));
 
 async function pingActivityIfNeeded(){
