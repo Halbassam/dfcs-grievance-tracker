@@ -1059,16 +1059,26 @@ async function getAllInvestigations() {
   return res.rows.map(r => r.data);
 }
 
-async function updateInvestigation(id, patch) {
-  const res = await query("select data from investigations where id = $1", [id]);
-  if (!res.rows.length) throw new Error(`Investigation ${id} not found.`);
-  const current = res.rows[0].data;
-  const merged = Object.assign({}, current, patch, { id }); // id is immutable
-  await query(
-    "update investigations set data = $2::jsonb where id = $1",
-    [id, JSON.stringify(merged)]
-  );
-  return merged;
+/**
+ * Changes only the given fields of an investigation. It re-reads the record
+ * and writes only if nothing changed in between (compare-and-swap), retrying
+ * otherwise. A plain read-then-write here used to let a concurrent update
+ * (e.g. a grievant's submission arriving while a steward logs an entry) be
+ * silently overwritten by a copy read before it landed.
+ */
+async function updateInvestigation(id, patch, maxAttempts = 8) {
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    const res = await query("select data from investigations where id = $1", [id]);
+    if (!res.rows.length) throw new Error(`Investigation ${id} not found.`);
+    const current = res.rows[0].data;
+    const merged = Object.assign({}, current, patch, { id }); // id is immutable
+    const written = await query(
+      "update investigations set data = $3::jsonb where id = $1 and data = $2::jsonb returning id",
+      [id, JSON.stringify(current), JSON.stringify(merged)]
+    );
+    if (written.rows.length) return merged;
+  }
+  throw new Error(`Investigation ${id} is being changed by someone else. Please try again.`);
 }
 
 async function addInvestigationLogEntry(id, { date, steward, entry }) {
@@ -1212,19 +1222,28 @@ async function submitInvestigationForm(token, formData) {
   if (found.isUsed) throw new Error("This form has already been submitted.");
 
   const { tokenRow, investigation } = found;
-  const submittedAt = new Date().toISOString();
+  if (tokenRow.type !== "grievant") throw new Error("Unknown token type.");
 
-  await query(
-    "update investigation_tokens set submitted_at = now() where token = $1",
+  // Claim the link in one conditional write. Two people submitting at the same
+  // moment both passed the checks above; only the claim that actually lands may
+  // continue, so the second submission can no longer overwrite the first.
+  const claim = await query(
+    `update investigation_tokens set submitted_at = now()
+      where token = $1 and submitted_at is null and expires_at > now()
+      returning token`,
     [token]
   );
+  if (!claim.rows.length) throw new Error("This form has already been submitted.");
 
-  const submission = { submittedAt, data: formData };
-
-  if (tokenRow.type === "grievant") {
-    await updateInvestigation(investigation.id, { grievantSubmission: submission });
-  } else {
-    throw new Error("Unknown token type.");
+  try {
+    await updateInvestigation(investigation.id, {
+      grievantSubmission: { submittedAt: new Date().toISOString(), data: formData }
+    });
+  } catch (err) {
+    // The statement wasn't saved, so free the link for another attempt.
+    await query("update investigation_tokens set submitted_at = null where token = $1", [token])
+      .catch(releaseErr => console.error("[db] Failed to release form link:", releaseErr.message));
+    throw err;
   }
 
   return { ok: true };
