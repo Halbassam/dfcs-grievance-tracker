@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>FCRC Grievance Tracker — AFSCME Council 31</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Caveat:wght@400..700&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Caveat:wght@400..700&family=Inter:wght@400..700&display=swap">
 <style>
 :root{
   --ink:#0e2518;--green-1:#00421e;--green-2:#00662e;--green-3:#00853c;
@@ -14,7 +14,7 @@
   --amber:#b7791f;--amber-bg:#fdf3da;--red:#9c0006;--red-bg:#fdeceb;--grey:#6b7268;--ok-bg:#e7f9ef;
   --serif:'Source Serif Pro','Iowan Old Style',Georgia,serif;
   --sans:'Inter',-apple-system,BlinkMacSystemFont,sans-serif;
-  --mono:'IBM Plex Mono',monospace;--radius:3px;--shadow:0 1px 2px rgba(0,66,30,0.08);
+  --mono:'IBM Plex Mono',monospace;--radius:8px;--shadow:0 1px 2px rgba(14,37,24,0.06),0 4px 14px rgba(14,37,24,0.05);
 }
 *{box-sizing:border-box;}
 html,body{margin:0;padding:0;}
@@ -23,8 +23,8 @@ body{font-family:var(--sans);background:var(--paper);color:var(--ink);font-size:
 
 .topbar{background:var(--green-1);color:#fff;padding:0 24px;display:flex;align-items:center;justify-content:space-between;height:64px;border-bottom:3px solid var(--brand);position:sticky;top:0;z-index:100;box-shadow:0 2px 8px rgba(0,0,0,0.15);}
 .brand{display:flex;align-items:center;gap:14px;}
-.brand-mark{width:38px;height:38px;border-radius:50%;background:var(--brand);display:flex;align-items:center;justify-content:center;font-family:var(--serif);font-weight:700;font-size:17px;color:var(--ink);flex-shrink:0;border:2px solid rgba(255,255,255,0.25);}
-.brand-text h1{font-family:var(--serif);font-size:17px;margin:0;font-weight:600;}
+.brand-mark{width:38px;height:38px;border-radius:50%;background:var(--brand);display:flex;align-items:center;justify-content:center;font-family:var(--sans);font-weight:700;font-size:17px;color:var(--ink);flex-shrink:0;border:2px solid rgba(255,255,255,0.25);}
+.brand-text h1{font-family:var(--sans);font-size:17px;margin:0;font-weight:600;}
 .brand-text p{font-size:11px;margin:0;opacity:0.72;}
 .tabs{display:flex;gap:2px;flex-wrap:wrap;}
 .tab-btn{background:transparent;border:none;color:rgba(255,255,255,0.68);font-family:var(--sans);font-size:13.5px;font-weight:500;padding:10px 14px;cursor:pointer;border-radius:var(--radius);white-space:nowrap;display:flex;align-items:center;}
@@ -37,7 +37,7 @@ body{font-family:var(--sans);background:var(--paper);color:var(--ink);font-size:
 
 main{max-width:1280px;margin:0 auto;padding:28px 24px 80px;}
 .section-head{display:flex;align-items:baseline;justify-content:space-between;margin-bottom:22px;flex-wrap:wrap;gap:12px;}
-.section-head h2{font-family:var(--serif);font-size:26px;margin:0;color:var(--green-1);font-weight:600;}
+.section-head h2{font-family:var(--sans);font-size:26px;margin:0;color:var(--green-1);font-weight:600;}
 .section-head .sub{color:var(--grey);font-size:13px;margin-top:3px;}
 
 .btn{font-family:var(--sans);font-size:13.5px;font-weight:600;padding:10px 18px;border-radius:var(--radius);border:1.5px solid transparent;cursor:pointer;display:inline-flex;align-items:center;gap:7px;}
@@ -52,7 +52,7 @@ main{max-width:1280px;margin:0 auto;padding:28px 24px 80px;}
 .btn-lg{padding:13px 26px;font-size:14.5px;}
 .btn-tiny{padding:4px 10px;font-size:11.5px;border:1px solid var(--green-line);background:transparent;color:var(--green-2);border-radius:3px;cursor:pointer;}
 
-.panel{background:#fff;border:1px solid var(--green-line);border-radius:6px;box-shadow:var(--shadow);}
+.panel{background:#fff;border:1px solid var(--green-line);border-radius:10px;box-shadow:var(--shadow);}
 .panel-pad{padding:24px;}
 
 .form-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:18px 24px;}
@@ -62,22 +62,22 @@ main{max-width:1280px;margin:0 auto;padding:28px 24px 80px;}
 .field label{font-size:12.5px;font-weight:600;color:var(--green-1);display:flex;align-items:center;gap:6px;}
 .field label .req{color:var(--red);}
 .field label .hint-icon{color:var(--grey);cursor:help;font-size:11px;border:1px solid var(--grey);border-radius:50%;width:14px;height:14px;display:inline-flex;align-items:center;justify-content:center;}
-input[type=text],input[type=date],select,textarea{font-family:var(--sans);font-size:14px;padding:9px 11px;border:1.5px solid #d8d5c8;border-radius:var(--radius);background:#fff;color:var(--ink);width:100%;}
+input[type=text],input[type=date],select,textarea{font-family:var(--sans);font-size:14px;padding:9px 12px;border:1px solid #cdd8d0;border-radius:var(--radius);background:#fff;color:var(--ink);width:100%;min-height:40px;transition:border-color .15s,box-shadow .15s;}
 input:focus,select:focus,textarea:focus{outline:none;border-color:var(--brand);box-shadow:0 0 0 3px rgba(0,169,79,0.18);}
 textarea{resize:vertical;min-height:64px;}
 .readonly-box{background:var(--green-soft);border:1.5px solid var(--green-line);color:var(--green-1);font-weight:600;font-size:13.5px;padding:9px 11px;border-radius:var(--radius);}
 .field-note{font-size:11.5px;color:var(--grey);margin-top:2px;}
 .section-divider{grid-column:1/-1;display:flex;align-items:center;gap:10px;margin:8px 0 4px;}
-.section-divider .label{font-family:var(--serif);font-size:13px;font-weight:600;color:var(--green-2);white-space:nowrap;}
+.section-divider .label{font-family:var(--sans);font-size:13px;font-weight:600;color:var(--green-2);white-space:nowrap;}
 .section-divider .line{flex:1;height:1px;background:var(--green-line);}
 .notice-box{grid-column:1/-1;padding:10px 14px;border-radius:var(--radius);font-size:12.5px;display:flex;gap:8px;border-left:3px solid;}
 .notice-amber{background:var(--amber-bg);border-color:var(--amber);color:#6b4d10;}
-.deadline-grid{grid-column:1/-1;display:grid;grid-template-columns:repeat(2,1fr);gap:10px 18px;background:var(--green-soft);border:1px solid var(--green-line);border-radius:6px;padding:16px;margin-top:4px;}
+.deadline-grid{grid-column:1/-1;display:grid;grid-template-columns:repeat(2,1fr);gap:10px 18px;background:var(--green-soft);border:1px solid var(--green-line);border-radius:10px;padding:16px;margin-top:4px;}
 @media (max-width:760px){.deadline-grid{grid-template-columns:1fr;}}
 .deadline-item{display:flex;flex-direction:column;gap:2px;}
 .deadline-item .dl-label{font-size:11.5px;color:var(--green-2);font-weight:600;}
 .deadline-item .dl-value{font-family:var(--mono);font-size:13.5px;color:var(--green-1);font-weight:600;}
-.status-banner{grid-column:1/-1;padding:12px 16px;border-radius:6px;font-weight:600;font-size:13.5px;border:1.5px solid;}
+.status-banner{grid-column:1/-1;padding:12px 16px;border-radius:10px;font-weight:600;font-size:13.5px;border:1.5px solid;}
 .status-open{background:var(--ok-bg);border-color:#9bd4b5;color:var(--green-1);}
 .status-closed{background:var(--red-bg);border-color:#e3a8a5;color:var(--red);}
 .status-wait{background:var(--paper-2);border-color:#d8d5c8;color:var(--grey);}
@@ -85,8 +85,8 @@ textarea{resize:vertical;min-height:64px;}
 
 .kpi-row{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:22px;}
 @media (max-width:880px){.kpi-row{grid-template-columns:repeat(2,1fr);}}
-.kpi{background:#fff;border:1px solid var(--green-line);border-radius:6px;padding:16px 18px;box-shadow:var(--shadow);}
-.kpi .num{font-family:var(--serif);font-size:30px;font-weight:700;color:var(--green-1);line-height:1;}
+.kpi{background:#fff;border:1px solid var(--green-line);border-radius:10px;padding:16px 18px;box-shadow:var(--shadow);}
+.kpi .num{font-family:var(--sans);font-size:30px;font-weight:700;color:var(--green-1);line-height:1;}
 .kpi .lbl{font-size:12px;color:var(--grey);margin-top:4px;}
 .kpi.red .num{color:var(--red);}
 .kpi.amber .num{color:var(--amber);}
@@ -94,11 +94,11 @@ textarea{resize:vertical;min-height:64px;}
 .legend span{display:inline-flex;align-items:center;gap:6px;}
 .dot{width:9px;height:9px;border-radius:50%;display:inline-block;}
 
-.table-wrap{overflow-x:auto;border:1px solid var(--green-line);border-radius:6px;background:#fff;}
+.table-wrap{overflow-x:auto;border:1px solid var(--green-line);border-radius:10px;background:#fff;}
 table{width:100%;border-collapse:collapse;font-size:13px;}
-thead th{background:var(--green-1);color:#fff;text-align:left;padding:10px 12px;font-weight:600;font-size:11.5px;white-space:nowrap;}
+thead th{background:#f6f9f7;color:var(--grey);text-align:left;padding:11px 12px;font-weight:600;font-size:11.5px;letter-spacing:.02em;white-space:nowrap;border-bottom:1.5px solid var(--green-line);}
 tbody td{padding:10px 12px;border-bottom:1px solid #ece9dd;white-space:nowrap;}
-tbody tr:hover{background:var(--paper-2);}
+tbody tr:hover{background:#f7fbf8;}
 tbody tr.row-red{background:var(--red-bg);}
 tbody tr.row-amber{background:#fff3b0;}
 tbody tr.row-green{background:var(--ok-bg);}
@@ -111,7 +111,7 @@ tbody tr.row-blue a.row-link{color:#fff;text-decoration:underline;}
 .pill-arb{background:#f3e8fb;color:#5b2a86;}
 .empty-state{text-align:center;padding:60px 24px;color:var(--grey);}
 .empty-state .icon{font-size:36px;margin-bottom:10px;opacity:0.4;}
-.empty-state h3{font-family:var(--serif);color:var(--ink);margin:0 0 6px;}
+.empty-state h3{font-family:var(--sans);color:var(--ink);margin:0 0 6px;}
 .row-link{color:var(--green-2);font-weight:600;cursor:pointer;text-decoration:none;}
 .row-link:hover{text-decoration:underline;}
 
@@ -125,11 +125,11 @@ tbody tr.row-blue a.row-link{color:#fff;text-decoration:underline;}
 .followup-flag{background:var(--amber-bg);color:var(--amber);font-size:11px;font-weight:700;padding:3px 8px;border-radius:10px;white-space:nowrap;}
 
 .steward-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:16px;margin-bottom:24px;}
-.steward-card{background:#fff;border:1px solid var(--green-line);border-radius:6px;padding:18px;box-shadow:var(--shadow);}
+.steward-card{background:#fff;border:1px solid var(--green-line);border-radius:10px;padding:18px;box-shadow:var(--shadow);}
 .steward-card.has-overdue{border-color:#e3a8a5;background:linear-gradient(180deg,var(--red-bg),#fff 60%);}
-.steward-card .s-name{font-family:var(--serif);font-weight:600;font-size:16px;}
+.steward-card .s-name{font-family:var(--sans);font-weight:600;font-size:16px;}
 .steward-card .s-stats{display:flex;gap:14px;margin-top:10px;flex-wrap:wrap;}
-.steward-card .s-stat b{font-size:18px;color:var(--green-1);font-family:var(--serif);display:block;}
+.steward-card .s-stat b{font-size:18px;color:var(--green-1);font-family:var(--sans);display:block;}
 .steward-card .s-stat span{font-size:10.5px;color:var(--grey);text-transform:uppercase;}
 .s-alert{margin-top:12px;font-size:11.5px;font-weight:700;padding:5px 10px;border-radius:4px;display:inline-block;}
 .alert-overdue{background:var(--red);color:#fff;}
@@ -142,16 +142,16 @@ tbody tr.row-blue a.row-link{color:#fff;text-decoration:underline;}
 .modal-overlay.show{display:flex;}
 .modal{background:#fff;border-radius:8px;max-width:560px;width:100%;box-shadow:0 20px 50px rgba(0,0,0,0.25);overflow:hidden;}
 .modal-head{background:var(--green-1);color:#fff;padding:18px 22px;display:flex;align-items:center;gap:10px;}
-.modal-head h3{font-family:var(--serif);margin:0;font-size:17px;}
+.modal-head h3{font-family:var(--sans);margin:0;font-size:17px;}
 .modal-body{padding:20px 22px;font-size:14px;line-height:1.6;max-height:60vh;overflow-y:auto;}
 .modal-foot{padding:14px 22px 20px;display:flex;justify-content:flex-end;gap:10px;}
 .modal.modal-amber .modal-head{background:#92620f;}
 
 .toast-stack{position:fixed;bottom:24px;right:24px;z-index:300;display:flex;flex-direction:column;gap:10px;align-items:flex-end;}
-.toast{background:var(--green-1);color:#fff;padding:13px 18px;border-radius:6px;font-size:13.5px;font-weight:500;box-shadow:0 6px 20px rgba(0,0,0,0.25);max-width:340px;}
+.toast{background:var(--green-1);color:#fff;padding:13px 18px;border-radius:10px;font-size:13.5px;font-weight:500;box-shadow:0 6px 20px rgba(0,0,0,0.25);max-width:340px;}
 .toast.err{background:var(--red);}
 
-.banner{padding:10px 16px;border-radius:6px;font-size:13px;margin-bottom:18px;}
+.banner{padding:10px 16px;border-radius:10px;font-size:13px;margin-bottom:18px;}
 .banner-red{background:var(--red-bg);border:1px solid #e3a8a5;color:var(--red);}
 .banner-amber{background:var(--amber-bg);border:1px solid var(--amber);color:#6b4d10;}
 .banner a{color:var(--green-2);font-weight:600;cursor:pointer;}
@@ -209,7 +209,7 @@ footer.app-foot{text-align:center;color:var(--grey);font-size:11.5px;padding:30p
 #wizardHighlight{
   position:absolute;
   box-shadow:0 0 0 9999px rgba(0,0,0,.55);
-  border-radius:6px;
+  border-radius:10px;
   border:2px solid var(--green-1);
   pointer-events:none;
   transition:all .3s ease;
@@ -227,7 +227,7 @@ footer.app-foot{text-align:center;color:var(--grey);font-size:11.5px;padding:30p
   z-index:9010;
   transition:all .3s ease;
 }
-#wizardCard h4{margin:0 0 8px;font-family:var(--serif);color:var(--green-1);font-size:15px;}
+#wizardCard h4{margin:0 0 8px;font-family:var(--sans);color:var(--green-1);font-size:15px;}
 #wizardCard p{margin:0 0 14px;font-size:13px;line-height:1.6;color:var(--ink);}
 #wizardCard .wiz-progress{font-size:11px;color:var(--grey);margin-bottom:10px;}
 #wizardCard .wiz-btns{display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap;}
@@ -237,7 +237,7 @@ footer.app-foot{text-align:center;color:var(--grey);font-size:11.5px;padding:30p
 .wiz-launch-btn{
   display:inline-flex;align-items:center;gap:7px;
   background:var(--green-1);color:#fff;
-  border:none;border-radius:6px;
+  border:none;border-radius:10px;
   padding:9px 18px;font-size:13px;font-weight:600;cursor:pointer;
   margin-bottom:18px;
 }
@@ -248,6 +248,11 @@ footer.app-foot{text-align:center;color:var(--grey);font-size:11.5px;padding:30p
 .view-bar button{background:var(--paper-2);border:1px solid var(--green-line);color:var(--green-1);font-family:var(--sans);font-size:13px;font-weight:600;padding:6px 14px;border-radius:999px;cursor:pointer;}
 .view-bar button:hover{border-color:var(--green-1);}
 .view-bar button.active{background:var(--green-1);color:#fff;border-color:var(--green-1);}
+/* Line icons (replace the emoji icons) */
+.ico{width:1.1em;height:1.1em;vertical-align:-0.18em;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0;display:inline-block;}
+.empty-state .icon .ico{width:34px;height:34px;color:var(--green-3);}
+select{appearance:none;-webkit-appearance:none;background-color:#fff;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1.5l5 5 5-5' fill='none' stroke='%23587062' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 11px center;padding-right:32px;}
+h1,h2,h3{letter-spacing:-0.012em;}
 </style>
 </head>
 <body>
@@ -255,8 +260,8 @@ footer.app-foot{text-align:center;color:var(--grey);font-size:11.5px;padding:30p
 <div id="loginScreen" class="hidden" style="position:fixed;inset:0;background:var(--paper);display:flex;align-items:center;justify-content:center;z-index:500;padding:20px;">
   <div style="max-width:380px;width:100%;background:#fff;border:1px solid var(--green-line);border-radius:8px;box-shadow:0 8px 30px rgba(0,0,0,0.12);padding:32px;">
     <div style="text-align:center;margin-bottom:24px;">
-      <div style="width:52px;height:52px;border-radius:50%;background:var(--brand);display:inline-flex;align-items:center;justify-content:center;font-family:var(--serif);font-weight:700;font-size:22px;color:var(--ink);margin-bottom:12px;">31</div>
-      <h2 style="font-family:var(--serif);color:var(--green-1);margin:0;font-size:20px;">FCRC Grievance Tracker</h2>
+      <div style="width:52px;height:52px;border-radius:50%;background:var(--brand);display:inline-flex;align-items:center;justify-content:center;font-family:var(--sans);font-weight:700;font-size:22px;color:var(--ink);margin-bottom:12px;">31</div>
+      <h2 style="font-family:var(--sans);color:var(--green-1);margin:0;font-size:20px;">FCRC Grievance Tracker</h2>
       <p style="color:var(--grey);font-size:12.5px;margin:4px 0 0;">AFSCME Council 31 &middot; Sign in to continue</p>
       <p style="font-weight:700;font-size:1.05em;color:var(--green-1);margin:10px 0 0;">Developed by Hazem Albassam</p>
     </div>
@@ -288,7 +293,7 @@ footer.app-foot{text-align:center;color:var(--grey);font-size:11.5px;padding:30p
     <button class="tab-btn" data-tab="investigations" id="investigationsTabBtn">Investigations</button>
     <button class="tab-btn" data-tab="reports" id="reportsTabBtn">Reports</button>
     <button class="tab-btn" data-tab="settings">Settings</button>
-    <button class="tab-btn" data-tab="help" title="Help">&#10067;</button>
+    <button class="tab-btn" data-tab="help" title="Help"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M9.1 9a3 3 0 0 1 5.8 1c0 2-3 3-3 3"/><path d="M12 17h.01"/></svg></button>
     <span id="currentUserBadge" class="hidden" style="display:flex;align-items:center;gap:10px;padding:10px 14px;color:rgba(255,255,255,0.85);font-size:12.5px;white-space:nowrap;">
       <span id="currentUserName"></span>
       <span id="locationScopeBadge" class="hidden" style="background:rgba(255,255,255,0.12);padding:3px 9px;border-radius:10px;font-size:11px;"></span>
@@ -326,7 +331,7 @@ footer.app-foot{text-align:center;color:var(--grey);font-size:11.5px;padding:30p
             </div>
           </div>
           <div class="field">
-            <label for="f-name">Employee name <span class="req">*</span><span id="nameLockNote" style="display:none;font-weight:400;font-size:11.5px;color:var(--grey);margin-left:6px;">&#128274; locked after filing</span></label>
+            <label for="f-name">Employee name <span class="req">*</span><span id="nameLockNote" style="display:none;font-weight:400;font-size:11.5px;color:var(--grey);margin-left:6px;"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg> locked after filing</span></label>
             <input type="text" id="f-name" placeholder="Full name">
           </div>
           <div class="field"><label for="f-grievant-email">Grievant email <span style="font-weight:400;color:var(--grey);">(optional &mdash; for progress updates)</span></label><input type="text" id="f-grievant-email" placeholder="employee@illinois.gov (or several, comma-separated, for group grievances)"></div>
@@ -381,7 +386,7 @@ footer.app-foot{text-align:center;color:var(--grey);font-size:11.5px;padding:30p
           <!-- Lock banner: shown when the loaded grievance is locked to someone else -->
           <div id="lockBanner" style="display:none;grid-column:1/-1;">
             <div class="notice-box notice-amber" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
-              <span style="font-size:16px;">&#128274;</span>
+              <span style="font-size:16px;"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg></span>
               <span style="flex:1;font-size:13px;">This grievance is locked to <b id="lockOwnerName"></b>. You can view it but cannot save changes.</span>
               <button type="button" class="btn btn-secondary" id="handoffBtn" style="display:none;font-size:12.5px;padding:5px 12px;">Hand off to me</button>
             </div>
@@ -391,7 +396,7 @@ footer.app-foot{text-align:center;color:var(--grey);font-size:11.5px;padding:30p
           <div id="editHistoryWrap" style="display:none;grid-column:1/-1;margin-top:4px;">
             <details>
               <summary style="cursor:pointer;font-size:12.5px;color:var(--grey);user-select:none;padding:4px 0;">
-                &#128221; Edit history
+                <svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M14 3v6h6"/><path d="M8 13h8M8 17h5"/></svg> Edit history
               </summary>
               <div id="editHistoryList" style="margin-top:8px;font-size:12px;color:var(--grey);line-height:1.7;padding-left:4px;"></div>
             </details>
@@ -423,8 +428,8 @@ footer.app-foot{text-align:center;color:var(--grey);font-size:11.5px;padding:30p
     <div class="section-head">
       <div><h2>Grievance Log</h2><div class="sub">Complete master ledger</div></div>
       <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;">
-        <input type="text" id="logSearchInput" placeholder="Search by employee, ID, steward, or description&hellip;" style="padding:8px 12px;border:1px solid var(--green-line);border-radius:6px;font-family:inherit;font-size:13.5px;min-width:240px;">
-        <select id="logLevelFilter" style="width:auto;flex:1 1 170px;padding:8px 12px;border:1px solid var(--green-line);border-radius:6px;font-family:inherit;font-size:13.5px;">
+        <input type="text" id="logSearchInput" placeholder="Search by employee, ID, steward, or description&hellip;" style="padding:8px 12px;border:1px solid var(--green-line);border-radius:10px;font-family:inherit;font-size:13.5px;min-width:240px;">
+        <select id="logLevelFilter" style="width:auto;flex:1 1 170px;padding:8px 12px;border:1px solid var(--green-line);border-radius:10px;font-family:inherit;font-size:13.5px;">
           <option value="">All levels</option>
           <option value="Intake">Intake</option>
           <option value="Step 1 — Immediate Supervisor">Step 1</option>
@@ -432,14 +437,14 @@ footer.app-foot{text-align:center;color:var(--grey);font-size:11.5px;padding:30p
           <option value="Step 3 — Agency Head">Step 3</option>
           <option value="Step 4 / Arbitration">Step 4 / Arbitration</option>
         </select>
-        <select id="logStatusFilter" style="width:auto;flex:1 1 170px;padding:8px 12px;border:1px solid var(--green-line);border-radius:6px;font-family:inherit;font-size:13.5px;">
+        <select id="logStatusFilter" style="width:auto;flex:1 1 170px;padding:8px 12px;border:1px solid var(--green-line);border-radius:10px;font-family:inherit;font-size:13.5px;">
           <option value="">All statuses</option>
         </select>
         <label style="display:flex;align-items:center;gap:6px;font-size:12.5px;color:var(--grey);margin:0;white-space:nowrap;">Filed from
-          <input type="date" id="logDateFrom" style="width:auto;padding:7px 8px;border:1px solid var(--green-line);border-radius:6px;font-family:inherit;font-size:13px;">
+          <input type="date" id="logDateFrom" style="width:auto;padding:7px 8px;border:1px solid var(--green-line);border-radius:10px;font-family:inherit;font-size:13px;">
         </label>
         <label style="display:flex;align-items:center;gap:6px;font-size:12.5px;color:var(--grey);margin:0;white-space:nowrap;">to
-          <input type="date" id="logDateTo" style="width:auto;padding:7px 8px;border:1px solid var(--green-line);border-radius:6px;font-family:inherit;font-size:13px;">
+          <input type="date" id="logDateTo" style="width:auto;padding:7px 8px;border:1px solid var(--green-line);border-radius:10px;font-family:inherit;font-size:13px;">
         </label>
         <button class="btn btn-ghost" id="logClearFiltersBtn" style="display:none;">Clear filters</button>
         <button class="btn btn-secondary" id="logExportCsvBtn">Export CSV</button>
@@ -479,7 +484,7 @@ footer.app-foot{text-align:center;color:var(--grey);font-size:11.5px;padding:30p
         <div class="panel panel-pad" style="margin-bottom:12px;">
           <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:10px;margin-bottom:12px;">
             <div>
-              <div id="invDetailId" style="font-family:var(--serif);font-size:19px;font-weight:700;color:var(--green-1);"></div>
+              <div id="invDetailId" style="font-family:var(--sans);font-size:19px;font-weight:700;color:var(--green-1);"></div>
               <div id="invDetailStatus" style="font-size:12.5px;margin-top:3px;"></div>
             </div>
             <div style="display:flex;gap:8px;flex-wrap:wrap;" id="invDetailActions"></div>
@@ -489,7 +494,7 @@ footer.app-foot{text-align:center;color:var(--grey);font-size:11.5px;padding:30p
 
         <!-- Grievant intake link -->
         <div class="panel panel-pad" style="margin-bottom:12px;" id="invGrievantCard">
-          <div style="font-weight:600;font-size:14px;color:var(--green-1);margin-bottom:8px;">&#128222; Grievant intake form</div>
+          <div style="font-weight:600;font-size:14px;color:var(--green-1);margin-bottom:8px;"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1 1 .4 1.9.7 2.8a2 2 0 0 1-.5 2.1L8 9.9a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.4c.9.3 1.8.6 2.8.7a2 2 0 0 1 1.7 2z"/></svg> Grievant intake form</div>
           <div id="invGrievantSubmission" style="margin-bottom:10px;"></div>
           <button class="btn btn-secondary" id="invSendGrievantBtn" style="width:auto;padding:7px 14px;font-size:13px;">Generate &amp; copy grievant link</button>
           <div id="invGrievantLinkBox" style="display:none;margin-top:8px;"></div>
@@ -497,7 +502,7 @@ footer.app-foot{text-align:center;color:var(--grey);font-size:11.5px;padding:30p
 
         <!-- Logbook -->
         <div class="panel panel-pad" style="margin-bottom:12px;">
-          <div style="font-weight:600;font-size:14px;color:var(--green-1);margin-bottom:10px;">&#128218; Steward logbook</div>
+          <div style="font-weight:600;font-size:14px;color:var(--green-1);margin-bottom:10px;"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20V3H6.5A2.5 2.5 0 0 0 4 5.5z"/><path d="M4 19.5A2.5 2.5 0 0 0 6.5 22H20v-5"/></svg> Steward logbook</div>
           <div id="invLogbookEntries" style="margin-bottom:12px;max-height:240px;overflow-y:auto;display:flex;flex-direction:column;gap:10px;"></div>
           <div style="display:flex;gap:8px;align-items:flex-end;" id="invLogbookForm">
             <div class="field" style="margin:0;flex:1;"><textarea id="invLogEntryText" placeholder="Log a note, observation, or next step…" style="min-height:56px;"></textarea></div>
@@ -507,11 +512,11 @@ footer.app-foot{text-align:center;color:var(--grey);font-size:11.5px;padding:30p
 
         <!-- AI draft bot (for bot-enabled users) -->
         <div class="panel panel-pad" id="invBotPanel" style="margin-bottom:12px;display:none;">
-          <div style="font-weight:600;font-size:14px;color:var(--green-1);margin-bottom:8px;">&#129302; Draft a Grievance from this investigation</div>
+          <div style="font-weight:600;font-size:14px;color:var(--green-1);margin-bottom:8px;"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="8" width="16" height="12" rx="2"/><path d="M12 4v4M9 13h.01M15 13h.01"/></svg> Draft a Grievance from this investigation</div>
           <div class="notice-box notice-amber" style="margin-bottom:12px;">The bot will use the investigation facts it has — the employee's statement and your logbook — as context. Witness statements can't be recorded in the app yet, so they aren't included. Verify citations before filing.</div>
           <div id="invBotThread" style="display:flex;flex-direction:column;gap:10px;max-height:40vh;overflow-y:auto;margin-bottom:10px;"></div>
           <div id="invBotDraftCard" class="hidden" style="border:1.5px solid var(--green-line);border-radius:var(--radius);background:var(--green-soft);padding:12px;margin-bottom:10px;">
-            <div style="font-family:var(--serif);color:var(--green-1);font-weight:600;margin-bottom:6px;">Draft</div>
+            <div style="font-family:var(--sans);color:var(--green-1);font-weight:600;margin-bottom:6px;">Draft</div>
             <div id="invBotDraftSummary" style="font-size:13px;line-height:1.55;white-space:pre-wrap;"></div>
             <textarea id="invBotDocText" readonly style="width:100%;margin-top:8px;min-height:140px;font-family:var(--mono);font-size:12px;line-height:1.55;"></textarea>
             <button class="btn btn-secondary" id="invBotCopyBtn" style="margin-top:6px;width:auto;padding:7px 14px;font-size:13px;">Copy as document</button>
@@ -529,7 +534,7 @@ footer.app-foot{text-align:center;color:var(--grey);font-size:11.5px;padding:30p
 
       <!-- Empty state when no investigation selected -->
       <div id="investigationEmptyState" style="padding:40px;text-align:center;color:var(--grey);">
-        <div style="font-size:40px;margin-bottom:12px;">&#128269;</div>
+        <div style="font-size:40px;margin-bottom:12px;"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg></div>
         <div style="font-size:14px;">Select an investigation from the list to view details, or start a new one.</div>
       </div>
     </div>
@@ -597,7 +602,7 @@ footer.app-foot{text-align:center;color:var(--grey);font-size:11.5px;padding:30p
       <div class="notice-box notice-amber" style="margin-bottom:16px;">&#9888;&#65039; <span>This is a drafting aid, not legal advice. Double-check every fact, date, and contract citation before filing, and loop in your local grievance chair on anything unusual or high-stakes.</span></div>
       <div id="draftbotThread" style="display:flex;flex-direction:column;gap:14px;max-height:52vh;overflow-y:auto;padding:4px 2px;margin-bottom:14px;"></div>
       <div id="draftbotDraftCard" class="hidden" style="border:1.5px solid var(--green-line);border-radius:var(--radius);background:var(--green-soft);padding:14px;margin-bottom:14px;">
-        <div style="font-family:var(--serif);color:var(--green-1);font-weight:600;margin-bottom:6px;">Latest draft</div>
+        <div style="font-family:var(--sans);color:var(--green-1);font-weight:600;margin-bottom:6px;">Latest draft</div>
         <div id="draftbotDraftSummary" style="font-size:13.5px;line-height:1.6;"></div>
         <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:10px;">
           <button class="btn btn-primary" id="useDraftBtn">Use this draft in the Intake Form</button>
@@ -621,16 +626,16 @@ footer.app-foot{text-align:center;color:var(--grey);font-size:11.5px;padding:30p
     <div class="steward-grid" id="stewardGrid"></div>
     <div class="breakdown-grid">
       
-      <div><h3 style="font-family:var(--serif);color:var(--green-1);font-size:15px;margin-bottom:10px;" id="workloadLocationHeading">By location</h3><div class="table-wrap"><table><thead><tr><th>Location</th><th>Active</th><th>Overdue</th></tr></thead><tbody id="locationBody"></tbody></table></div></div>
+      <div><h3 style="font-family:var(--sans);color:var(--green-1);font-size:15px;margin-bottom:10px;" id="workloadLocationHeading">By location</h3><div class="table-wrap"><table><thead><tr><th>Location</th><th>Active</th><th>Overdue</th></tr></thead><tbody id="locationBody"></tbody></table></div></div>
     </div>
   </div><div class="view hidden" id="tab-audit">
     <div class="section-head">
-      <div><h2>&#128065; Audit Log</h2><div class="sub">Login events, tab navigation, and record access — admin view only</div></div>
+      <div><h2><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg> Audit Log</h2><div class="sub">Login events, tab navigation, and record access — admin view only</div></div>
       <div style="display:flex;gap:8px;align-items:center;">
-        <select id="auditUserFilter" style="font-size:13px;padding:5px 10px;border:1.5px solid var(--green-line);border-radius:6px;background:var(--paper);color:var(--ink);">
+        <select id="auditUserFilter" style="font-size:13px;padding:5px 10px;border:1.5px solid var(--green-line);border-radius:10px;background:var(--paper);color:var(--ink);">
           <option value="">All users</option>
         </select>
-        <select id="auditActionFilter" style="font-size:13px;padding:5px 10px;border:1.5px solid var(--green-line);border-radius:6px;background:var(--paper);color:var(--ink);">
+        <select id="auditActionFilter" style="font-size:13px;padding:5px 10px;border:1.5px solid var(--green-line);border-radius:10px;background:var(--paper);color:var(--ink);">
           <option value="">All activity</option>
           <option value="login,session,logout">Logins only</option>
           <option value="tab">Tab clicks only</option>
@@ -661,7 +666,7 @@ footer.app-foot{text-align:center;color:var(--grey);font-size:11.5px;padding:30p
     <div class="section-head"><div><h2>Settings</h2><div class="sub">User accounts, holiday list, FCRC locations, and deadline email reminders</div></div></div>
 
         <div class="panel panel-pad" style="margin-bottom:24px;" id="orgSettingsPanel">
-      <h3 style="font-family:var(--serif);color:var(--green-1);margin:0 0 6px;font-size:17px;">Local chapter info</h3>
+      <h3 style="font-family:var(--sans);color:var(--green-1);margin:0 0 6px;font-size:17px;">Local chapter info</h3>
       <p style="font-size:13px;color:var(--grey);margin:6px 0 16px;">Select a location to auto-fill its bureau and management email — then hit Save. Each location remembers its own bureau and email, so you can configure each office by selecting it here in turn.</p>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px 14px;margin-bottom:14px;">
         <div class="field" style="margin:0;"><label for="orgAgencyInput">Agency</label><input type="text" id="orgAgencyInput" placeholder="e.g. DHS"></div>
@@ -681,7 +686,7 @@ footer.app-foot{text-align:center;color:var(--grey);font-size:11.5px;padding:30p
 
 <div class="panel panel-pad" style="margin-bottom:24px;" id="userAccountsPanel">
       <div style="display:flex;justify-content:space-between;align-items:baseline;flex-wrap:wrap;gap:10px;margin-bottom:14px;">
-        <h3 style="font-family:var(--serif);color:var(--green-1);margin:0;font-size:17px;">User accounts</h3>
+        <h3 style="font-family:var(--sans);color:var(--green-1);margin:0;font-size:17px;">User accounts</h3>
         <button class="btn btn-secondary" id="manageUsersBtn">Manage users</button>
       </div>
       <p style="font-size:13px;color:var(--grey);margin:0;">Each steward signs in with their own username and password. Currently <b id="userCount">0</b> account(s) set up.</p>
@@ -689,7 +694,7 @@ footer.app-foot{text-align:center;color:var(--grey);font-size:11.5px;padding:30p
 
     <div class="panel panel-pad" style="margin-bottom:24px;" id="locationContactsPanel">
       <div style="margin-bottom:12px;">
-        <h3 style="font-family:var(--serif);color:var(--green-1);margin:0 0 4px;font-size:17px;">Location contact details</h3>
+        <h3 style="font-family:var(--sans);color:var(--green-1);margin:0 0 4px;font-size:17px;">Location contact details</h3>
         <p style="font-size:13px;color:var(--grey);margin:0;">Bureau / program unit and management email for each office. The management email is used for courtesy reminder notices — each location gets its own separate email address.</p>
       </div>
       <div id="locationContactsGrid" style="display:flex;flex-direction:column;gap:12px;margin-bottom:14px;"></div>
@@ -699,7 +704,7 @@ footer.app-foot{text-align:center;color:var(--grey);font-size:11.5px;padding:30p
 
     <div class="panel panel-pad" style="margin-bottom:24px;" id="locationBackfillPanel">
       <div style="display:flex;justify-content:space-between;align-items:baseline;flex-wrap:wrap;gap:10px;margin-bottom:14px;">
-        <h3 style="font-family:var(--serif);color:var(--green-1);margin:0;font-size:17px;">Location assignment check</h3>
+        <h3 style="font-family:var(--sans);color:var(--green-1);margin:0;font-size:17px;">Location assignment check</h3>
       </div>
       <p style="font-size:13px;color:var(--grey);margin:0 0 10px;">Records and accounts with no location assigned are only visible to admins until this is fixed — stewards won't see them. Use this to do a quick sweep instead of hunting through individual records.</p>
       <div id="unassignedGrievancesList" style="margin-bottom:12px;"></div>
@@ -708,7 +713,7 @@ footer.app-foot{text-align:center;color:var(--grey);font-size:11.5px;padding:30p
 
     <div class="panel panel-pad" style="margin-bottom:24px;">
       <div style="display:flex;justify-content:space-between;align-items:baseline;flex-wrap:wrap;gap:10px;margin-bottom:14px;">
-        <h3 style="font-family:var(--serif);color:var(--green-1);margin:0;font-size:17px;">Holiday list</h3>
+        <h3 style="font-family:var(--sans);color:var(--green-1);margin:0;font-size:17px;">Holiday list</h3>
         <button class="btn btn-secondary" id="manageHolidaysBtn">Edit holidays</button>
       </div>
       <p style="font-size:13px;color:var(--grey);margin:0;">These dates are excluded from every working-day deadline calculation (Art. V Sec. 2). Currently <b id="holidayCount">0</b> holidays loaded.</p>
@@ -716,24 +721,24 @@ footer.app-foot{text-align:center;color:var(--grey);font-size:11.5px;padding:30p
 
     <div class="panel panel-pad" style="margin-bottom:24px;">
       <div style="display:flex;justify-content:space-between;align-items:baseline;flex-wrap:wrap;gap:10px;margin-bottom:14px;">
-        <h3 style="font-family:var(--serif);color:var(--green-1);margin:0;font-size:17px;">FCRC / work locations</h3>
+        <h3 style="font-family:var(--sans);color:var(--green-1);margin:0;font-size:17px;">FCRC / work locations</h3>
         <button class="btn btn-secondary" id="manageLocationsBtn">Edit locations</button>
       </div>
       <p style="font-size:13px;color:var(--grey);margin:0;">The list of offices shown in the FCRC / Work Location dropdown on the Intake Form. Currently <b id="locationCount">0</b> locations.</p>
     </div>
 
     <div class="panel panel-pad" style="margin-bottom:24px;" id="otherListsPanel">
-      <h3 style="font-family:var(--serif);color:var(--green-1);margin:0 0 6px;font-size:17px;">Other dropdown lists</h3>
+      <h3 style="font-family:var(--sans);color:var(--green-1);margin:0 0 6px;font-size:17px;">Other dropdown lists</h3>
       <p style="font-size:13px;color:var(--grey);margin:6px 0 14px;">Every other dropdown on the Intake Form and Activity Log can be edited here — add, rename, or remove options as your local's needs change.</p>
       <div id="otherListsButtons" style="display:flex;flex-wrap:wrap;gap:10px;"></div>
     </div>
 
 
     <div class="panel panel-pad" id="emailRemindersPanel">
-      <h3 style="font-family:var(--serif);color:var(--green-1);margin:0 0 6px;font-size:17px;">Deadline email reminders</h3>
+      <h3 style="font-family:var(--sans);color:var(--green-1);margin:0 0 6px;font-size:17px;">Deadline email reminders</h3>
       <p style="font-size:13px;color:var(--grey);margin:6px 0 14px;">Every day, the system checks for grievance deadlines coming up within 3 days and emails each affected steward a summary.</p>
 
-      <div id="emailStatusBox" style="padding:12px 16px;border-radius:6px;font-size:13px;margin-bottom:14px;"></div>
+      <div id="emailStatusBox" style="padding:12px 16px;border-radius:10px;font-size:13px;margin-bottom:14px;"></div>
 
       <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:18px;">
         <button class="btn btn-primary" id="runEmailCheckBtn">Run deadline check now</button>
@@ -743,14 +748,14 @@ footer.app-foot{text-align:center;color:var(--grey);font-size:11.5px;padding:30p
           </div>
 
     <div class="panel panel-pad" id="grievanceNumberPoolPanel" style="margin-bottom:24px;">
-      <h3 style="font-family:var(--serif);color:var(--green-1);margin:0 0 6px;font-size:17px;">Grievance number pool</h3>
+      <h3 style="font-family:var(--sans);color:var(--green-1);margin:0 0 6px;font-size:17px;">Grievance number pool</h3>
       <p style="font-size:13px;color:var(--grey);margin:6px 0 14px;">The union president assigns batches of preset grievance numbers. Paste them here and the Intake Form will auto-assign the next one automatically. When the pool is empty, stewards type a number manually.</p>
 
-      <div id="poolStatusDisplay" style="margin-bottom:16px;padding:12px 16px;border-radius:6px;background:var(--panel-alt,#f2f8f4);font-size:13.5px;"></div>
+      <div id="poolStatusDisplay" style="margin-bottom:16px;padding:12px 16px;border-radius:10px;background:var(--panel-alt,#f2f8f4);font-size:13.5px;"></div>
 
       <div style="margin-bottom:16px;">
         <label style="font-weight:600;font-size:13px;display:block;margin-bottom:6px;">Add numbers to pool</label>
-        <textarea id="poolNumbersInput" rows="4" style="width:100%;box-sizing:border-box;font-family:monospace;font-size:13px;padding:8px 10px;border:1px solid var(--green-line);border-radius:6px;resize:vertical;" placeholder="FCRC-2026-001&#10;FCRC-2026-002&#10;FCRC-2026-003&#10;(one per line, or comma-separated)"></textarea>
+        <textarea id="poolNumbersInput" rows="4" style="width:100%;box-sizing:border-box;font-family:monospace;font-size:13px;padding:8px 10px;border:1px solid var(--green-line);border-radius:10px;resize:vertical;" placeholder="FCRC-2026-001&#10;FCRC-2026-002&#10;FCRC-2026-003&#10;(one per line, or comma-separated)"></textarea>
         <div style="display:flex;gap:10px;margin-top:10px;flex-wrap:wrap;align-items:center;">
           <button class="btn btn-primary" id="poolAddBtn">Add to pool</button>
           <button class="btn btn-ghost" id="poolClearBtn" style="color:var(--red,#c0392b);">Clear pool</button>
@@ -765,12 +770,12 @@ footer.app-foot{text-align:center;color:var(--grey);font-size:11.5px;padding:30p
     </div>
 
     <div class="panel panel-pad" id="myPoolPanel" style="margin-bottom:24px;">
-      <h3 style="font-family:var(--serif);color:var(--green-1);margin:0 0 6px;font-size:17px;">Grievance number pool</h3>
+      <h3 style="font-family:var(--sans);color:var(--green-1);margin:0 0 6px;font-size:17px;">Grievance number pool</h3>
       <p style="font-size:13px;color:var(--grey);margin:6px 0 14px;">Add preset grievance numbers so the Intake Form can auto-assign them. Numbers already in the pool or already used are skipped automatically.</p>
-      <div id="myPoolStatusDisplay" style="margin-bottom:16px;padding:12px 16px;border-radius:6px;background:var(--panel-alt,#f2f8f4);font-size:13.5px;"></div>
+      <div id="myPoolStatusDisplay" style="margin-bottom:16px;padding:12px 16px;border-radius:10px;background:var(--panel-alt,#f2f8f4);font-size:13.5px;"></div>
       <div style="margin-bottom:16px;">
         <label style="font-weight:600;font-size:13px;display:block;margin-bottom:6px;">Add numbers to pool</label>
-        <textarea id="myPoolNumbersInput" rows="4" style="width:100%;box-sizing:border-box;font-family:monospace;font-size:13px;padding:8px 10px;border:1px solid var(--green-line);border-radius:6px;resize:vertical;" placeholder="FCRC-2026-001&#10;FCRC-2026-002&#10;FCRC-2026-003&#10;(one per line, or comma-separated)"></textarea>
+        <textarea id="myPoolNumbersInput" rows="4" style="width:100%;box-sizing:border-box;font-family:monospace;font-size:13px;padding:8px 10px;border:1px solid var(--green-line);border-radius:10px;resize:vertical;" placeholder="FCRC-2026-001&#10;FCRC-2026-002&#10;FCRC-2026-003&#10;(one per line, or comma-separated)"></textarea>
         <div style="display:flex;gap:10px;margin-top:10px;flex-wrap:wrap;align-items:center;">
           <button class="btn btn-primary" id="myPoolAddBtn">Add to pool</button>
           <span id="myPoolAddStatus" style="font-size:13px;color:var(--green-2);"></span>
@@ -783,7 +788,7 @@ footer.app-foot{text-align:center;color:var(--grey);font-size:11.5px;padding:30p
     </div>
 
     <div class="panel panel-pad" id="changePasswordPanel">
-      <h3 style="font-family:var(--serif);color:var(--green-1);margin:0 0 6px;font-size:17px;">Change my password</h3>
+      <h3 style="font-family:var(--sans);color:var(--green-1);margin:0 0 6px;font-size:17px;">Change my password</h3>
       <p style="font-size:13px;color:var(--grey);margin:6px 0 14px;">Change the password for your own account. You'll need to enter your current password to confirm.</p>
       <div style="display:flex;flex-direction:column;gap:10px;max-width:340px;">
         <div class="field" style="margin:0;"><label for="cpCurrentPw">Current password</label><input type="password" id="cpCurrentPw" autocomplete="current-password"></div>
@@ -808,7 +813,7 @@ footer.app-foot{text-align:center;color:var(--grey);font-size:11.5px;padding:30p
 
       <!-- Quick-start -->
       <div class="panel panel-pad" style="margin-bottom:20px;">
-        <h3 style="font-family:var(--serif);color:var(--green-1);margin:0 0 14px;">Quick start</h3>
+        <h3 style="font-family:var(--sans);color:var(--green-1);margin:0 0 14px;">Quick start</h3>
         <p style="font-size:13.5px;line-height:1.7;margin-bottom:10px;">This app tracks grievances and pre-grievance investigations for your AFSCME local. Here is the typical workflow:</p>
         <ol style="font-size:13.5px;line-height:1.9;padding-left:20px;">
           <li><b>File a grievance</b> — click <b>+ New grievance</b>, fill in the employee details, pick the CBA article and grievance type, and save. The app calculates contractual deadlines automatically.</li>
@@ -821,7 +826,7 @@ footer.app-foot{text-align:center;color:var(--grey);font-size:11.5px;padding:30p
 
       <!-- Roles -->
       <div class="panel panel-pad" style="margin-bottom:20px;">
-        <h3 style="font-family:var(--serif);color:var(--green-1);margin:0 0 14px;">Account roles</h3>
+        <h3 style="font-family:var(--sans);color:var(--green-1);margin:0 0 14px;">Account roles</h3>
         <p style="font-size:13.5px;line-height:1.6;margin-bottom:12px;">Every login belongs to one of four roles. Admins assign roles in <b>Settings → Manage users</b>.</p>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
           <div style="border:1.5px solid var(--green-line);border-radius:var(--radius);padding:12px;">
@@ -846,7 +851,7 @@ footer.app-foot{text-align:center;color:var(--grey);font-size:11.5px;padding:30p
 
       <!-- Intake Form -->
       <div class="panel panel-pad" style="margin-bottom:20px;">
-        <h3 style="font-family:var(--serif);color:var(--green-1);margin:0 0 14px;">Grievance Intake — filing a grievance</h3>
+        <h3 style="font-family:var(--sans);color:var(--green-1);margin:0 0 14px;">Grievance Intake — filing a grievance</h3>
         <div style="font-size:13.5px;line-height:1.7;">
           <p style="margin-bottom:8px;"><b>Grievance ID</b> — enter your local's standard ID format (e.g. G-2026-047), or click <b>Assign next number</b> to take the next one from the grievance number pool. Must be unique — the system rejects duplicates. If you assign a number and then clear the form or open another grievance without saving, the number goes back to the pool.</p>
           <p style="margin-bottom:8px;"><b>Awareness date</b> — the date the steward (or grievant) first became aware of the violation. This is the clock-start for contractual filing deadlines under Article V.</p>
@@ -862,7 +867,7 @@ footer.app-foot{text-align:center;color:var(--grey);font-size:11.5px;padding:30p
 
       <!-- Investigations -->
       <div class="panel panel-pad" style="margin-bottom:20px;">
-        <h3 style="font-family:var(--serif);color:var(--green-1);margin:0 0 14px;">Investigations — pre-grievance fact-finding</h3>
+        <h3 style="font-family:var(--sans);color:var(--green-1);margin:0 0 14px;">Investigations — pre-grievance fact-finding</h3>
         <div style="font-size:13.5px;line-height:1.7;">
           <p style="margin-bottom:8px;">Not every complaint becomes a formal grievance. The Investigations workflow lets you fact-find first — gather statements, log observations, and decide whether a violation actually occurred — before committing to a formal filing.</p>
           <p style="margin-bottom:8px;"><b>Creating an investigation</b> — click <b>+ New investigation</b>, enter the employee name, optional email, steward, and location. The system assigns a sequential ID (INV-YYYY-NNNN).</p>
@@ -876,7 +881,7 @@ footer.app-foot{text-align:center;color:var(--grey);font-size:11.5px;padding:30p
 
       <!-- AI Bot -->
       <div class="panel panel-pad" style="margin-bottom:20px;">
-        <h3 style="font-family:var(--serif);color:var(--green-1);margin:0 0 14px;">Draft a grievance — AI assistant (Steward Plus and Admin only, inside Investigations)</h3>
+        <h3 style="font-family:var(--sans);color:var(--green-1);margin:0 0 14px;">Draft a grievance — AI assistant (Steward Plus and Admin only, inside Investigations)</h3>
         <div style="font-size:13.5px;line-height:1.7;">
           <p style="margin-bottom:8px;">The AI drafting bot helps stewards write Statements of Grievance grounded in the actual AFSCME Master Contract (2023–2027). It searches relevant Article and Section text, asks clarifying questions if facts are missing, and produces a full draft with numbered Relief Sought.</p>
           <p style="margin-bottom:8px;"><b>How to use it</b> — describe the situation in plain language. The bot will ask follow-up questions (dates, what was said/done, whether progressive discipline was followed, etc.) and then draft the grievance once it has enough facts.</p>
@@ -896,7 +901,7 @@ footer.app-foot{text-align:center;color:var(--grey);font-size:11.5px;padding:30p
 
       <!-- Grievance Log -->
       <div class="panel panel-pad" style="margin-bottom:20px;">
-        <h3 style="font-family:var(--serif);color:var(--green-1);margin:0 0 14px;">All cases — search, filter, and export</h3>
+        <h3 style="font-family:var(--sans);color:var(--green-1);margin:0 0 14px;">All cases — search, filter, and export</h3>
         <div style="font-size:13.5px;line-height:1.7;">
           <p style="margin-bottom:8px;"><b>Search</b> — type any part of a grievance ID, employee name, steward name, or description to narrow the list as you type.</p>
           <p style="margin-bottom:8px;"><b>Level and status filters</b> — pick a step level, a status, or the two shortcuts: <b>Active (not closed)</b> and <b>Overdue</b>.</p>
@@ -908,7 +913,7 @@ footer.app-foot{text-align:center;color:var(--grey);font-size:11.5px;padding:30p
 
       <!-- Dashboard -->
       <div class="panel panel-pad" style="margin-bottom:20px;">
-        <h3 style="font-family:var(--serif);color:var(--green-1);margin:0 0 14px;">Deadlines</h3>
+        <h3 style="font-family:var(--sans);color:var(--green-1);margin:0 0 14px;">Deadlines</h3>
         <div style="font-size:13.5px;line-height:1.7;">
           <p style="margin-bottom:8px;"><b>Deadlines view</b> — active grievances sorted by next contractual deadline. Red rows are overdue, and the Next deadline column spells it out with a <b>"N days overdue"</b> or <b>"Due today"</b> label. Cases past Step 3 are not shown here — Council 31 tracks Step 4 and arbitration separately.</p>
           <p style="margin-bottom:8px;"><b>Steward workload</b> (Reports tab) — one card per steward showing their active caseload by step. A red border means they have at least one overdue deadline. Admins see a location filter dropdown in the header to narrow the view by office.</p>
@@ -918,7 +923,7 @@ footer.app-foot{text-align:center;color:var(--grey);font-size:11.5px;padding:30p
 
       <!-- Emails -->
       <div class="panel panel-pad" style="margin-bottom:20px;">
-        <h3 style="font-family:var(--serif);color:var(--green-1);margin:0 0 14px;">Automatic emails</h3>
+        <h3 style="font-family:var(--sans);color:var(--green-1);margin:0 0 14px;">Automatic emails</h3>
         <div style="font-size:13.5px;line-height:1.7;">
           <p style="margin-bottom:10px;">The app sends the following emails. All include your AFSCME Local number in the subject line and body if it has been entered in <b>Settings → Local chapter info</b>.</p>
           <table style="width:100%;border-collapse:collapse;font-size:12.5px;">
@@ -940,7 +945,7 @@ footer.app-foot{text-align:center;color:var(--grey);font-size:11.5px;padding:30p
 
       <!-- Settings -->
       <div class="panel panel-pad" style="margin-bottom:20px;">
-        <h3 style="font-family:var(--serif);color:var(--green-1);margin:0 0 14px;">Settings</h3>
+        <h3 style="font-family:var(--sans);color:var(--green-1);margin:0 0 14px;">Settings</h3>
         <div style="font-size:13.5px;line-height:1.7;">
           <p style="margin-bottom:8px;"><b>For every user</b> — <b>Change my password</b> (you need your current password) and, for stewards, the <b>Grievance number pool</b> panel for adding numbers. Everything below is for admins only.</p>
           <p style="margin-bottom:8px;"><b>Automatic sign-out</b> — you are signed out after 30 minutes with no activity (no mouse, keyboard or touch input). Save your work before stepping away; anything not yet saved is lost, and a grievance number you had assigned goes back to the pool.</p>
@@ -955,7 +960,7 @@ footer.app-foot{text-align:center;color:var(--grey);font-size:11.5px;padding:30p
 
       <!-- Grievance Number Pool -->
       <div class="panel panel-pad" style="margin-bottom:20px;">
-        <h3 style="font-family:var(--serif);color:var(--green-1);margin:0 0 14px;">Grievance Number Pool</h3>
+        <h3 style="font-family:var(--sans);color:var(--green-1);margin:0 0 14px;">Grievance Number Pool</h3>
         <div style="font-size:13.5px;line-height:1.7;">
           <p style="margin-bottom:8px;">The grievance number pool lets any user pre-load a list of sequential grievance IDs (e.g. <code>G-2026-001</code> through <code>G-2026-100</code>). Stewards can then click <b>Assign next number</b> on Grievance Intake instead of typing an ID manually — the next available number is claimed automatically and can't be taken by another user at the same time.</p>
           <p style="margin-bottom:8px;"><b>Loading the pool</b> — any user can go to <b>Settings → Grievance number pool</b> and enter the list of IDs one per line (or comma-separated). The system adds them to the pool; numbers already used are skipped. The panel also shows how many numbers remain and who was assigned each recent number. Only admins can clear the pool. A green badge on Grievance Intake shows how many numbers remain.</p>
@@ -967,7 +972,7 @@ footer.app-foot{text-align:center;color:var(--grey);font-size:11.5px;padding:30p
 
       <!-- Audit Log -->
       <div class="panel panel-pad" style="margin-bottom:20px;">
-        <h3 style="font-family:var(--serif);color:var(--green-1);margin:0 0 14px;">Audit log (Reports tab, admins only)</h3>
+        <h3 style="font-family:var(--sans);color:var(--green-1);margin:0 0 14px;">Audit log (Reports tab, admins only)</h3>
         <div style="font-size:13.5px;line-height:1.7;">
           <p style="margin-bottom:8px;">The <b>Audit log</b> view on the <b>Reports</b> tab shows who used the system and when. Only admins can see it. Each row shows the date and time, the user, what they did, and the IP address it came from.</p>
           <p style="margin-bottom:8px;"><b>What is recorded</b> — <b>Login</b> (signed in with username and password), <b>Returned (still signed in)</b> (opened the app while their earlier sign-in was still valid — a sign-in ends after 30 minutes with no activity, so this is how most visits appear), <b>Logout</b>, <b>Tab</b> (which tab they clicked), and <b>Record opened</b> (which grievance they opened).</p>
@@ -978,7 +983,7 @@ footer.app-foot{text-align:center;color:var(--grey);font-size:11.5px;padding:30p
 
       <!-- Tips -->
       <div class="panel panel-pad" style="margin-bottom:20px;">
-        <h3 style="font-family:var(--serif);color:var(--green-1);margin:0 0 14px;">Tips &amp; common questions</h3>
+        <h3 style="font-family:var(--sans);color:var(--green-1);margin:0 0 14px;">Tips &amp; common questions</h3>
         <div style="font-size:13.5px;line-height:1.7;">
           <p style="margin-bottom:8px;"><b>The Deadlines or All cases view shows a different list than I expect</b> — the list is filtered to your assigned location(s). If you believe a case is missing, check with an admin to confirm its location field is set correctly.</p>
           <p style="margin-bottom:8px;"><b>The grievance ID already exists</b> — IDs must be unique. If you're updating an existing case, the system detects the ID and updates it in-place rather than creating a duplicate. If you genuinely want a new case, use a new ID.</p>
@@ -1000,7 +1005,7 @@ footer.app-foot{text-align:center;color:var(--grey);font-size:11.5px;padding:30p
 
 <div class="modal-overlay" id="activityModalOverlay">
   <div class="modal">
-    <div class="modal-head"><span>&#128221;</span><h3>Log activity</h3></div>
+    <div class="modal-head"><span><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M14 3v6h6"/><path d="M8 13h8M8 17h5"/></svg></span><h3>Log activity</h3></div>
     <div class="modal-body">
       <div class="form-grid" style="gap:14px;">
         <div class="field wide"><label>Grievance ID</label><select id="actGid"></select></div>
@@ -1018,7 +1023,7 @@ footer.app-foot{text-align:center;color:var(--grey);font-size:11.5px;padding:30p
 
 <div class="modal-overlay" id="archiveModalOverlay">
   <div class="modal modal-amber">
-    <div class="modal-head"><span>&#128193;</span><h3>Archive closed grievances</h3></div>
+    <div class="modal-head"><span><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg></span><h3>Archive closed grievances</h3></div>
     <div class="modal-body" id="archiveModalBody"></div>
     <div class="modal-foot"><button class="btn btn-ghost" id="archiveCancelBtn">Cancel</button><button class="btn btn-primary" id="archiveConfirmBtn">Archive now</button></div>
   </div>
@@ -1026,7 +1031,7 @@ footer.app-foot{text-align:center;color:var(--grey);font-size:11.5px;padding:30p
 
 <div class="modal-overlay" id="detailModalOverlay">
   <div class="modal">
-    <div class="modal-head"><span>&#128203;</span><h3 id="detailTitle">Grievance detail</h3></div>
+    <div class="modal-head"><span><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><rect x="8" y="2" width="8" height="4" rx="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/></svg></span><h3 id="detailTitle">Grievance detail</h3></div>
     <div class="modal-body" id="detailBody"></div>
     <div class="modal-foot"><button class="btn btn-secondary" id="detailPrintBtn">Print</button><button class="btn btn-secondary" id="detailEditBtn">Edit in form</button><button class="btn btn-ghost" id="detailCloseBtn">Close</button></div>
   </div>
@@ -1034,7 +1039,7 @@ footer.app-foot{text-align:center;color:var(--grey);font-size:11.5px;padding:30p
 
 <div class="modal-overlay" id="holidaysModalOverlay">
   <div class="modal" style="max-width:640px;">
-    <div class="modal-head"><span>&#128197;</span><h3>Manage holiday list</h3></div>
+    <div class="modal-head"><span><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg></span><h3>Manage holiday list</h3></div>
     <div class="modal-body">
       <p style="margin-top:0;color:var(--grey);font-size:13px;">These dates are skipped in every working-day deadline calculation (Art. V Sec. 2). Add your local's specific holidays or adjust observed dates as needed.</p>
       <div id="holidayRows" style="display:flex;flex-direction:column;gap:10px;margin-top:14px;max-height:360px;overflow-y:auto;"></div>
@@ -1049,7 +1054,7 @@ footer.app-foot{text-align:center;color:var(--grey);font-size:11.5px;padding:30p
 
 <div class="modal-overlay" id="locationsModalOverlay">
   <div class="modal" style="max-width:640px;">
-    <div class="modal-head"><span>&#127968;</span><h3>Manage FCRC / work locations</h3></div>
+    <div class="modal-head"><span><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.5V21h14V9.5"/></svg></span><h3>Manage FCRC / work locations</h3></div>
     <div class="modal-body">
       <p style="margin-top:0;color:var(--grey);font-size:13px;">The list of offices stewards can select on the Intake Form. Add, rename, or remove locations as your local's offices change.</p>
       <div id="locationRows" style="display:flex;flex-direction:column;gap:10px;margin-top:14px;max-height:360px;overflow-y:auto;"></div>
@@ -1064,7 +1069,7 @@ footer.app-foot{text-align:center;color:var(--grey);font-size:11.5px;padding:30p
 
 <div class="modal-overlay" id="genericListModalOverlay">
   <div class="modal" style="max-width:640px;">
-    <div class="modal-head"><span id="genericListIcon">&#128203;</span><h3 id="genericListTitle">Edit list</h3></div>
+    <div class="modal-head"><span id="genericListIcon"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><rect x="8" y="2" width="8" height="4" rx="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/></svg></span><h3 id="genericListTitle">Edit list</h3></div>
     <div class="modal-body">
       <p style="margin-top:0;color:var(--grey);font-size:13px;" id="genericListDesc"></p>
       <div id="genericListRows" style="display:flex;flex-direction:column;gap:10px;margin-top:14px;max-height:360px;overflow-y:auto;"></div>
@@ -1079,7 +1084,7 @@ footer.app-foot{text-align:center;color:var(--grey);font-size:11.5px;padding:30p
 
 <div class="modal-overlay" id="emailLogModalOverlay">
   <div class="modal" style="max-width:600px;">
-    <div class="modal-head"><span>&#128231;</span><h3>Recent deadline email runs</h3></div>
+    <div class="modal-head"><span><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 7 9 6 9-6"/></svg></span><h3>Recent deadline email runs</h3></div>
     <div class="modal-body" id="emailLogBody" style="max-height:50vh;overflow-y:auto;"></div>
     <div class="modal-foot"><button class="btn btn-ghost" id="emailLogCloseBtn">Close</button></div>
   </div>
@@ -1087,7 +1092,7 @@ footer.app-foot{text-align:center;color:var(--grey);font-size:11.5px;padding:30p
 
 <div class="modal-overlay" id="usersModalOverlay">
   <div class="modal" style="max-width:680px;">
-    <div class="modal-head"><span>&#128272;</span><h3>Manage user accounts</h3></div>
+    <div class="modal-head"><span><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg></span><h3>Manage user accounts</h3></div>
     <div class="modal-body">
       <p style="margin-top:0;color:var(--grey);font-size:13px;">Each row is one login. Leave the password field blank when editing an existing user to keep their current password unchanged. Usernames cannot be changed once created &mdash; delete and re-add instead.</p>
       <p style="margin-top:0;color:var(--grey);font-size:13px;"><b>Roles:</b> <i>Steward</i> — normal access. <i>Steward Plus</i> — normal access plus the AI grievance-drafting bot. <i>Admin</i> — full access, including the bot and account/settings management.</p>
@@ -1628,8 +1633,8 @@ $('handoffBtn').addEventListener('click', async function(){
 
     // Title
     const title = document.createElement('div');
-    title.style.cssText = 'font-family:var(--serif);font-size:16px;font-weight:700;color:var(--green-1);margin-bottom:12px;';
-    title.textContent = '🔓 Hand off grievance';
+    title.style.cssText = 'font-family:var(--sans);font-size:16px;font-weight:700;color:var(--green-1);margin-bottom:12px;';
+    title.textContent = 'Hand off grievance';
     box.appendChild(title);
 
     // Body line — gid injected safely via textContent
@@ -1645,7 +1650,7 @@ $('handoffBtn').addEventListener('click', async function(){
     // Select — options built via DOM API so displayName/username are never innerHTML
     const sel = document.createElement('select');
     sel.id = '_handoffSelect';
-    sel.style.cssText = 'width:100%;margin-bottom:14px;padding:8px;border:1.5px solid var(--green-line);border-radius:6px;font-size:13px;';
+    sel.style.cssText = 'width:100%;margin-bottom:14px;padding:8px;border:1.5px solid var(--green-line);border-radius:10px;font-size:13px;';
     allUsers.forEach(u => {
       const opt = document.createElement('option');
       opt.value = u.username;
@@ -1900,7 +1905,7 @@ function renderDashboard(){
 
   const body = $('dashboardBody');
   if(!sorted.length){
-    body.innerHTML = `<tr><td colspan="8"><div class="empty-state"><div class="icon">&#128203;</div><h3>No active grievances</h3><p>Submit a new grievance from the Intake Form to see it here.</p></div></td></tr>`;
+    body.innerHTML = `<tr><td colspan="8"><div class="empty-state"><div class="icon"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><rect x="8" y="2" width="8" height="4" rx="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/></svg></div><h3>No active grievances</h3><p>Submit a new grievance from the Intake Form to see it here.</p></div></td></tr>`;
     return;
   }
   body.innerHTML = sorted.map(rec=>{
@@ -1999,7 +2004,7 @@ function renderLog(){
   if(clearBtn) clearBtn.style.display = logFiltersActive() ? '' : 'none';
   if(!STATE.grievances.length){
     if(countEl) countEl.textContent = '';
-    body.innerHTML = `<tr><td colspan="13"><div class="empty-state"><div class="icon">&#128193;</div><h3>Log is empty</h3><p>Records appear here after you submit the Intake Form.</p></div></td></tr>`;
+    body.innerHTML = `<tr><td colspan="13"><div class="empty-state"><div class="icon"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg></div><h3>Log is empty</h3><p>Records appear here after you submit the Intake Form.</p></div></td></tr>`;
     return;
   }
   const filtered = getFilteredLogRows();
@@ -2007,7 +2012,7 @@ function renderLog(){
     ? `Showing ${filtered.length} of ${STATE.grievances.length} grievances`
     : `${STATE.grievances.length} grievance${STATE.grievances.length===1?'':'s'}`;
   if(!filtered.length){
-    body.innerHTML = `<tr><td colspan="13"><div class="empty-state"><div class="icon">&#128269;</div><h3>No matches</h3><p>No grievances match the current search and filters. Try different terms or click "Clear filters".</p></div></td></tr>`;
+    body.innerHTML = `<tr><td colspan="13"><div class="empty-state"><div class="icon"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg></div><h3>No matches</h3><p>No grievances match the current search and filters. Try different terms or click "Clear filters".</p></div></td></tr>`;
     return;
   }
   body.innerHTML = filtered.slice().reverse().map(rec=>{
@@ -2030,7 +2035,7 @@ function renderLog(){
 function renderActivity(){
   const list = $('activityList');
   if(!STATE.activity.length){
-    list.innerHTML = `<div class="empty-state"><div class="icon">&#128221;</div><h3>No activity logged yet</h3><p>Click "+ Log activity" to record meetings, documents, and communications.</p></div>`;
+    list.innerHTML = `<div class="empty-state"><div class="icon"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M14 3v6h6"/><path d="M8 13h8M8 17h5"/></svg></div><h3>No activity logged yet</h3><p>Click "+ Log activity" to record meetings, documents, and communications.</p></div>`;
     return;
   }
   list.innerHTML = STATE.activity.slice().reverse().map(a=>{
@@ -2101,7 +2106,7 @@ function renderWorkload(){
       });
 
   if(!visibleStewards.length){
-    grid.innerHTML = `<div class="empty-state" style="grid-column:1/-1;"><div class="icon">&#128101;</div><h3>${isAdminUser?'No stewards configured yet':'No stewards at your location yet'}</h3><p>${isAdminUser?'Add stewards in Settings → Manage users.':'Ask an admin to assign your location in Manage users.'}</p></div>`;
+    grid.innerHTML = `<div class="empty-state" style="grid-column:1/-1;"><div class="icon"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="8" r="4"/><path d="M17 11a4 4 0 1 0 0-8"/><path d="M1 21v-1a6 6 0 0 1 12 0v1"/><path d="M17 14a6 6 0 0 1 6 6v1"/></svg></div><h3>${isAdminUser?'No stewards configured yet':'No stewards at your location yet'}</h3><p>${isAdminUser?'Add stewards in Settings → Manage users.':'Ask an admin to assign your location in Manage users.'}</p></div>`;
   } else {
     grid.innerHTML = visibleStewards.map(name=>{
       const mine = getScopedGrievances().filter(g=>g.steward===name);
@@ -2201,7 +2206,7 @@ $('archiveConfirmBtn').addEventListener('click', async ()=>{
 function renderArchive(){
   const body = $('archiveBody');
   if(!STATE.archive.length){
-    body.innerHTML = `<tr><td colspan="5"><div class="empty-state"><div class="icon">&#128193;</div><h3>Archive is empty</h3><p>Closed grievances appear here after you run Archive closed.</p></div></td></tr>`;
+    body.innerHTML = `<tr><td colspan="5"><div class="empty-state"><div class="icon"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg></div><h3>Archive is empty</h3><p>Closed grievances appear here after you run Archive closed.</p></div></td></tr>`;
     return;
   }
   body.innerHTML = STATE.archive.slice().reverse().map(rec=>`<tr>
@@ -2451,7 +2456,7 @@ function openDetail(gid){
   const d = deriveDeadlines(rec);
   $('detailBody').innerHTML = `
     <p><b>Employee:</b> ${escapeHtml(rec.employee||'')} &middot; <b>Job class:</b> ${escapeHtml(rec.jobClass||'')}</p>
-    ${rec.description ? `<p style="background:var(--paper-2);border-radius:6px;padding:8px 10px;margin:8px 0;font-size:13.5px;line-height:1.5;">${escapeHtml(rec.description)}</p>` : ''}
+    ${rec.description ? `<p style="background:var(--paper-2);border-radius:10px;padding:8px 10px;margin:8px 0;font-size:13.5px;line-height:1.5;">${escapeHtml(rec.description)}</p>` : ''}
     <p><b>Bureau:</b> ${escapeHtml((rec.location && LOCATION_DETAILS[rec.location] && LOCATION_DETAILS[rec.location].bureau) || ORG_SETTINGS.bureau||rec.bureau||'')} &middot; <b>Location:</b> ${escapeHtml(rec.location||ORG_SETTINGS.location||'')} &middot; <b>County:</b> ${escapeHtml(ORG_SETTINGS.county||rec.county||'')}</p>
     <p><b>Steward:</b> ${escapeHtml(rec.steward||'')} (${escapeHtml(rec.stewardEmail||'')})</p>
     <p><b>Type:</b> ${escapeHtml(rec.gtype||'')}</p>
@@ -2899,7 +2904,7 @@ async function _renderPoolPanel(statusId, logId){
     if(numbers.length){
       statusHtml += `<details style="margin-top:10px;">
         <summary style="cursor:pointer;color:var(--green-1);font-weight:600;">Show the ${numbers.length} unused number(s)</summary>
-        <div style="margin-top:8px;max-height:220px;overflow:auto;font-family:monospace;font-size:12.5px;line-height:1.7;background:#fff;border:1px solid var(--green-line);border-radius:6px;padding:8px 12px;">
+        <div style="margin-top:8px;max-height:220px;overflow:auto;font-family:monospace;font-size:12.5px;line-height:1.7;background:#fff;border:1px solid var(--green-line);border-radius:10px;padding:8px 12px;">
           ${numbers.map((n, i) => `<div>${i === 0 ? '<b>' : ''}${escapeHtml(n)}${i === 0 ? '</b> <span style="font-family:inherit;color:var(--grey);font-size:11.5px;">(next)</span>' : ''}</div>`).join('')}
         </div>
       </details>`;
@@ -3212,7 +3217,7 @@ $('viewEmailLogBtn').addEventListener('click', ()=>{
   const log = window._emailLogCache || [];
   const body = $('emailLogBody');
   if(!log.length){
-    body.innerHTML = `<div class="empty-state"><div class="icon">&#128231;</div><h3>No runs yet</h3><p>Click "Run deadline check now" or wait for the daily automatic check.</p></div>`;
+    body.innerHTML = `<div class="empty-state"><div class="icon"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 7 9 6 9-6"/></svg></div><h3>No runs yet</h3><p>Click "Run deadline check now" or wait for the daily automatic check.</p></div>`;
   } else {
     body.innerHTML = log.map(entry=>{
       // Two different shapes can appear in this log:
@@ -3259,14 +3264,14 @@ $('emailLogCloseBtn').addEventListener('click', ()=>$('emailLogModalOverlay').cl
 /* ---------- Update settings tab counts whenever data refreshes ---------- */
 /* ---------- Settings tab: generic dropdown-list editor ---------- */
 const OTHER_LISTS = [
-  { key:'Status', icon:'&#128202;', label:'Status options', desc:'The list of grievance statuses (Pending, Granted, Denied, Settled, etc.) shown throughout the app.' },
-  { key:'Bureau', icon:'&#127970;', label:'Bureau / program unit', desc:'Bureau or program unit options (used in older records and reports).' },
-  { key:'County', icon:'&#128506;', label:'County', desc:'County options (used in older records and reports).' },
-  { key:'BargainingUnit', icon:'&#129309;', label:'Bargaining unit', desc:'The RC bargaining unit options shown on the Intake Form.' },
-  { key:'JobClass', icon:'&#128100;', label:'Job classification', desc:'The job classification / title options shown on the Intake Form.' },
-  { key:'Shift', icon:'&#128336;', label:'Shift', desc:'Shift options (used in older records and reports).' },
-  { key:'Article', icon:'&#128220;', label:'CBA article violated', desc:'The Master Contract article/section options shown on the Intake Form.' },
-  { key:'GrievanceType', icon:'&#128204;', label:'Grievance type', desc:'The grievance type options shown on the Intake Form.' }
+  { key:'Status', icon:'<svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 3v18h18"/><path d="M7 15v-4M12 15V8M17 15v-7"/></svg>', label:'Status options', desc:'The list of grievance statuses (Pending, Granted, Denied, Settled, etc.) shown throughout the app.' },
+  { key:'Bureau', icon:'<svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="3" width="16" height="18" rx="1"/><path d="M9 7h.01M15 7h.01M9 11h.01M15 11h.01M10 21v-4h4v4"/></svg>', label:'Bureau / program unit', desc:'Bureau or program unit options (used in older records and reports).' },
+  { key:'County', icon:'<svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 3 3 5.5v15L9 18l6 2.5 6-2.5v-15L15 5.5z"/><path d="M9 3v15M15 5.5v15"/></svg>', label:'County', desc:'County options (used in older records and reports).' },
+  { key:'BargainingUnit', icon:'<svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="8" r="4"/><path d="M17 11a4 4 0 1 0 0-8"/><path d="M1 21v-1a6 6 0 0 1 12 0v1"/><path d="M17 14a6 6 0 0 1 6 6v1"/></svg>', label:'Bargaining unit', desc:'The RC bargaining unit options shown on the Intake Form.' },
+  { key:'JobClass', icon:'<svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg>', label:'Job classification', desc:'The job classification / title options shown on the Intake Form.' },
+  { key:'Shift', icon:'<svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>', label:'Shift', desc:'Shift options (used in older records and reports).' },
+  { key:'Article', icon:'<svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M14 3v6h6"/></svg>', label:'CBA article violated', desc:'The Master Contract article/section options shown on the Intake Form.' },
+  { key:'GrievanceType', icon:'<svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 22s7-6.2 7-12a7 7 0 0 0-14 0c0 5.8 7 12 7 12z"/><circle cx="12" cy="10" r="2.5"/></svg>', label:'Grievance type', desc:'The grievance type options shown on the Intake Form.' }
 ];
 let _genericListKey = null;
 
@@ -4252,11 +4257,11 @@ function startBackgroundPolling(){
 /* ── Audit Log ──────────────────────────────────────────────── */
 (function(){
   const ACTION_LABELS = {
-    login:       '🔑 Login',
-    logout:      '🚪 Logout',
-    session:     '🔓 Returned (still signed in)',
-    tab:         '📂 Tab',
-    record_open: '📄 Record opened'
+    login:       'Login',
+    logout:      'Logout',
+    session:     'Returned (still signed in)',
+    tab:         'Tab',
+    record_open: 'Record opened'
   };
   const ACTION_COLORS = {
     login:       'var(--green-1)',
