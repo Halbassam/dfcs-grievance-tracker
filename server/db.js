@@ -696,7 +696,7 @@ async function listUsersSafe() {
   }));
 }
 
-const VALID_ROLES = ["admin", "steward_plus", "steward"];
+const VALID_ROLES = ["admin", "steward_plus", "steward", "read_only"];
 
 async function upsertUser({ username, displayName, password, role, locations }) {
   const uname = normalizeUsername(username);

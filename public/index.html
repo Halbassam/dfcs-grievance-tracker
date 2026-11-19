@@ -275,9 +275,9 @@ footer.app-foot{text-align:center;color:var(--grey);font-size:11.5px;padding:30p
   </div>
   <button class="menu-toggle" id="menuToggle">&#9776;</button>
   <nav class="tabs" id="tabs">
-    <button class="tab-btn active" data-tab="intake">Intake Form</button>
+    <button class="tab-btn active" data-tab="intake" id="intakeTabBtn">Intake Form</button>
     <button class="tab-btn" data-tab="draftbot" id="draftbotTabBtn">Draft a Grievance</button>
-    <button class="tab-btn" data-tab="investigations">Investigations</button>
+    <button class="tab-btn" data-tab="investigations" id="investigationsTabBtn">Investigations</button>
     <button class="tab-btn" data-tab="dashboard">Priority Dashboard <span class="count" id="navOverdueCount">0</span></button>
     <button class="tab-btn" data-tab="log">Grievance Log</button>
     <button class="tab-btn" data-tab="activity">Activity Log</button>
@@ -2361,14 +2361,15 @@ function attachmentsSectionHtml(rec){
     </div>`;
   }).join('');
 
+  const readOnly = !!(CURRENT_USER && CURRENT_USER.role === 'read_only');
   return `<hr style="border:none;border-top:1px solid var(--green-line);margin:14px 0;">
     <p style="margin-bottom:6px;"><b>Attachments</b></p>
     <div id="attachmentsList">${rows || '<p style="color:var(--grey);font-size:13px;">No files attached yet.</p>'}</div>
-    <div style="margin-top:8px;">
+    ${readOnly ? '' : `<div style="margin-top:8px;">
       <input type="file" id="attachmentFileInput" accept=".pdf,.doc,.docx,.txt,.jpg,.jpeg,.png,.gif,.webp" style="font-size:12.5px;">
       <span id="attachmentUploadStatus" style="font-size:12px;color:var(--grey);margin-left:6px;"></span>
     </div>
-    <p style="font-size:11.5px;color:var(--grey);margin-top:4px;">PDF, Word, text, or image files, up to 10MB each.</p>`;
+    <p style="font-size:11.5px;color:var(--grey);margin-top:4px;">PDF, Word, text, or image files, up to 10MB each.</p>`}`;
 }
 
 async function uploadAttachment(gid, fileInputEl){
@@ -2412,6 +2413,7 @@ async function deleteAttachment(id, gid){
 
 function courtesyNoticeSectionHtml(rec, d){
   if(isResolved(rec)) return '';
+  if(CURRENT_USER && CURRENT_USER.role === 'read_only') return '';
   const rows = [];
 
   // Step 1: only offer if filed, has a computable due date, no response yet, and not already sent
@@ -2473,7 +2475,12 @@ function openDetail(gid){
     btn.addEventListener('click', ()=>deleteAttachment(btn.getAttribute('data-del-attachment'), rec.id));
   });
 
-  $('detailEditBtn').onclick = ()=>{ loadIntoForm(rec); $('detailModalOverlay').classList.remove('show'); switchTab('intake'); };
+  const readOnlyDetail = !!(CURRENT_USER && CURRENT_USER.role === 'read_only');
+  const detailEditBtn = $('detailEditBtn');
+  if(detailEditBtn){
+    detailEditBtn.style.display = readOnlyDetail ? 'none' : '';
+    detailEditBtn.onclick = ()=>{ loadIntoForm(rec); $('detailModalOverlay').classList.remove('show'); switchTab('intake'); };
+  }
   $('detailPrintBtn').onclick = ()=>printGrievance(rec.id);
   $('detailModalOverlay').classList.add('show');
 }
@@ -3936,6 +3943,26 @@ function applyRoleVisibility(user){
     if(!botAllowed && draftTabBtn.classList.contains('active')) switchTab('intake');
   }
 
+  // Read-only accounts: hide the write-only tabs and action buttons. This
+  // is a convenience, same as everything else above — the server blocks
+  // every write request from a read-only account regardless of what the
+  // UI shows.
+  const readOnly = !!(user && user.role === 'read_only');
+  const intakeTabBtn = $('intakeTabBtn');
+  if(intakeTabBtn){
+    intakeTabBtn.style.display = readOnly ? 'none' : '';
+    if(readOnly && intakeTabBtn.classList.contains('active')) switchTab('log');
+  }
+  const investigationsTabBtn = $('investigationsTabBtn');
+  if(investigationsTabBtn){
+    investigationsTabBtn.style.display = readOnly ? 'none' : '';
+    if(readOnly && investigationsTabBtn.classList.contains('active')) switchTab('log');
+  }
+  const addActivityBtn = $('addActivityBtn');
+  if(addActivityBtn) addActivityBtn.style.display = readOnly ? 'none' : '';
+  const archiveClosedBtn = $('archiveClosedBtn');
+  if(archiveClosedBtn) archiveClosedBtn.style.display = readOnly ? 'none' : '';
+
   refreshLocationField();
 
   // A small, always-visible reminder of which location(s) a non-admin
@@ -4014,7 +4041,7 @@ async function loadUserList(){
   }
 }
 function userRowHtml(idx, username, displayName, isExisting, role, locations){
-  const r = (role === 'admin' || role === 'steward_plus') ? role : 'steward';
+  const r = (role === 'admin' || role === 'steward_plus' || role === 'read_only') ? role : 'steward';
   const userLocs = Array.isArray(locations) ? locations : [];
   const allLocations = SETUP.Location || [];
   const locsHidden = r === 'admin' ? 'display:none;' : '';
@@ -4023,7 +4050,7 @@ function userRowHtml(idx, username, displayName, isExisting, role, locations){
       <input type="text" class="ur-username" placeholder="username" value="${escapeHtml(username)}" ${isExisting?'readonly style="background:var(--paper-2);"':''}>
       <input type="text" class="ur-displayname" placeholder="Full name" value="${escapeHtml(displayName)}">
       <input type="password" class="ur-password" placeholder="${isExisting?'(unchanged)':'Set password'}" autocomplete="new-password">
-      <select class="ur-role" title="Account role"><option value="steward" ${r==='steward'?'selected':''}>Steward</option><option value="steward_plus" ${r==='steward_plus'?'selected':''}>Steward Plus (can use AI bot)</option><option value="admin" ${r==='admin'?'selected':''}>Admin</option></select>
+      <select class="ur-role" title="Account role"><option value="steward" ${r==='steward'?'selected':''}>Steward</option><option value="steward_plus" ${r==='steward_plus'?'selected':''}>Steward Plus (can use AI bot)</option><option value="read_only" ${r==='read_only'?'selected':''}>Read-only Steward (view only)</option><option value="admin" ${r==='admin'?'selected':''}>Admin</option></select>
       <button type="button" class="btn-tiny ur-remove" title="${isExisting?'Delete this account':'Remove this row'}">&#10005;</button>
     </div>
     <div class="ur-locations-wrap" style="margin-top:8px;${locsHidden}">
@@ -4401,6 +4428,51 @@ function startBackgroundPolling(){
     scroll: true
   };
 
+  // A read-only account can't file, edit, log activity, or archive, so it
+  // gets its own short tour instead of the full steward one.
+  const READ_ONLY_STEPS = [
+    {
+      title: 'Welcome to the guided tour',
+      body:  'This account is read-only — you can look up and track grievances, but can\'t create, edit, or archive anything. Use Next / Back to move between steps, or Exit tour to stop at any time.',
+      tab:   'help',
+      target: null
+    },
+    {
+      title: 'Find a case — Grievance Log',
+      body:  'The <b>Grievance Log</b> lists every case you have access to. Search by name or ID, filter by level, status (including <b>Overdue</b>), or filed-date range, then click <b>Export CSV</b> to download exactly what is showing.',
+      tab:   'log',
+      target: '#logStatusFilter',
+      scroll: true
+    },
+    {
+      title: 'Track deadlines — Dashboard',
+      body:  'The <b>Dashboard</b> tab shows all active grievances ranked by next deadline. Red rows are overdue, with a label showing how many days.',
+      tab:   'dashboard',
+      target: '#tab-dashboard',
+      scroll: true
+    },
+    {
+      title: 'Steward Workload',
+      body:  'The <b>Steward Workload</b> tab breaks down open cases by location, so you can see where things stand at a glance.',
+      tab:   'workload',
+      target: '#tab-workload',
+      scroll: true
+    },
+    {
+      title: 'Your Settings — password',
+      body:  'In <b>Settings</b> you can change your own password.',
+      tab:   'settings',
+      target: '#changePasswordPanel',
+      scroll: true
+    },
+    {
+      title: 'Tour complete!',
+      body:  'You\'ve seen what a read-only account can do. Return to the <b>Help</b> tab any time to re-read documentation or restart this tour.',
+      tab:   'help',
+      target: null
+    }
+  ];
+
   const STEWARD_PLUS_EXTRA = [
     {
       title: 'Start a pre-grievance investigation',
@@ -4476,6 +4548,9 @@ function startBackgroundPolling(){
   ];
 
   function buildSteps(role){
+    if(role === 'read_only'){
+      return READ_ONLY_STEPS;
+    }
     if(!role || role === 'steward'){
       return [...STEWARD_STEPS.slice(0, -1), STEWARD_SETTINGS_STEP, STEWARD_STEPS[STEWARD_STEPS.length-1]];
     }
@@ -4594,14 +4669,16 @@ function startBackgroundPolling(){
   // Update role label once CURRENT_USER is available (after login)
   function updateRoleLabel(){
     if(typeof CURRENT_USER === 'undefined' || !CURRENT_USER){ return; }
-    const roleMap = { admin:'Admin', steward_plus:'Steward Plus', steward:'Steward' };
+    const roleMap = { admin:'Admin', steward_plus:'Steward Plus', steward:'Steward', read_only:'Read-only Steward' };
     const rName = roleMap[CURRENT_USER.role] || 'Steward';
     roleLabel.textContent = 'Your role: ' + rName + ' — ' +
       (CURRENT_USER.role === 'admin'
         ? 'tour covers all features (steward, investigations, AI bot, setup, users, pool, email)'
         : CURRENT_USER.role === 'steward_plus'
           ? 'tour covers steward + investigations + AI drafting bot'
-          : 'tour covers filing, logging activity, dashboard, and archiving');
+          : CURRENT_USER.role === 'read_only'
+            ? 'tour covers viewing the dashboard, grievance log, and workload — this account cannot make changes'
+            : 'tour covers filing, logging activity, dashboard, and archiving');
   }
 
   // Hook into the existing login/logout flow by polling until CURRENT_USER is set

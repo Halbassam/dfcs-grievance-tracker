@@ -306,10 +306,12 @@ const server = http.createServer(async (req, res) => {
 
     if (pathname === "/api/auth/logout" && req.method === "POST") {
       const token = getSessionTokenFromRequest(req);
+      // Look the user up before destroying the session -- the token is no
+      // good for that lookup afterward.
+      const loggingOutUser = token ? await getCurrentUser(req) : null;
       if (token) await db.destroySession(token);
-      // Record logout before clearing session (currentUser still valid here)
-      if (currentUser && currentUser.username) {
-        db.writeAuditLog(currentUser.username, "logout", "", clientIp(req))
+      if (loggingOutUser && loggingOutUser.username) {
+        db.writeAuditLog(loggingOutUser.username, "logout", "", clientIp(req))
           .catch(err => console.error("[audit] logout write failed:", err.message));
       }
       clearSessionCookie(res);
@@ -324,6 +326,16 @@ const server = http.createServer(async (req, res) => {
     // All other API routes require a valid session
     const currentUser = await getCurrentUser(req);
     if (!currentUser) return sendJson(res, 401, { error: "Login required." });
+
+    // Read-only accounts can look at everything they're scoped to (same as
+    // a steward) but can never create, edit, delete, archive, hand off, or
+    // upload anything. Changing their own password is still allowed -- that's
+    // account self-service, not grievance data. Every other state-changing
+    // request is blocked here, centrally, rather than in each route, so a
+    // new write endpoint can't accidentally be left unguarded.
+    if (currentUser.role === "read_only" && req.method !== "GET" && pathname !== "/api/auth/change-password") {
+      return sendJson(res, 403, { error: "This is a read-only account. Ask an admin for edit access if you need to make changes." });
+    }
 
     if (pathname === "/api/data" && req.method === "GET") {
       const data = await db.getAll();
