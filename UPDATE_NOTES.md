@@ -29,13 +29,15 @@ shows a role dropdown under Manage Users, you already have it.
   Step 2 and Step 3 FILING deadlines (the ones that waive the
   grievance if missed), not just management's response deadlines.
   No reminders after Step 3 is filed — Council 31 staff track Step 4.
-- **Intake Form simplified** — Shift, Bureau, Location, and County
-  removed. These are now set ONCE in Settings → Local chapter info,
-  together with Agency and AFSCME Local No.
+- **Intake Form simplified** — Shift, Bureau, and County removed. These
+  are set ONCE in Settings → Local chapter info, together with Agency and
+  AFSCME Local No. Location stays on the Intake Form: stewards file to
+  their assigned location(s), and admins can choose any location.
 - **Page title** shows your local number (e.g. "FCRC Grievance
   Tracker — Local 2858") once set in Settings.
-- **Steward Workload** — "By DFCS bureau" removed; location section
-  is now "By Local <your number>".
+- **Steward Workload** — "By DFCS bureau" removed; the location section
+  is now headed "By Local <your number>" and has one row per location that
+  has grievances.
 - **Official grievance form printing** — grievance detail → Print
   produces the AFSCME/State of Illinois Contract Grievance form,
   auto-filled from tracker + Settings. Statement of Grievance box,

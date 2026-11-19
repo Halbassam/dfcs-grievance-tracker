@@ -39,19 +39,21 @@ async function testDb() {
 
   const db = require(path.resolve(__dirname, '..', 'server/db.js'));
 
-  // Test 1: submitGrievance ignores removed fields, keeps core fields
+  // Test 1: submitGrievance ignores org-wide fields, keeps core fields and the grievance's location
   const g1 = await db.submitGrievance({
     id: '2026-001', employee: 'Jane Doe', steward: 'Hazem',
-    bureau: 'ShouldBeIgnored', location: 'ShouldBeIgnored', county: 'X', shift: 'Y',
+    bureau: 'ShouldBeIgnored', location: 'North Suburban FCRC', county: 'X', shift: 'Y',
     agency: 'X', localNo: 'Y',
     status: 'Pending', step1filed: '2026-06-01', actingUser: 'Hazem'
   });
   assert.strictEqual(g1.isNew, true);
   assert.strictEqual(g1.record.employee, 'Jane Doe');
   assert.strictEqual(g1.record.bureau, undefined);
-  assert.strictEqual(g1.record.location, undefined);
   assert.strictEqual(g1.record.agency, undefined);
-  console.log('✓ submitGrievance ignores org-wide fields (bureau/location/county/shift/agency/localNo)');
+  // Location is per grievance (stewards file to their assigned location; see
+  // run_location_rule_test.js), so it must be kept, not dropped.
+  assert.strictEqual(g1.record.location, 'North Suburban FCRC');
+  console.log('✓ submitGrievance ignores org-wide fields (bureau/county/shift/agency/localNo) and keeps the grievance location');
 
   // Test 2: date preservation on update
   const g2 = await db.submitGrievance({
@@ -143,7 +145,7 @@ async function testFrontend() {
       dollar: (id)=>$(id), renderLog: ()=>renderLog(), print: (g)=>printGrievance(g),
       loadIntoForm: (r)=>loadIntoForm(r), nextDeadline: (r)=>nextDeadline(r),
       updatePageTitle: ()=>updatePageTitle(), renderWorkload: ()=>renderWorkload(),
-      setSetup: (s)=>{ SETUP = s; }
+      setSetup: (s)=>{ SETUP = s; }, setUser: (u)=>{ CURRENT_USER = u; }
     };
   </script>`);
   const dom = new JSDOM(html, {
@@ -161,10 +163,10 @@ async function testFrontend() {
   console.log('✓ All new UI elements present (search, print, org settings, change-pw, other lists, workload heading)');
 
   // Data
-  w.__t.setSetup({ Steward: ['Hazem'], StewardEmail: ['h@x.gov'], Location: [] });
+  w.__t.setSetup({ Steward: ['Hazem'], StewardEmail: ['h@x.gov'], Location: ['North Suburban FCRC'] });
   w.__t.setOrg({ agency:'DHS', localNo:'2858', bureau:'BFCP', location:'North Suburban FCRC', county:'Cook R1N', shift:'Day' });
   w.__t.setState({ grievances: [
-    { id:'2026-001', employee:'Jane Doe', steward:'Hazem', status:'Pending', jobClass:'HSC (RC-62)', bu:'RC-62', gtype:'Workload', article:'Art. XXXI', remedy:'Adjust caseload', awareness:'2026-05-25', step1filed:'2026-06-01', step1resp:'2026-06-10', step2filed:'2026-06-15' }
+    { id:'2026-001', employee:'Jane Doe', steward:'Hazem', location:'North Suburban FCRC', status:'Pending', jobClass:'HSC (RC-62)', bu:'RC-62', gtype:'Workload', article:'Art. XXXI', remedy:'Adjust caseload', awareness:'2026-05-25', step1filed:'2026-06-01', step1resp:'2026-06-10', step2filed:'2026-06-15' }
   ], activity: [], archive: [], holidays: [], attachments: [] });
 
   // Page title
@@ -191,7 +193,7 @@ async function testFrontend() {
   assert.ok(p.includes('CONTRACT GRIEVANCE'));
   assert.ok(p.includes('>DHS<') && p.includes('>2858<'), 'Agency/Local from ORG_SETTINGS');
   assert.ok(p.includes('North Suburban FCRC'), 'Facility from ORG_SETTINGS');
-  assert.ok(p.includes('2026-06-01'), 'Date raised at Step 1');
+  assert.ok(p.includes('06/01/2026'), 'Date raised at Step 1 (printed as MM/DD/YYYY)');
   assert.ok(!p.includes('2026-06-15'), 'Step 2 filed date must NOT appear (blank for hand-completion)');
   assert.ok(!p.includes('Adjust caseload') && !p.includes('Art. XXXI'), 'Statement box must be blank');
   assert.ok(!p.includes('Activity history'), 'No activity history section');
@@ -211,9 +213,10 @@ async function testFrontend() {
   console.log('✓ Browser nextDeadline includes union filing deadlines');
 
   // Workload heading
+  w.__t.setUser({ username: 'hazem', displayName: 'Hazem A', role: 'admin', locations: [] });
   w.__t.renderWorkload();
   assert.ok(w.__t.dollar('workloadLocationHeading').textContent.includes('Local 2858'));
-  assert.ok(w.__t.dollar('locationBody').innerHTML.includes('North Suburban FCRC'));
+  assert.ok(w.__t.dollar('locationBody').innerHTML.includes('North Suburban FCRC'), 'the location breakdown lists the grievance location');
   console.log('✓ Workload: "By Local 2858" heading + single org-location row');
 }
 
