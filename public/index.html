@@ -8,13 +8,13 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Caveat:wght@400..700&display=swap">
 <style>
 :root{
-  --ink:#10261b;--green-1:#0f3d24;--green-2:#1b5e20;--green-3:#2e7d32;
+  --ink:#0e2518;--green-1:#00421e;--green-2:#00662e;--green-3:#00853c;
   --brand:#00a94f;
-  --green-soft:#e8f5e9;--green-line:#bfe0c4;--paper:#faf9f4;--paper-2:#f1efe6;
-  --amber:#b7791f;--amber-bg:#fdf3da;--red:#9c0006;--red-bg:#fdeceb;--grey:#6b7268;--ok-bg:#e6f4ea;
+  --green-soft:#e9fbf1;--green-line:#bae8cf;--paper:#faf9f4;--paper-2:#f1efe6;
+  --amber:#b7791f;--amber-bg:#fdf3da;--red:#9c0006;--red-bg:#fdeceb;--grey:#6b7268;--ok-bg:#e7f9ef;
   --serif:'Source Serif Pro','Iowan Old Style',Georgia,serif;
   --sans:'Inter',-apple-system,BlinkMacSystemFont,sans-serif;
-  --mono:'IBM Plex Mono',monospace;--radius:3px;--shadow:0 1px 2px rgba(15,61,36,0.08);
+  --mono:'IBM Plex Mono',monospace;--radius:3px;--shadow:0 1px 2px rgba(0,66,30,0.08);
 }
 *{box-sizing:border-box;}
 html,body{margin:0;padding:0;}
@@ -78,7 +78,7 @@ textarea{resize:vertical;min-height:64px;}
 .deadline-item .dl-label{font-size:11.5px;color:var(--green-2);font-weight:600;}
 .deadline-item .dl-value{font-family:var(--mono);font-size:13.5px;color:var(--green-1);font-weight:600;}
 .status-banner{grid-column:1/-1;padding:12px 16px;border-radius:6px;font-weight:600;font-size:13.5px;border:1.5px solid;}
-.status-open{background:var(--ok-bg);border-color:#9bcaa8;color:var(--green-1);}
+.status-open{background:var(--ok-bg);border-color:#9bd4b5;color:var(--green-1);}
 .status-closed{background:var(--red-bg);border-color:#e3a8a5;color:var(--red);}
 .status-wait{background:var(--paper-2);border-color:#d8d5c8;color:var(--grey);}
 .form-footer{grid-column:1/-1;display:flex;justify-content:flex-end;gap:12px;margin-top:8px;padding-top:18px;border-top:1px solid var(--green-line);}
@@ -138,7 +138,7 @@ tbody tr.row-blue a.row-link{color:#fff;text-decoration:underline;}
 .breakdown-grid{display:grid;grid-template-columns:1fr 1fr;gap:20px;}
 @media (max-width:880px){.breakdown-grid{grid-template-columns:1fr;}}
 
-.modal-overlay{position:fixed;inset:0;background:rgba(15,38,27,0.55);display:none;align-items:center;justify-content:center;z-index:200;padding:20px;}
+.modal-overlay{position:fixed;inset:0;background:rgba(14,37,24,0.55);display:none;align-items:center;justify-content:center;z-index:200;padding:20px;}
 .modal-overlay.show{display:flex;}
 .modal{background:#fff;border-radius:8px;max-width:560px;width:100%;box-shadow:0 20px 50px rgba(0,0,0,0.25);overflow:hidden;}
 .modal-head{background:var(--green-1);color:#fff;padding:18px 22px;display:flex;align-items:center;gap:10px;}
@@ -415,7 +415,7 @@ footer.app-foot{text-align:center;color:var(--grey);font-size:11.5px;padding:30p
     <div class="legend">
       <span><i class="dot" style="background:#9c0006"></i>Response overdue</span>
       <span><i class="dot" style="background:#b7791f"></i>Due within 7 days</span>
-      <span><i class="dot" style="background:#2e7d32"></i>Resolved</span>
+      <span><i class="dot" style="background:#00853c"></i>Resolved</span>
       <span><i class="dot" style="background:#c7c4b7"></i>Active / on track</span>
     </div>
     <div class="table-wrap"><table><thead><tr><th>Grievance ID</th><th>Employee</th><th>Type</th><th>CBA reference</th><th>Current step</th><th>Next deadline</th><th>Status</th><th>Days open</th></tr></thead><tbody id="dashboardBody"></tbody></table></div>
@@ -746,7 +746,7 @@ footer.app-foot{text-align:center;color:var(--grey);font-size:11.5px;padding:30p
       <h3 style="font-family:var(--serif);color:var(--green-1);margin:0 0 6px;font-size:17px;">Grievance number pool</h3>
       <p style="font-size:13px;color:var(--grey);margin:6px 0 14px;">The union president assigns batches of preset grievance numbers. Paste them here and the Intake Form will auto-assign the next one automatically. When the pool is empty, stewards type a number manually.</p>
 
-      <div id="poolStatusDisplay" style="margin-bottom:16px;padding:12px 16px;border-radius:6px;background:var(--panel-alt,#f0f5f0);font-size:13.5px;"></div>
+      <div id="poolStatusDisplay" style="margin-bottom:16px;padding:12px 16px;border-radius:6px;background:var(--panel-alt,#f2f8f4);font-size:13.5px;"></div>
 
       <div style="margin-bottom:16px;">
         <label style="font-weight:600;font-size:13px;display:block;margin-bottom:6px;">Add numbers to pool</label>
@@ -767,7 +767,7 @@ footer.app-foot{text-align:center;color:var(--grey);font-size:11.5px;padding:30p
     <div class="panel panel-pad" id="myPoolPanel" style="margin-bottom:24px;">
       <h3 style="font-family:var(--serif);color:var(--green-1);margin:0 0 6px;font-size:17px;">Grievance number pool</h3>
       <p style="font-size:13px;color:var(--grey);margin:6px 0 14px;">Add preset grievance numbers so the Intake Form can auto-assign them. Numbers already in the pool or already used are skipped automatically.</p>
-      <div id="myPoolStatusDisplay" style="margin-bottom:16px;padding:12px 16px;border-radius:6px;background:var(--panel-alt,#f0f5f0);font-size:13.5px;"></div>
+      <div id="myPoolStatusDisplay" style="margin-bottom:16px;padding:12px 16px;border-radius:6px;background:var(--panel-alt,#f2f8f4);font-size:13.5px;"></div>
       <div style="margin-bottom:16px;">
         <label style="font-weight:600;font-size:13px;display:block;margin-bottom:6px;">Add numbers to pool</label>
         <textarea id="myPoolNumbersInput" rows="4" style="width:100%;box-sizing:border-box;font-family:monospace;font-size:13px;padding:8px 10px;border:1px solid var(--green-line);border-radius:6px;resize:vertical;" placeholder="FCRC-2026-001&#10;FCRC-2026-002&#10;FCRC-2026-003&#10;(one per line, or comma-separated)"></textarea>
@@ -2858,7 +2858,7 @@ function updateIntakePoolUI(){
     // Pool has numbers — show badge, show Assign button, lock field until assigned
     badge.style.display = 'inline-block';
     badge.textContent = `${remaining} in pool`;
-    badge.style.background = remaining <= 3 ? 'var(--amber,#f0ad4e)' : 'var(--green-3,#27ae60)';
+    badge.style.background = remaining <= 3 ? 'var(--amber,#f0ad4e)' : 'var(--green-3,#0d773d)';
     badge.style.color = remaining <= 3 ? '#7a4800' : '#fff';
     if(assignBtn) assignBtn.style.display = 'inline-block';
     // Show low-pool warning at 3 or fewer
@@ -2892,7 +2892,7 @@ async function _renderPoolPanel(statusId, logId){
     } else if(remaining <= 3){
       statusHtml = `<span style="color:#b8660c;font-weight:600;">&#9888; Low: ${remaining} number(s) remaining.</span> Add a new batch soon.`;
     } else {
-      statusHtml = `<span style="color:var(--green-2,#27ae60);font-weight:600;">&#10003; ${remaining} number(s) available</span> — intake form will auto-assign.`;
+      statusHtml = `<span style="color:var(--green-2,#0d773d);font-weight:600;">&#10003; ${remaining} number(s) available</span> — intake form will auto-assign.`;
     }
     // Read-only list of the unused numbers, in the order they will be assigned.
     const numbers = Array.isArray(data.numbers) ? data.numbers : [];
@@ -3176,7 +3176,7 @@ async function refreshEmailStatus(){
     const box = $('emailStatusBox');
     if(data.emailConfigured){
       box.style.background = 'var(--ok-bg)';
-      box.style.border = '1px solid #9bcaa8';
+      box.style.border = '1px solid #9bd4b5';
       box.style.color = 'var(--green-1)';
       box.innerHTML = `<b>&#10003; Configured.</b> Last run: ${data.lastEmailRunDate || 'never yet'}.`;
     } else {
