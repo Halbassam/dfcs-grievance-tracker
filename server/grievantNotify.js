@@ -55,7 +55,10 @@ const STEP_LABELS = {
 function buildStepEmailBody(rec, step, localNo) {
   const localTag = localNo ? `AFSCME Local ${localNo}` : "AFSCME Council 31";
   const lines = [];
-  lines.push(`Dear ${rec.employee || "Grievant"},`);
+  // Group cases are recorded as "All Affected", which is not a person's name.
+  const isGroup = /^\s*all\s+affected\s*$/i.test(String(rec.employee || ""));
+  const greeting = isGroup ? "Affected Employee" : (rec.employee || "Grievant");
+  lines.push(`Dear ${greeting},`);
   lines.push("");
   lines.push(`This is an update on your grievance (Case ${rec.id}) filed with ${localTag}.`);
   lines.push("");

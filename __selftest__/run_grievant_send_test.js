@@ -107,6 +107,14 @@ const path = require('path');
   assert.strictEqual(s.skippedNoEmail, true);
   console.log('✓ No grievant address on file: nothing is sent');
 
+  // 5. A group case ("All Affected") is not greeted by that label.
+  const gBody = gn.buildStepEmailBody({ id: 'G-GRP', employee: 'All Affected', grievantEmail: 'a@x.gov' }, 'step1', '');
+  assert.ok(gBody.startsWith('Dear Affected Employee,'), 'group greeting: ' + gBody.split('\n')[0]);
+  assert.ok(!gBody.includes('All Affected,'), 'the label must not appear as a greeting');
+  const pBody = gn.buildStepEmailBody({ id: 'G-1', employee: 'Pat Doe' }, 'step1', '');
+  assert.ok(pBody.startsWith('Dear Pat Doe,'), 'a named grievant keeps their name');
+  console.log('✓ Group cases are greeted as "Affected Employee"; named grievants keep their name');
+
   console.log('\nALL GRIEVANT SEND TESTS PASSED');
   process.exit(0);
 })().catch(e => { console.error('\n✗ FAILED:', e.message); process.exit(1); });
