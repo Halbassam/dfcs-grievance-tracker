@@ -705,6 +705,31 @@ h1,h2,h3{letter-spacing:-0.012em;}
       <div id="mcTable" class="table-wrap" style="padding:0 14px;"></div>
     </div>
 
+    <div class="panel panel-pad" id="newsletterPanel" style="margin-top:24px;">
+      <h3 style="font-family:var(--sans);color:var(--green-1);margin:0 0 6px;font-size:17px;">Newsletter</h3>
+      <p style="font-size:13px;color:var(--grey);margin:6px 0 14px;">Send to members who have opted in to newsletters. Each person gets their own email with an unsubscribe link. Stewards can send to their own location; admins can send to any location or the whole local. Emails go out one at a time, and the record is kept for one year.</p>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;margin-bottom:12px;">
+        <div class="field"><label for="nlAudience">Send to</label><select id="nlAudience"></select></div>
+        <div class="field"><label>Address to use</label>
+          <div style="display:flex;gap:14px;font-size:14px;padding-top:6px;">
+            <label style="font-weight:400;display:flex;gap:6px;align-items:center;"><input type="radio" name="nlAddress" value="personal" checked> Personal email</label>
+            <label style="font-weight:400;display:flex;gap:6px;align-items:center;"><input type="radio" name="nlAddress" value="state"> State email</label>
+          </div>
+        </div>
+      </div>
+      <div id="nlReasonWrap" class="field" style="display:none;margin-bottom:12px;"><label for="nlReason">Reason for using state emails (special circumstances)</label><input type="text" id="nlReason" maxlength="300"></div>
+      <div class="field" style="margin-bottom:12px;"><label for="nlSubject">Subject</label><input type="text" id="nlSubject" maxlength="150"></div>
+      <div class="field" style="margin-bottom:12px;"><label for="nlBody">Newsletter text</label><textarea id="nlBody" rows="10" maxlength="20000" style="font-family:var(--sans);"></textarea>
+        <span class="field-note">Plain text. Blank lines start a new paragraph. The header and the unsubscribe link are added automatically.</span></div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:12px;">
+        <button class="btn btn-secondary" id="nlPreviewBtn">Check recipients</button>
+        <button class="btn btn-secondary" id="nlTestBtn">Send test email</button>
+        <button class="btn btn-primary" id="nlSendBtn">Send newsletter</button>
+        <span id="nlStatus" style="font-size:13px;color:var(--grey);"></span>
+      </div>
+      <h4 style="font-family:var(--sans);font-size:14px;color:var(--green-1);margin:12px 0 8px;">Past newsletters</h4>
+      <div id="nlHistory" class="table-wrap" style="padding:0 14px;"></div>
+    </div>
   </section><section class="page hidden" id="tab-settings">
     <div class="section-head"><div><h2>Settings</h2><div class="sub">User accounts, holiday list, FCRC locations, and deadline email reminders</div></div></div>
 
@@ -2664,7 +2689,7 @@ function switchTab(target){
   // Refresh audit log when admin opens it
   if(view === 'audit') loadAuditLog();
   if(view === 'emaillog') refreshEmailStatus();
-  if(page === 'members') renderMemberContactsPanel();
+  if(page === 'members'){ renderMemberContactsPanel(); nlAudienceOptions(); renderNewsletterHistory(); }
 }
 document.querySelectorAll('.view-bar [data-view]').forEach(b=>{
   b.addEventListener('click', ()=>switchTab(b.dataset.view));
@@ -2878,6 +2903,114 @@ function renderAll(){
   renderLocationBackfillPanel();
   renderLocationContactsPanel();
 }
+
+
+/* ---------- Members: Newsletter ---------- */
+let _nlPoll = null;
+
+function nlAudienceOptions(){
+  const sel = $('nlAudience');
+  if(!sel) return;
+  const isAdmin = CURRENT_USER && CURRENT_USER.role === 'admin';
+  const mine = isAdmin ? (SETUP.Location||[]) : (SETUP.Location||[]).filter(l => (CURRENT_USER && CURRENT_USER.locations||[]).includes(l));
+  const keep = sel.value;
+  sel.innerHTML = (isAdmin ? '<option value="all">Whole local (all locations)</option>' : '')
+    + mine.map(l=>`<option value="loc:${escapeHtml(l)}">${escapeHtml(l)}</option>`).join('');
+  if(keep && [...sel.options].some(o=>o.value===keep)) sel.value = keep;
+  if(!sel.options.length) sel.innerHTML = '<option value="">No location assigned to you</option>';
+}
+
+function nlPayload(){
+  const v = $('nlAudience').value || '';
+  const audience = v === 'all' ? 'all' : 'location';
+  const location = v.startsWith('loc:') ? v.slice(4) : '';
+  const addressType = (document.querySelector('input[name="nlAddress"]:checked')||{}).value || 'personal';
+  return {
+    audience, location, addressType,
+    reason: $('nlReason').value.trim(),
+    subject: $('nlSubject').value.trim(),
+    body: $('nlBody').value
+  };
+}
+
+function nlSetStatus(msg, bad){
+  const el = $('nlStatus');
+  if(!el) return;
+  el.textContent = msg;
+  el.style.color = bad ? 'var(--red)' : 'var(--grey)';
+}
+
+async function renderNewsletterHistory(){
+  const box = $('nlHistory');
+  if(!box || !CURRENT_USER || CURRENT_USER.role === 'read_only') return;
+  try{
+    const data = await apiGet('/api/newsletters');
+    const rows = data.newsletters || [];
+    if(!rows.length){
+      box.innerHTML = '<div style="padding:16px 0;text-align:center;color:var(--grey);font-size:13px;">No newsletters sent yet.</div>';
+      return;
+    }
+    box.innerHTML = `<table style="width:100%;border-collapse:collapse;font-size:13px;">
+      <thead><tr><th style="text-align:left;">When</th><th style="text-align:left;">Subject</th><th style="text-align:left;">To</th><th style="text-align:left;">Address</th><th style="text-align:left;">Sent / failed of</th><th style="text-align:left;">Status</th><th style="text-align:left;">By</th></tr></thead>
+      <tbody>${rows.map(r=>`<tr>
+        <td style="white-space:nowrap;font-size:12px;color:var(--grey);">${r.createdAt ? escapeHtml(new Date(r.createdAt).toLocaleString('en-US')) : ''}</td>
+        <td>${escapeHtml(r.subject)}</td>
+        <td>${escapeHtml(r.audience === 'all' ? 'Whole local' : r.location)}</td>
+        <td>${escapeHtml(r.addressType === 'state' ? 'State email' : 'Personal email')}</td>
+        <td>${r.sent} / ${r.failed} of ${r.recipients}</td>
+        <td>${escapeHtml(r.status === 'sent' ? 'Finished' : 'Sending…')}</td>
+        <td>${escapeHtml(r.sentBy || '')}</td>
+      </tr>`).join('')}</tbody></table>`;
+    if(rows.some(r=>r.status !== 'sent')) startNlPoll(); else stopNlPoll();
+  }catch(err){
+    box.textContent = 'Could not load past newsletters.';
+  }
+}
+
+function startNlPoll(){
+  if(_nlPoll) return;
+  _nlPoll = setInterval(()=>renderNewsletterHistory(), 5000);
+  setTimeout(stopNlPoll, 15 * 60 * 1000);
+}
+function stopNlPoll(){
+  if(_nlPoll){ clearInterval(_nlPoll); _nlPoll = null; }
+}
+
+$('nlPreviewBtn')?.addEventListener('click', async ()=>{
+  try{
+    const r = await apiPost('/api/newsletters/preview', nlPayload());
+    nlSetStatus(`${r.recipients} member(s) will receive this (opted in, not unsubscribed, with a ${nlPayload().addressType === 'state' ? 'state' : 'personal'} email).`);
+  }catch(err){ nlSetStatus(err.message || 'Could not check recipients.', true); }
+});
+
+$('nlTestBtn')?.addEventListener('click', async ()=>{
+  const p = nlPayload();
+  if(!p.subject || !p.body.trim()){ nlSetStatus('Enter a subject and text first.', true); return; }
+  try{
+    const r = await apiPost('/api/newsletters/test', p);
+    nlSetStatus(`Test sent to ${r.sentTo}.`);
+  }catch(err){ nlSetStatus(err.message || 'Could not send the test.', true); }
+});
+
+$('nlSendBtn')?.addEventListener('click', async ()=>{
+  const p = nlPayload();
+  if(!p.subject || !p.body.trim()){ nlSetStatus('Enter a subject and text first.', true); return; }
+  let check;
+  try{ check = await apiPost('/api/newsletters/preview', p); }
+  catch(err){ nlSetStatus(err.message || 'Could not check recipients.', true); return; }
+  if(!check.recipients){ nlSetStatus('No members match. Nothing was sent.', true); return; }
+  if(!confirm(`Send "${p.subject}" to ${check.recipients} member(s) now? Emails go out one at a time and cannot be recalled.`)) return;
+  try{
+    const r = await apiPost('/api/newsletters/send', p);
+    nlSetStatus(`Sending to ${r.recipients} member(s). You can leave this page; the history shows progress.`);
+    renderNewsletterHistory();
+  }catch(err){ nlSetStatus(err.message || 'Could not start the newsletter.', true); }
+});
+
+document.querySelectorAll('input[name="nlAddress"]').forEach(r=>r.addEventListener('change', ()=>{
+  const isState = (document.querySelector('input[name="nlAddress"]:checked')||{}).value === 'state';
+  $('nlReasonWrap').style.display = isState ? '' : 'none';
+}));
 
 /* ---------- Settings: Member contacts (shared location links) ---------- */
 let _memberSubs = [];

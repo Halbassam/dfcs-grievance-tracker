@@ -1044,6 +1044,17 @@ async function getContactLink(token) {
   return { isExpired: new Date(r.expires_at) < new Date(), isRevoked: !!r.revoked_at };
 }
 
+// Shared by both save paths. A ticked newsletter box opts the person in and
+// clears any earlier unsubscribe. An unticked box records "not opted in", but
+// keeps a permanent unsubscribe in place.
+const NEWSLETTER_UPDATE_SQL = `update contact_submissions
+    set location = $2, legal_name = $3, phone = $4, personal_email = $5, state_email = $6,
+        consent_at = now(), submitted_at = now(),
+        newsletter_opt_in = $7,
+        newsletter_opt_in_at = case when $7 then now() else newsletter_opt_in_at end,
+        newsletter_unsubscribed_at = case when $7 then null else newsletter_unsubscribed_at end
+  where id = $1`;
+
 /** Saves one person's details. Validation happens before anything is saved.
  *  Required: a location from the list, legal name, consent, and at least one
  *  way to reach them (phone or an email). Any email given is checked. */
@@ -1053,6 +1064,7 @@ async function submitContact(token, input) {
   const phone = String((input && input.phone) || "").trim();
   const personalEmail = String((input && input.personalEmail) || "").trim();
   const stateEmail = String((input && input.stateEmail) || "").trim();
+  const newsletter = !!(input && input.newsletter === true);
   if (!input || input.consent !== true) throw new Error("Please tick the box to agree to how your details will be used.");
   if (!location) throw new Error("Please choose your location.");
   if (!(await getLocationList()).includes(location)) throw new Error("Please choose your location from the list.");
@@ -1083,19 +1095,15 @@ async function submitContact(token, input) {
     )
   );
   if (match) {
-    await query(
-      `update contact_submissions
-          set location = $2, legal_name = $3, phone = $4, personal_email = $5, state_email = $6,
-              consent_at = now(), submitted_at = now()
-        where id = $1`,
-      [match.id, location, legalName, phone, personalEmail, stateEmail]
-    );
+    await query(NEWSLETTER_UPDATE_SQL, [match.id, location, legalName, phone, personalEmail, stateEmail, newsletter]);
     return { ok: true, updated: true };
   }
   await query(
-    `insert into contact_submissions (id, location, legal_name, phone, personal_email, state_email)
-     values ($1, $2, $3, $4, $5, $6)`,
-    [crypto.randomBytes(12).toString("hex"), location, legalName, phone, personalEmail, stateEmail]
+    `insert into contact_submissions (id, location, legal_name, phone, personal_email, state_email,
+                                      newsletter_opt_in, newsletter_opt_in_at, unsubscribe_token)
+     values ($1, $2, $3, $4, $5, $6, $7, case when $7 then now() else null end, $8)`,
+    [crypto.randomBytes(12).toString("hex"), location, legalName, phone, personalEmail, stateEmail,
+     newsletter, crypto.randomBytes(16).toString("hex")]
   );
   return { ok: true };
 }
@@ -1103,7 +1111,7 @@ async function submitContact(token, input) {
 /** Everything stewards need: the submissions (newest first) and whether a link is live. */
 async function listContacts() {
   const [subs, link] = await Promise.all([
-    query("select id, location, legal_name, phone, personal_email, state_email, submitted_at from contact_submissions order by submitted_at desc, id"),
+    query("select id, location, legal_name, phone, personal_email, state_email, submitted_at, newsletter_opt_in, newsletter_unsubscribed_at from contact_submissions order by submitted_at desc, id"),
     query("select max(expires_at) as expires_at from contact_links where revoked_at is null and expires_at > now()")
   ]);
   const expires = link.rows[0] && link.rows[0].expires_at;
@@ -1115,7 +1123,8 @@ async function listContacts() {
       phone: r.phone,
       personalEmail: r.personal_email,
       stateEmail: r.state_email,
-      submittedAt: r.submitted_at ? new Date(r.submitted_at).toISOString() : null
+      submittedAt: r.submitted_at ? new Date(r.submitted_at).toISOString() : null,
+      newsletterOptIn: !!r.newsletter_opt_in && !r.newsletter_unsubscribed_at
     })),
     activeLink: expires ? { expiresAt: new Date(expires).toISOString() } : null
   };
@@ -1190,6 +1199,7 @@ async function submitContactUpdate(token, input) {
   const phone = String((input && input.phone) || "").trim();
   const personalEmail = String((input && input.personalEmail) || "").trim();
   const stateEmail = String((input && input.stateEmail) || "").trim();
+  const newsletter = !!(input && input.newsletter === true);
   if (!input || input.consent !== true) throw new Error("Please tick the box to agree to how your details will be used.");
   if (!location) throw new Error("Please choose your location.");
   if (!(await getLocationList()).includes(location)) throw new Error("Please choose your location from the list.");
@@ -1209,13 +1219,7 @@ async function submitContactUpdate(token, input) {
   const before = await getSubmissionRow(submissionId);
   if (!before) throw new Error("That entry no longer exists. Ask your steward for help.");
   try {
-    await query(
-      `update contact_submissions
-          set location = $2, legal_name = $3, phone = $4, personal_email = $5, state_email = $6,
-              consent_at = now(), submitted_at = now()
-        where id = $1`,
-      [submissionId, location, legalName, phone, personalEmail, stateEmail]
-    );
+    await query(NEWSLETTER_UPDATE_SQL, [submissionId, location, legalName, phone, personalEmail, stateEmail, newsletter]);
   } catch (err) {
     await query("update contact_update_links set used_at = null where token_hash = $1", [hashContactToken(token)])
       .catch(releaseErr => console.error("[db] Failed to release update link:", releaseErr.message));
@@ -1223,6 +1227,82 @@ async function submitContactUpdate(token, input) {
   }
   const oldEmail = (before.personal_email || "").trim();
   return { ok: true, legalName, newPersonalEmail: personalEmail, emailChanged: !!personalEmail && personalEmail.toLowerCase() !== oldEmail.toLowerCase() };
+}
+
+// ---------- Newsletter ----------
+// Recipients are people who opted in, have not unsubscribed, and have an address of
+// the chosen type. A newsletter record is kept for one year.
+
+/** People who should receive a newsletter now. */
+async function getNewsletterRecipients({ location, addressType }) {
+  const col = addressType === "state" ? "state_email" : "personal_email";
+  const params = [];
+  let where = `newsletter_opt_in = true and newsletter_unsubscribed_at is null and ${col} <> ''`;
+  if (location) {
+    params.push(location);
+    where += ` and location = $${params.length}`;
+  }
+  const res = await query(
+    `select id, location, legal_name, ${col} as email, unsubscribe_token
+       from contact_submissions where ${where} order by legal_name`,
+    params
+  );
+  return res.rows.map(r => ({
+    id: r.id, location: r.location, legalName: r.legal_name, email: r.email, unsubscribeToken: r.unsubscribe_token
+  }));
+}
+
+/** Unsubscribes the person who holds this token. Permanent, unless they tick the box again. */
+async function unsubscribeByToken(token) {
+  const key = String(token || "");
+  if (!key) return false;
+  const res = await query(
+    `update contact_submissions set newsletter_opt_in = false, newsletter_unsubscribed_at = now()
+      where unsubscribe_token = $1 returning id`,
+    [key]
+  );
+  return res.rows.length > 0;
+}
+
+async function createNewsletterRecord(n) {
+  const id = crypto.randomBytes(10).toString("hex");
+  await query(
+    `insert into newsletters (id, subject, body, audience, location, address_type, reason, sent_by, recipients, status)
+     values ($1,$2,$3,$4,$5,$6,$7,$8,$9,'sending')`,
+    [id, n.subject, n.body, n.audience, n.location || "", n.addressType, n.reason || "", n.sentBy || "", n.recipients || 0]
+  );
+  return id;
+}
+
+async function updateNewsletterProgress(id, sent, failed) {
+  await query("update newsletters set sent = $2, failed = $3 where id = $1", [id, sent, failed]);
+}
+
+async function finishNewsletterRecord(id, sent, failed) {
+  await query(
+    "update newsletters set sent = $2, failed = $3, status = 'sent', finished_at = now() where id = $1",
+    [id, sent, failed]
+  );
+}
+
+async function listNewsletterRecords(username, admin) {
+  const res = await query(
+    `select id, subject, audience, location, address_type, reason, sent_by, created_at, finished_at, recipients, sent, failed, status
+       from newsletters ${admin ? "" : "where sent_by = $1"} order by created_at desc limit 100`,
+    admin ? [] : [String(username || "")]
+  );
+  return res.rows.map(r => ({
+    id: r.id, subject: r.subject, audience: r.audience, location: r.location, addressType: r.address_type,
+    reason: r.reason, sentBy: r.sent_by,
+    createdAt: r.created_at ? new Date(r.created_at).toISOString() : null,
+    finishedAt: r.finished_at ? new Date(r.finished_at).toISOString() : null,
+    recipients: r.recipients, sent: r.sent, failed: r.failed, status: r.status
+  }));
+}
+
+/** Removes newsletter records older than one year. */
+async function purgeOldNewsletters() {
+  await query("delete from newsletters where created_at < now() - interval '365 days'");
 }
 
 /** Newest-first email log entries, for the admin Email log. */
@@ -1820,7 +1900,7 @@ async function getAuditLog(limit = 200, filterUsername = null, filterActions = [
 }
 
 module.exports = {
-  getAll, readRaw, writeRawAtomic, getEmailLog, createContactLink, getContactLink, getLocationList, submitContact, listContacts, revokeContactLink, removeContactSubmission, createContactUpdateLink, expireContactUpdateLink, getContactUpdateLink, submitContactUpdate, withLock, logEmailAttempt, pingKeepAlive,
+  getAll, readRaw, writeRawAtomic, getEmailLog, createContactLink, getContactLink, getLocationList, submitContact, listContacts, revokeContactLink, removeContactSubmission, createContactUpdateLink, expireContactUpdateLink, getContactUpdateLink, submitContactUpdate, getNewsletterRecipients, unsubscribeByToken, createNewsletterRecord, updateNewsletterProgress, finishNewsletterRecord, listNewsletterRecords, purgeOldNewsletters, withLock, logEmailAttempt, pingKeepAlive,
   getEmailRunState, saveEmailRunState, getLastEmailRunDate, linkGrievanceToInvestigation, deleteOtherSessions, chicagoDateISO,
   submitGrievance, logActivity, archiveClosed, sendCourtesyNotice,
   updateSetupList, getSetupList, updateHolidays, updateOrgSettings,

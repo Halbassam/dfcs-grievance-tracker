@@ -82,6 +82,8 @@ function contactForm({ locations, token, localNo, mode }) {
       <input type="text" id="website" class="trap" tabindex="-1" autocomplete="off" aria-hidden="true">
 
       <label class="check"><input type="checkbox" id="consent"> <span>I agree that the union may use these details to contact me about union business.</span></label>
+
+      <label class="check"><input type="checkbox" id="newsletter"> <span>I would like to receive union newsletters by email. This is optional. You can unsubscribe at any time.</span></label>
     </div>
     <div id="err" class="err" hidden></div>
     <button id="go" type="submit">Save my details</button>
@@ -107,6 +109,7 @@ function contactForm({ locations, token, localNo, mode }) {
       personalEmail: document.getElementById('personalEmail').value,
       stateEmail: document.getElementById('stateEmail').value,
       consent: document.getElementById('consent').checked,
+      newsletter: document.getElementById('newsletter').checked,
       website: document.getElementById('website').value
     };
     btn.disabled = true;
@@ -124,6 +127,38 @@ function contactForm({ locations, token, localNo, mode }) {
   });
 }
 
+/** The page behind the unsubscribe link. A button does the unsubscribing. */
+function unsubscribePage({ token }) {
+  return page({
+    title: "Unsubscribe",
+    body: `<div class="card">
+  <h2 id="t">Unsubscribe from newsletters</h2>
+  <p class="muted" id="m">Press the button to stop receiving union newsletters at this address.</p>
+  <button id="go" type="button">Unsubscribe</button>
+  <div id="err" class="err" hidden></div>
+</div>
+<script>
+(function(){
+  document.getElementById('go').addEventListener('click', function(){
+    var btn = this; btn.disabled = true;
+    fetch(location.pathname, { method: 'POST' })
+      .then(function(res){ if (!res.ok) throw new Error('not found'); return res.json(); })
+      .then(function(){
+        document.getElementById('t').textContent = 'You have been unsubscribed';
+        document.getElementById('m').textContent = 'You will not receive union newsletters at this address. Your steward can help if you change your mind.';
+        btn.hidden = true;
+      })
+      .catch(function(){
+        var e = document.getElementById('err');
+        e.textContent = 'This link is not valid, or something went wrong. Please try again or contact your steward.';
+        e.hidden = false; btn.disabled = false;
+      });
+  });
+})();
+</script>`
+  });
+}
+
 function messagePage({ title, message }) {
   return page({
     title,
@@ -131,4 +166,4 @@ function messagePage({ title, message }) {
   });
 }
 
-module.exports = { contactForm, messagePage, esc };
+module.exports = { contactForm, messagePage, unsubscribePage, esc };

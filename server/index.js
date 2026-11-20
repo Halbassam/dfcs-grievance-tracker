@@ -15,6 +15,7 @@ const grievanceDraftBot = require("./grievanceDraftBot");
 const investigationForms = require("./investigationForms");
 const memberForms = require("./memberForms");
 const contactUpdate = require("./contactUpdate");
+const newsletter = require("./newsletter");
 const storage = require("./storage");
 
 const PORT = process.env.PORT || 3000;
@@ -227,6 +228,15 @@ function csvCellValue(val) {
   return /[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
 }
 
+// Admins may send to any location or the whole local. Stewards may send only to a
+// location they are assigned to.
+function canSendNewsletterTo(currentUser, audience, location) {
+  if (!currentUser) return false;
+  if (currentUser.role === "admin") return true;
+  if (audience !== "location") return false;
+  return (currentUser.locations || []).includes(String(location || "").trim());
+}
+
 function canManageMemberContacts(currentUser) {
   return !!currentUser && ["admin", "steward_plus", "steward"].includes(currentUser.role);
 }
@@ -388,6 +398,23 @@ const server = http.createServer(async (req, res) => {
         } catch (err) {
           return sendJson(res, 400, { error: err.message });
         }
+      }
+    }
+
+    // Unsubscribe from newsletters. The link is in every newsletter. Opening the
+    // page does nothing; the button does the unsubscribing, so mail scanners that
+    // open links do not unsubscribe people by accident.
+    const unsubMatch = pathname.match(/^\/unsubscribe\/([a-f0-9]{32})$/);
+    if (unsubMatch) {
+      const token = unsubMatch[1];
+      if (req.method === "GET") {
+        res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
+        return res.end(memberForms.unsubscribePage({ token }));
+      }
+      if (req.method === "POST") {
+        const ok = await db.unsubscribeByToken(token);
+        if (!ok) return sendJson(res, 404, { error: "This link is not valid." });
+        return sendJson(res, 200, { ok: true });
       }
     }
 
@@ -951,6 +978,60 @@ const server = http.createServer(async (req, res) => {
         try {
           const body = await readBody(req);
           return sendJson(res, 200, await db.removeContactSubmission(body.id));
+        } catch (err) {
+          return sendJson(res, 400, { error: err.message });
+        }
+      }
+    }
+
+    // Newsletters to members who opted in. Admins can send to any location or the
+    // whole local. Stewards can send only to their own locations. Read-only accounts
+    // cannot send or see the list.
+    if (pathname.startsWith("/api/newsletters")) {
+      if (!canManageMemberContacts(currentUser)) {
+        return sendJson(res, 403, { error: "Only stewards and admins can use newsletters." });
+      }
+      const baseUrlOf = () => `${req.headers["x-forwarded-proto"] || "https"}://${req.headers.host || ""}`;
+      const localNo = await db.getOrgLocalNo().catch(() => "");
+      if (pathname === "/api/newsletters" && req.method === "GET") {
+        const rows = await db.listNewsletterRecords(currentUser.username, currentUser.role === "admin");
+        return sendJson(res, 200, { newsletters: rows });
+      }
+      if (pathname === "/api/newsletters/preview" && req.method === "POST") {
+        try {
+          const body = await readBody(req);
+          if (!canSendNewsletterTo(currentUser, body.audience, body.location)) {
+            return sendJson(res, 403, { error: "You can send newsletters only to your own location." });
+          }
+          const loc = body.audience === "location" ? String(body.location || "").trim() : "";
+          const people = await db.getNewsletterRecipients({ location: loc, addressType: body.addressType === "state" ? "state" : "personal" });
+          const unique = new Set(people.map(p => p.email.toLowerCase())).size;
+          return sendJson(res, 200, { recipients: unique });
+        } catch (err) {
+          return sendJson(res, 400, { error: err.message });
+        }
+      }
+      if (pathname === "/api/newsletters/test" && req.method === "POST") {
+        try {
+          const body = await readBody(req);
+          const sent = await newsletter.sendTest({ subject: body.subject, body: body.body, addressType: body.addressType, reason: body.reason, baseUrl: baseUrlOf(), localNo });
+          return sendJson(res, 200, { ok: true, sentTo: sent.sentTo });
+        } catch (err) {
+          return sendJson(res, 400, { error: err.message });
+        }
+      }
+      if (pathname === "/api/newsletters/send" && req.method === "POST") {
+        try {
+          const body = await readBody(req);
+          if (!canSendNewsletterTo(currentUser, body.audience, body.location)) {
+            return sendJson(res, 403, { error: "You can send newsletters only to your own location." });
+          }
+          const started = await newsletter.startNewsletter({
+            subject: body.subject, body: body.body, audience: body.audience, location: body.location,
+            addressType: body.addressType, reason: body.reason, sentBy: currentUser.username,
+            baseUrl: baseUrlOf(), localNo
+          });
+          return sendJson(res, 202, { ok: true, id: started.id, recipients: started.recipients });
         } catch (err) {
           return sendJson(res, 400, { error: err.message });
         }

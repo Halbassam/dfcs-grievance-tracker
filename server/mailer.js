@@ -47,7 +47,7 @@ const DEFAULT_SENDER_NAME = "FCRC Grievance Tracker";
  * `apiKey` and `senderEmail` are required. `senderEmail` must exactly
  * match a sender address that has been verified in the Brevo dashboard.
  */
-function sendMail({ apiKey, senderEmail, senderName, to, subject, text }) {
+function sendMail({ apiKey, senderEmail, senderName, to, subject, text, html, replyTo }) {
   return new Promise((resolve, reject) => {
     if (!apiKey) {
       reject(new Error("BREVO_API_KEY is not set — cannot send email."));
@@ -58,12 +58,15 @@ function sendMail({ apiKey, senderEmail, senderName, to, subject, text }) {
       return;
     }
 
-    const payload = JSON.stringify({
+    const body = {
       sender: { name: senderName || DEFAULT_SENDER_NAME, email: senderEmail },
       to: [{ email: to }],
       subject,
       textContent: text
-    });
+    };
+    if (html) body.htmlContent = html;
+    if (replyTo) body.replyTo = { email: replyTo };
+    const payload = JSON.stringify(body);
 
     const req = https.request(
       {
