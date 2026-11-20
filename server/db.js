@@ -997,6 +997,12 @@ async function logEmailAttempt(entry) {
   });
 }
 
+/** Newest-first email log entries, for the admin Email log. */
+async function getEmailLog(limit = 200) {
+  const res = await query("select data from email_log order by row_id desc limit $1", [limit]);
+  return res.rows.map(r => r.data);
+}
+
 async function writeRawAtomic(data) {
   await withTransaction(async (client) => {
     if (typeof data.lastEmailRunDate === "string") {
@@ -1586,7 +1592,7 @@ async function getAuditLog(limit = 200, filterUsername = null, filterActions = [
 }
 
 module.exports = {
-  getAll, readRaw, writeRawAtomic, withLock, logEmailAttempt, pingKeepAlive,
+  getAll, readRaw, writeRawAtomic, getEmailLog, withLock, logEmailAttempt, pingKeepAlive,
   getEmailRunState, saveEmailRunState, getLastEmailRunDate, linkGrievanceToInvestigation, deleteOtherSessions, chicagoDateISO,
   submitGrievance, logActivity, archiveClosed, sendCourtesyNotice,
   updateSetupList, getSetupList, updateHolidays, updateOrgSettings,

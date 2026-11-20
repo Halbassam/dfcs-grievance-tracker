@@ -742,8 +742,21 @@ h1,h2,h3{letter-spacing:-0.012em;}
 
       <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:18px;">
         <button class="btn btn-primary" id="runEmailCheckBtn">Run deadline check now</button>
-        <button class="btn btn-ghost" id="viewEmailLogBtn">View recent runs</button>
       </div>
+
+      <h4 style="font-family:var(--sans);font-size:14px;color:var(--green-1);margin:6px 0 10px;">Email log</h4>
+      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:10px;">
+        <label for="emailLogFilter" style="font-size:13px;color:var(--grey);">Show</label>
+        <select id="emailLogFilter" style="width:auto;min-width:200px;">
+          <option value="all">All emails</option>
+          <option value="grievant-update">Grievant step updates</option>
+          <option value="steward-deadline-digest">Steward deadline digests</option>
+          <option value="handoff-notice">Hand-off notices</option>
+          <option value="failed">Failed only</option>
+        </select>
+        <span id="emailLogCount" style="font-size:12.5px;color:var(--grey);"></span>
+      </div>
+      <div id="emailLogTable" class="table-wrap" style="padding:0 14px;"></div>
 
           </div>
 
@@ -992,7 +1005,7 @@ h1,h2,h3{letter-spacing:-0.012em;}
           <p style="margin-bottom:8px;"><b>The AI bot cited the wrong Article</b> — always verify citations against the printed contract. The bot's verbatim quote is the key check: if the quote doesn't appear in the contract, the citation is wrong. Start a fresh conversation and describe the situation with more specific detail if the first attempt missed the relevant article.</p>
           <p style="margin-bottom:8px;"><b>I am locked out of logging in</b> — after 10 wrong passwords in a row the account is locked for 15 minutes. Wait and try again, or ask an admin to reset your password in Manage users.</p>
           <p style="margin-bottom:8px;"><b>I cannot save a grievance</b> — it is locked to another steward. Ask them to hand it off to you, or ask an admin to make the change.</p>
-          <p style="margin-bottom:8px;"><b>The hand-off email did not arrive</b> — the receiving steward needs an email address on their account in <b>Settings → Manage users</b>. The Email Log shows whether the notice was sent or why it was skipped.</p>
+          <p style="margin-bottom:8px;"><b>The hand-off email did not arrive</b> — the receiving steward needs an email address on their account in <b>Settings → Manage users</b>. The Email log at the bottom of <b>Settings → Email status</b> shows whether the notice was sent or why it was skipped.</p>
           <p style="margin-bottom:0;"><b>I want to see archived grievances</b> — go to the <b>Grievances</b> tab and choose <b>Archived</b>. Archived cases are read-only. If a case needs to be re-opened (e.g. a denial was appealed), contact an admin — there is no un-archive button by design, since re-opening requires a judgment call.</p>
         </div>
       </div>
@@ -1079,14 +1092,6 @@ h1,h2,h3{letter-spacing:-0.012em;}
       <button class="btn btn-ghost" id="genericListCancelBtn">Cancel</button>
       <button class="btn btn-primary" id="genericListSaveBtn">Save changes</button>
     </div>
-  </div>
-</div>
-
-<div class="modal-overlay" id="emailLogModalOverlay">
-  <div class="modal" style="max-width:600px;">
-    <div class="modal-head"><span><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 7 9 6 9-6"/></svg></span><h3>Recent deadline email runs</h3></div>
-    <div class="modal-body" id="emailLogBody" style="max-height:50vh;overflow-y:auto;"></div>
-    <div class="modal-foot"><button class="btn btn-ghost" id="emailLogCloseBtn">Close</button></div>
   </div>
 </div>
 
@@ -2259,7 +2264,7 @@ async function sendCourtesyNotice(gid, step, btn){
     const sentCount = (result.sentTo||[]).length;
     const recipientWord = sentCount === 1 ? 'recipient' : 'recipients';
     if(result.partialFailure){
-      toast(`Courtesy reminder sent to ${sentCount} of ${sentCount + (result.failedTo||[]).length} management ${recipientWord} for ${stepLabel} (due ${result.deadlineDate}). One or more addresses failed — check View recent runs.`, 'err');
+      toast(`Courtesy reminder sent to ${sentCount} of ${sentCount + (result.failedTo||[]).length} management ${recipientWord} for ${stepLabel} (due ${result.deadlineDate}). One or more addresses failed — check the Email log in Settings.`, 'err');
     } else {
       toast(`Courtesy reminder sent to ${sentCount} management ${recipientWord} for ${stepLabel} (due ${result.deadlineDate}).`);
     }
@@ -3191,6 +3196,7 @@ async function refreshEmailStatus(){
       box.innerHTML = `<b>Not configured.</b> Set BREVO_API_KEY and BREVO_SENDER_EMAIL on Render to enable deadline emails.`;
     }
     window._emailLogCache = data.emailLog || [];
+    renderEmailLog();
   }catch(err){
     // silent — settings tab isn't critical path
   }
@@ -3213,53 +3219,81 @@ $('runEmailCheckBtn').addEventListener('click', async ()=>{
     btn.disabled = false; btn.textContent = 'Run deadline check now';
   }
 });
-$('viewEmailLogBtn').addEventListener('click', ()=>{
-  const log = window._emailLogCache || [];
-  const body = $('emailLogBody');
-  if(!log.length){
-    body.innerHTML = `<div class="empty-state"><div class="icon"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 7 9 6 9-6"/></svg></div><h3>No runs yet</h3><p>Click "Run deadline check now" or wait for the daily automatic check.</p></div>`;
-  } else {
-    body.innerHTML = log.map(entry=>{
-      // Two different shapes can appear in this log:
-      //  1. The once-per-day steward digest RUN summary (has .date, .sent, .stewardsNotified)
-      //  2. Individual send-attempt entries (grievant updates + per-steward
-      //     digest sends), which have .kind, .to, .ok, .loggedAt instead.
-      if(entry.kind){
-        const when = entry.loggedAt ? new Date(entry.loggedAt).toLocaleString() : '';
-        const statusIcon = entry.ok ? '&#10003;' : '&#10007;';
-        const statusColor = entry.ok ? 'var(--green-1)' : 'var(--red)';
-        let desc = '';
-        if(entry.kind === 'grievant-update'){
-          const stepLabel = {step1:'Step 1', step2:'Step 2', step3:'Step 3'}[entry.step] || entry.step;
-          desc = `Grievant update &middot; Case ${escapeHtml(entry.gid||'')} &middot; ${stepLabel} &middot; to ${escapeHtml(entry.to||'')}`;
-        } else if(entry.kind === 'steward-deadline-digest'){
-          desc = `Steward digest &middot; ${escapeHtml(entry.steward||'')} &middot; to ${escapeHtml(entry.to||'')} &middot; ${entry.count||0} deadline(s)${entry.overdueCount ? ` (${entry.overdueCount} overdue)` : ''}`;
-        } else if(entry.kind === 'handoff-notice'){
-          desc = `Hand-off notice &middot; Case ${escapeHtml(entry.gid||'')} &middot; ${escapeHtml(entry.from||'')} &rarr; ${escapeHtml(entry.steward||'')}${entry.to ? ` &middot; to ${escapeHtml(entry.to)}` : ''}`;
-        } else {
-          desc = escapeHtml(entry.kind);
-        }
-        const errLine = !entry.ok && entry.error ? `<div style="color:var(--red);margin-top:4px;font-size:12px;">${escapeHtml(entry.error)}</div>` : '';
-        return `<div style="padding:10px 0;border-bottom:1px solid #ece9dd;">
-          <div style="font-family:var(--mono);font-size:12px;color:var(--grey);">${when}</div>
-          <div style="margin-top:4px;"><span style="color:${statusColor};">${statusIcon}</span> ${desc}</div>
-          ${errLine}
-        </div>`;
-      }
-      // Legacy/summary shape (once-per-day run totals)
-      const when = new Date(entry.date).toLocaleString();
-      const names = (entry.stewardsNotified||[]).map(s=>`${escapeHtml(s.steward)} (${s.count})`).join(', ') || 'none';
-      const errs = (entry.errors||[]).length ? `<div style="color:var(--red);margin-top:4px;">${entry.errors.map(escapeHtml).join('<br>')}</div>` : '';
-      return `<div style="padding:12px 0;border-bottom:1px solid #ece9dd;">
-        <div style="font-family:var(--mono);font-size:12px;color:var(--grey);">${when}</div>
-        <div style="margin-top:4px;"><b>${entry.sent}</b> email(s) sent &middot; notified: ${names}</div>
-        ${errs}
-      </div>`;
-    }).join('');
+/* Email log: an admin table on the Settings tab (newest first, up to 200 entries). */
+function emailLogRowHtml(entry){
+  if(entry.kind){
+    const when = entry.loggedAt ? new Date(entry.loggedAt).toLocaleString('en-US') : '';
+    let type = entry.kind, grievance = '', step = '', recipient = entry.to || '';
+    if(entry.kind === 'grievant-update'){
+      type = 'Grievant step update';
+      grievance = entry.gid || '';
+      step = {step1:'Step 1', step2:'Step 2', step3:'Step 3'}[entry.step] || entry.step || '';
+    } else if(entry.kind === 'steward-deadline-digest'){
+      type = 'Steward deadline digest';
+      recipient = `${entry.steward ? entry.steward + ' · ' : ''}${entry.to || ''}`;
+      step = `${entry.count||0} deadline(s)${entry.overdueCount ? ` (${entry.overdueCount} overdue)` : ''}`;
+    } else if(entry.kind === 'handoff-notice'){
+      type = 'Hand-off notice';
+      grievance = entry.gid || '';
+      recipient = entry.to || '';
+      step = `${entry.from || ''} → ${entry.steward || ''}`;
+    }
+    const ok = !!entry.ok;
+    const result = ok
+      ? '<span style="color:var(--green-1);font-weight:600;">&#10003; Sent</span>'
+      : '<span style="color:var(--red);font-weight:600;">&#10007; Failed</span>';
+    const err = !ok && entry.error ? `<div style="color:var(--red);font-size:12px;margin-top:3px;white-space:normal;">${escapeHtml(entry.error)}</div>` : '';
+    return {ok, kind:entry.kind, html:`<tr>
+      <td style="white-space:nowrap;font-family:var(--mono);font-size:12px;color:var(--grey);">${escapeHtml(when)}</td>
+      <td>${escapeHtml(type)}</td>
+      <td style="font-family:var(--mono);font-size:12px;">${escapeHtml(grievance)}</td>
+      <td>${escapeHtml(step)}</td>
+      <td style="word-break:break-all;">${escapeHtml(recipient)}</td>
+      <td style="min-width:150px;">${result}${err}</td>
+    </tr>`};
   }
-  $('emailLogModalOverlay').classList.add('show');
-});
-$('emailLogCloseBtn').addEventListener('click', ()=>$('emailLogModalOverlay').classList.remove('show'));
+  // Older once-a-day run summary (no per-email detail)
+  const when = entry.date ? new Date(entry.date).toLocaleString('en-US') : '';
+  const names = (entry.stewardsNotified||[]).map(s=>`${s.steward} (${s.count})`).join(', ') || 'none';
+  const errs = (entry.errors||[]).length ? (entry.errors||[]).map(escapeHtml).join('<br>') : '';
+  const ok = !errs;
+  return {ok, kind:'daily-run', html:`<tr>
+    <td style="white-space:nowrap;font-family:var(--mono);font-size:12px;color:var(--grey);">${escapeHtml(when)}</td>
+    <td>Daily run (older format)</td><td></td><td>${escapeHtml(String(entry.sent||0))} sent</td>
+    <td style="word-break:break-all;">${escapeHtml(names)}</td>
+    <td style="min-width:150px;">${ok ? '<span style="color:var(--green-1);font-weight:600;">&#10003; Done</span>' : `<span style="color:var(--red);font-weight:600;">&#10007; Errors</span><div style="color:var(--red);font-size:12px;margin-top:3px;">${errs}</div>`}</td>
+  </tr>`};
+}
+
+function renderEmailLog(){
+  const box = $('emailLogTable');
+  const countEl = $('emailLogCount');
+  if(!box) return;
+  const log = window._emailLogCache || [];
+  const filter = ($('emailLogFilter') || {}).value || 'all';
+  const rows = log.map(emailLogRowHtml).filter(r => {
+    if(filter === 'all') return true;
+    if(filter === 'failed') return !r.ok;
+    return r.kind === filter;
+  });
+  countEl.textContent = log.length ? `${rows.length} of ${log.length} entries (newest first)` : '';
+  if(!log.length){
+    box.innerHTML = `<div style="padding:24px 0;text-align:center;color:var(--grey);font-size:13px;">No emails have been logged yet.</div>`;
+    return;
+  }
+  if(!rows.length){
+    box.innerHTML = `<div style="padding:24px 0;text-align:center;color:var(--grey);font-size:13px;">No entries match this filter.</div>`;
+    return;
+  }
+  box.innerHTML = `<table style="width:100%;border-collapse:collapse;font-size:13px;">
+    <thead><tr>
+      <th style="text-align:left;">When</th><th style="text-align:left;">Type</th><th style="text-align:left;">Grievance</th>
+      <th style="text-align:left;">Step / detail</th><th style="text-align:left;">Recipient</th><th style="text-align:left;">Result</th>
+    </tr></thead>
+    <tbody>${rows.map(r => r.html).join('')}</tbody>
+  </table>`;
+}
+$('emailLogFilter')?.addEventListener('change', renderEmailLog);
 
 /* ---------- Update settings tab counts whenever data refreshes ---------- */
 /* ---------- Settings tab: generic dropdown-list editor ---------- */

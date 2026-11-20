@@ -782,12 +782,13 @@ const server = http.createServer(async (req, res) => {
     if (pathname === "/api/email/status" && req.method === "GET") {
       const data = await db.getAll();
       const emailConfigured = !!(process.env.BREVO_API_KEY && process.env.BREVO_SENDER_EMAIL);
+      // Admin-only: entries name grievants' and stewards' email addresses
+      // across every location. Up to 200 newest entries are kept.
+      const emailLog = isAdmin(currentUser) ? await db.getEmailLog(200) : [];
       return sendJson(res, 200, {
         emailConfigured,
         lastEmailRunDate: data.lastEmailRunDate || "",
-        // Admin-only: entries name grievants' and stewards' email addresses
-        // across every location.
-        emailLog: isAdmin(currentUser) ? (data.emailLog || []).slice(0, 20) : []
+        emailLog
       });
     }
 
