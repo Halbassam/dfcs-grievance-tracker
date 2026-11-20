@@ -21,9 +21,29 @@ const db = require("./db");
 
 function parseEmailList(raw) {
   return String(raw || "")
-    .split(",")
+    .split(/[,;]/)
     .map(s => s.trim())
     .filter(s => s.length > 0 && s.includes("@"));
+}
+
+// A send that fails for a temporary reason (network, timeout, or a server or
+// rate-limit error from Brevo) is retried. A rejected address or other client
+// error is not, since retrying cannot fix it.
+let RETRY_DELAYS_MS = [2000, 8000];
+function _setRetryDelaysForTest(delays) { RETRY_DELAYS_MS = delays; }
+function isTransientMailError(err) {
+  const msg = String((err && err.message) || "");
+  return /Could not reach Brevo|timed out|Brevo API error \((429|5\d\d)\)/.test(msg);
+}
+async function sendWithRetry(args) {
+  for (let attempt = 0; ; attempt++) {
+    try {
+      return await sendMail(args);
+    } catch (err) {
+      if (attempt >= RETRY_DELAYS_MS.length || !isTransientMailError(err)) throw err;
+      await new Promise(resolve => setTimeout(resolve, RETRY_DELAYS_MS[attempt]));
+    }
+  }
 }
 
 const STEP_LABELS = {
@@ -104,7 +124,7 @@ async function sendGrievantStepNotifications(rec, newlyFiledSteps) {
     const text = buildStepEmailBody(rec, step, localNo);
     for (const to of recipients) {
       try {
-        await sendMail({ apiKey, senderEmail, to, subject, text });
+        await sendWithRetry({ apiKey, senderEmail, to, subject, text });
         summary.sent.push({ step, to });
         await db.logEmailAttempt({
           kind: "grievant-update", gid: rec.id, step, to, ok: true
@@ -123,4 +143,4 @@ async function sendGrievantStepNotifications(rec, newlyFiledSteps) {
   return summary;
 }
 
-module.exports = { sendGrievantStepNotifications, buildStepEmailBody, parseEmailList };
+module.exports = { sendGrievantStepNotifications, buildStepEmailBody, parseEmailList, isTransientMailError, _setRetryDelaysForTest };
