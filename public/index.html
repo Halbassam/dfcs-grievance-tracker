@@ -619,7 +619,7 @@ h1,h2,h3{letter-spacing:-0.012em;}
       </form>
       <div id="draftbotArticlesUsed" class="field-note" style="margin-top:8px;"></div>
     </div>
-  </div></section><section class="page hidden" id="tab-reports"><div class="view-bar"><button type="button" data-view="workload" class="active">Steward workload</button><button type="button" data-view="audit" class="admin-only-tab" style="display:none;">Audit log</button></div><div class="view" id="tab-workload">
+  </div></section><section class="page hidden" id="tab-reports"><div class="view-bar"><button type="button" data-view="workload" class="active">Steward workload</button><button type="button" data-view="audit" class="admin-only-tab" style="display:none;">Audit log</button><button type="button" data-view="emaillog" class="admin-only-tab" style="display:none;">Email log</button></div><div class="view" id="tab-workload">
     <div class="section-head">
       <div><h2>Steward Workload</h2><div class="sub">Live counts &middot; Art. V Sec. 5 quarterly steward list</div></div>
     </div>
@@ -628,6 +628,22 @@ h1,h2,h3{letter-spacing:-0.012em;}
       
       <div><h3 style="font-family:var(--sans);color:var(--green-1);font-size:15px;margin-bottom:10px;" id="workloadLocationHeading">By location</h3><div class="table-wrap"><table><thead><tr><th>Location</th><th>Active</th><th>Overdue</th></tr></thead><tbody id="locationBody"></tbody></table></div></div>
     </div>
+  </div><div class="view hidden" id="tab-emaillog">
+    <div class="section-head">
+      <div><h2>Email Log</h2><div class="sub">Every email the app has sent, newest first (up to 200). Admins only.</div></div>
+    </div>
+    <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:10px;">
+      <label for="emailLogFilter" style="font-size:13px;color:var(--grey);">Show</label>
+      <select id="emailLogFilter" style="width:auto;min-width:200px;">
+        <option value="all">All emails</option>
+        <option value="grievant-update">Grievant step updates</option>
+        <option value="steward-deadline-digest">Steward deadline digests</option>
+        <option value="handoff-notice">Hand-off notices</option>
+        <option value="failed">Failed only</option>
+      </select>
+      <span id="emailLogCount" style="font-size:12.5px;color:var(--grey);"></span>
+    </div>
+    <div id="emailLogTable" class="table-wrap" style="padding:0 14px;"></div>
   </div><div class="view hidden" id="tab-audit">
     <div class="section-head">
       <div><h2><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg> Audit Log</h2><div class="sub">Login events, tab navigation, and record access — admin view only</div></div>
@@ -744,19 +760,6 @@ h1,h2,h3{letter-spacing:-0.012em;}
         <button class="btn btn-primary" id="runEmailCheckBtn">Run deadline check now</button>
       </div>
 
-      <h4 style="font-family:var(--sans);font-size:14px;color:var(--green-1);margin:6px 0 10px;">Email log</h4>
-      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:10px;">
-        <label for="emailLogFilter" style="font-size:13px;color:var(--grey);">Show</label>
-        <select id="emailLogFilter" style="width:auto;min-width:200px;">
-          <option value="all">All emails</option>
-          <option value="grievant-update">Grievant step updates</option>
-          <option value="steward-deadline-digest">Steward deadline digests</option>
-          <option value="handoff-notice">Hand-off notices</option>
-          <option value="failed">Failed only</option>
-        </select>
-        <span id="emailLogCount" style="font-size:12.5px;color:var(--grey);"></span>
-      </div>
-      <div id="emailLogTable" class="table-wrap" style="padding:0 14px;"></div>
 
           </div>
 
@@ -964,7 +967,7 @@ h1,h2,h3{letter-spacing:-0.012em;}
               <tr><td style="padding:7px 10px;border:1px solid var(--line);"><b>Courtesy notice to management</b></td><td style="padding:7px 10px;border:1px solid var(--line);">Management contact(s) configured per location</td><td style="padding:7px 10px;border:1px solid var(--line);">On demand — steward clicks the courtesy notice button on a case</td></tr>
             </tbody>
           </table>
-          <p style="margin-top:10px;font-size:12.5px;color:var(--grey);">&#9432; Emails require <b>BREVO_API_KEY</b> and <b>BREVO_SENDER_EMAIL</b> to be set in your Render environment variables. See Settings → Email status for the current configuration state.</p>
+          <p style="margin-top:10px;font-size:12.5px;color:var(--grey);">&#9432; Emails require <b>BREVO_API_KEY</b> and <b>BREVO_SENDER_EMAIL</b> to be set in your Render environment variables. See Reports → Email log for the current configuration state.</p>
         </div>
       </div>
 
@@ -1014,11 +1017,11 @@ h1,h2,h3{letter-spacing:-0.012em;}
           <p style="margin-bottom:8px;"><b>The Deadlines or All cases view shows a different list than I expect</b> — the list is filtered to your assigned location(s). If you believe a case is missing, check with an admin to confirm its location field is set correctly.</p>
           <p style="margin-bottom:8px;"><b>The grievance ID already exists</b> — IDs must be unique. If you're updating an existing case, the system detects the ID and updates it in-place rather than creating a duplicate. If you genuinely want a new case, use a new ID.</p>
           <p style="margin-bottom:8px;"><b>The deadline calculator shows N/A</b> — the Awareness date is required to calculate any deadlines. Set it first, then the Step 1 filing deadline will appear.</p>
-          <p style="margin-bottom:8px;"><b>Emails are not arriving</b> — go to <b>Settings → Email status</b> to check whether BREVO_API_KEY and BREVO_SENDER_EMAIL are configured. Also check the Email Log for recent send attempts and any error messages. The steward's email address must be entered in <b>Settings → Manage users</b> for them to receive deadline reminders.</p>
+          <p style="margin-bottom:8px;"><b>Emails are not arriving</b> — go to <b>Settings → Email status</b> to check whether BREVO_API_KEY and BREVO_SENDER_EMAIL are configured. Also check the <b>Email log</b> in <b>Reports</b> for recent send attempts and any error messages. The steward's email address must be entered in <b>Settings → Manage users</b> for them to receive deadline reminders.</p>
           <p style="margin-bottom:8px;"><b>The AI bot cited the wrong Article</b> — always verify citations against the printed contract. The bot's verbatim quote is the key check: if the quote doesn't appear in the contract, the citation is wrong. Start a fresh conversation and describe the situation with more specific detail if the first attempt missed the relevant article.</p>
           <p style="margin-bottom:8px;"><b>I am locked out of logging in</b> — after 10 wrong passwords in a row the account is locked for 15 minutes. Wait and try again, or ask an admin to reset your password in Manage users.</p>
           <p style="margin-bottom:8px;"><b>I cannot save a grievance</b> — it is locked to another steward. Ask them to hand it off to you, or ask an admin to make the change.</p>
-          <p style="margin-bottom:8px;"><b>The hand-off email did not arrive</b> — the receiving steward needs an email address on their account in <b>Settings → Manage users</b>. The Email log at the bottom of <b>Settings → Email status</b> shows whether the notice was sent or why it was skipped.</p>
+          <p style="margin-bottom:8px;"><b>The hand-off email did not arrive</b> — the receiving steward needs an email address on their account in <b>Settings → Manage users</b>. The <b>Email log</b> in <b>Reports</b> shows whether the notice was sent or why it was skipped.</p>
           <p style="margin-bottom:0;"><b>I want to see archived grievances</b> — go to the <b>Grievances</b> tab and choose <b>Archived</b>. Archived cases are read-only. If a case needs to be re-opened (e.g. a denial was appealed), contact an admin — there is no un-archive button by design, since re-opening requires a judgment call.</p>
         </div>
       </div>
@@ -2621,7 +2624,7 @@ function auditPing(action, detail){
 let currentPage = 'grievances';
 let currentView = 'log';
 const PAGE_OF_VIEW = { log:'grievances', dashboard:'grievances', activity:'grievances', archive:'grievances',
-                       cases:'investigations', draftbot:'investigations', workload:'reports', audit:'reports' };
+                       cases:'investigations', draftbot:'investigations', workload:'reports', audit:'reports', emaillog:'reports' };
 const DEFAULT_VIEW = { grievances:'log', investigations:'cases', reports:'workload' };
 function switchTab(target){
   const page = PAGE_OF_VIEW[target] || target;
@@ -2645,6 +2648,7 @@ function switchTab(target){
   auditPing('tab', view || page);
   // Refresh audit log when admin opens it
   if(view === 'audit') loadAuditLog();
+  if(view === 'emaillog') refreshEmailStatus();
 }
 document.querySelectorAll('.view-bar [data-view]').forEach(b=>{
   b.addEventListener('click', ()=>switchTab(b.dataset.view));
@@ -4457,8 +4461,10 @@ function startBackgroundPolling(){
 
   // Show/hide the tab button based on role
   function updateAuditTabVisibility(){
-    const btn = document.querySelector('[data-view="audit"]');
-    if(btn) btn.style.display = (CURRENT_USER && CURRENT_USER.role === 'admin') ? '' : 'none';
+    const isAdmin = !!(CURRENT_USER && CURRENT_USER.role === 'admin');
+    document.querySelectorAll('[data-view="audit"], [data-view="emaillog"]').forEach(btn=>{
+      btn.style.display = isAdmin ? '' : 'none';
+    });
   }
 
   // Hook up buttons — DOM is already parsed by the time this script runs
