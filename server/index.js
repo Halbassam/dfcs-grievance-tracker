@@ -337,8 +337,8 @@ const server = http.createServer(async (req, res) => {
         // A filled-in hidden field means an automatic form-filler. Pretend it worked.
         if (body && body.website) return sendJson(res, 200, { ok: true });
         try {
-          await db.submitContact(token, body);
-          return sendJson(res, 200, { ok: true });
+          const result = await db.submitContact(token, body);
+          return sendJson(res, 200, { ok: true, updated: !!result.updated });
         } catch (err) {
           return sendJson(res, 400, { error: err.message });
         }

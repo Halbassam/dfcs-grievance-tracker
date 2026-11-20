@@ -109,6 +109,22 @@ function request(port, method, pathname, { body, cookie, headers = {} } = {}) {
     assert.deepStrictEqual(rows.map(r => [r.legal_name, r.location]), [['Ann Lee', 'NorthSide FCRC'], ['Ben Ortiz', 'North Suburban FCRC']], 'each person keeps their own location');
     console.log('✓ One link serves many people; each person chooses and keeps their own location');
 
+    // 4b. The same person submitting again (same name, and a matching phone or email)
+    //     updates their entry rather than adding a second one.
+    const again = await request(port, 'POST', '/contact/' + token, { headers: ip(11), body: { location: 'NorthSide FCRC', legalName: 'Ann Lee', phone: '312.555.0100', personalEmail: 'ANN@personal.example', consent: true } });
+    assert.strictEqual(again.status, 200, JSON.stringify(again.json));
+    assert.strictEqual(again.json.updated, true, 'a repeat submission is treated as an update');
+    const annRows = (await pool.query("select legal_name, state_email from contact_submissions where legal_name = 'Ann Lee'")).rows;
+    assert.strictEqual(annRows.length, 1, 'still one entry for Ann');
+    assert.strictEqual(annRows[0].state_email, '', 'the newest submission replaces the old details');
+    // A different person who shares Ann's phone number is a new entry, and Ann's is not overwritten.
+    const sharer = await request(port, 'POST', '/contact/' + token, { headers: ip(12), body: { location: 'NorthSide FCRC', legalName: 'Dana Lee', phone: '312.555.0100', consent: true } });
+    assert.strictEqual(sharer.status, 200);
+    assert.ok(!sharer.json.updated, 'a different name is a new entry, even with a shared phone');
+    const both = (await pool.query("select legal_name from contact_submissions where legal_name in ('Ann Lee','Dana Lee') order by legal_name")).rows;
+    assert.deepStrictEqual(both.map(r => r.legal_name), ['Ann Lee', 'Dana Lee'], 'both people are kept');
+    console.log('✓ A repeat submission (same name, matching phone or email) updates that entry; a different person sharing a phone is kept separately');
+
     // 5. A filled-in hidden field is treated as a bot: it reports success and saves nothing.
     const bot = await request(port, 'POST', '/contact/' + token, { headers: ip(8), body: { location: 'NorthSide FCRC', legalName: 'Bot Name', phone: '3125550123', consent: true, website: 'spam' } });
     assert.strictEqual(bot.status, 200);
@@ -148,7 +164,7 @@ function request(port, method, pathname, { body, cookie, headers = {} } = {}) {
     const live = await request(port, 'POST', '/api/member-contacts/link', { cookie: steward, body: {} });
     const liveList = await request(port, 'GET', '/api/member-contacts', { cookie: steward });
     assert.ok(liveList.json.activeLink && liveList.json.activeLink.expiresAt, 'a live link is shown');
-    assert.ok(liveList.json.submissions.some(s => s.legalName === 'Ann Lee' && s.location === 'NorthSide FCRC' && s.stateEmail === 'ann.lee@state.example'), 'submissions show location and details');
+    assert.ok(liveList.json.submissions.some(s => s.legalName === 'Ann Lee' && s.location === 'NorthSide FCRC' && s.stateEmail === ''), 'submissions show location and details');
     assert.strictEqual((await request(port, 'GET', '/api/member-contacts', { cookie: viewer })).status, 403, 'a read-only account cannot see them');
     assert.strictEqual((await request(port, 'POST', '/api/member-contacts/link', { cookie: viewer, body: {} })).status, 403, 'a read-only account cannot create links');
     console.log('✓ Stewards see submissions and whether the link is live; read-only accounts cannot');

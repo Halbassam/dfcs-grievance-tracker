@@ -1068,6 +1068,30 @@ async function submitContact(token, input) {
   );
   if (!link.rows.length) throw new Error("This link has expired or been replaced. Ask your steward for the current link.");
 
+  // The same person may submit again (after a timeout, or to correct a detail).
+  // They count as the same person only if the legal name matches AND a phone or
+  // an email matches. A shared phone or email alone is not enough, so one
+  // person's entry is never overwritten by someone else's.
+  const digits = (phone.match(/\d/g) || []).join("").slice(-10);
+  const nameKey = legalName.toLowerCase();
+  const existing = await query("select id, legal_name, phone, personal_email, state_email from contact_submissions");
+  const match = existing.rows.find(r =>
+    String(r.legal_name || "").trim().replace(/\s+/g, " ").toLowerCase() === nameKey && (
+      (digits && (r.phone.match(/\d/g) || []).join("").slice(-10) === digits) ||
+      (personalEmail && r.personal_email.toLowerCase() === personalEmail.toLowerCase()) ||
+      (stateEmail && r.state_email.toLowerCase() === stateEmail.toLowerCase())
+    )
+  );
+  if (match) {
+    await query(
+      `update contact_submissions
+          set location = $2, legal_name = $3, phone = $4, personal_email = $5, state_email = $6,
+              consent_at = now(), submitted_at = now()
+        where id = $1`,
+      [match.id, location, legalName, phone, personalEmail, stateEmail]
+    );
+    return { ok: true, updated: true };
+  }
   await query(
     `insert into contact_submissions (id, location, legal_name, phone, personal_email, state_email)
      values ($1, $2, $3, $4, $5, $6)`,
