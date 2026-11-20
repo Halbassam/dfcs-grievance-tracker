@@ -1,0 +1,117 @@
+/**
+ * Public pages for a member's personal contact link (/member/:token).
+ * No login. Plain HTML, works on a phone. Values are escaped.
+ */
+
+const esc = s => String(s == null ? "" : s).replace(/[&<>"']/g, c =>
+  ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+
+const BRAND_GREEN = "#00421e";
+
+function page({ title, body }) {
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>${esc(title)} — AFSCME Council 31</title>
+  <style>
+    *{box-sizing:border-box;margin:0;padding:0;}
+    [hidden]{display:none!important;}
+    body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:#f5f3ef;color:#1a2b22;min-height:100vh;}
+    .header{background:${BRAND_GREEN};color:#fff;padding:16px 20px;}
+    .header h1{font-size:17px;font-weight:600;}
+    .header p{font-size:12.5px;opacity:.8;margin-top:3px;}
+    .card{background:#fff;border-radius:10px;box-shadow:0 2px 8px rgba(0,0,0,.08);margin:20px auto;width:calc(100% - 32px);max-width:560px;padding:24px;}
+    .card h2{font-size:18px;color:${BRAND_GREEN};margin-bottom:12px;}
+    .notice{background:#eef4f7;border:1px solid #c5d8e6;border-radius:8px;padding:12px 14px;font-size:13.5px;line-height:1.5;margin-bottom:18px;}
+    label{display:block;font-size:13px;font-weight:600;color:#2c4a38;margin:14px 0 5px;}
+    .hint{font-size:12px;color:#6b7c70;margin-top:4px;}
+    input[type=text],input[type=email],input[type=tel]{width:100%;font-size:15px;padding:10px 12px;border:1px solid #cdd3d8;border-radius:8px;background:#fff;}
+    input:focus{outline:none;border-color:#005daa;box-shadow:0 0 0 3px rgba(0,93,170,.18);}
+    .check{display:flex;gap:10px;align-items:flex-start;font-weight:400;font-size:14px;margin-top:18px;}
+    .check input{margin-top:3px;width:18px;height:18px;flex-shrink:0;}
+    button{margin-top:18px;width:100%;background:#005daa;color:#fff;border:none;border-radius:8px;padding:13px;font-size:15px;font-weight:600;cursor:pointer;}
+    button:disabled{opacity:.6;cursor:default;}
+    .err{background:#fdeceb;border:1px solid #e3a8a5;color:#9c0006;border-radius:8px;padding:10px 12px;font-size:13.5px;margin-top:14px;}
+    .muted{color:#5f6f64;font-size:14px;line-height:1.5;}
+  </style>
+</head>
+<body>
+  <div class="header"><h1>AFSCME Council 31</h1><p>Member contact details</p></div>
+  ${body}
+</body>
+</html>`;
+}
+
+/** The form a member fills in. `memberName` is the roster name the steward chose. */
+function memberContactForm({ memberName, token }) {
+  return page({
+    title: "Your contact details",
+    body: `<div class="card">
+  <h2>Hello ${esc(memberName)}</h2>
+  <div class="notice"><b>How your details will be used.</b> The union uses these details to contact you about union business. Only union stewards can see them. Sharing them is voluntary. They are kept until you ask the union to delete them or you leave the union. You can ask your steward to change or remove them at any time.</div>
+
+  <form id="f" novalidate>
+    <div id="formFields">
+      <label for="legalName">Legal name</label>
+      <input type="text" id="legalName" autocomplete="name" maxlength="120" required>
+
+      <label for="phone">Phone number</label>
+      <input type="tel" id="phone" autocomplete="tel" placeholder="(312) 555-0100">
+
+      <label for="personalEmail">Personal email</label>
+      <input type="email" id="personalEmail" autocomplete="email" maxlength="254">
+
+      <label for="stateEmail">State email</label>
+      <input type="email" id="stateEmail" autocomplete="email" maxlength="254">
+      <p class="hint">Enter at least a phone number or one email address.</p>
+
+      <label class="check"><input type="checkbox" id="consent"> <span>I agree that the union may use these details to contact me about union business.</span></label>
+    </div>
+    <div id="err" class="err" hidden></div>
+    <button id="go" type="submit">Save my details</button>
+  </form>
+
+  <div id="done" hidden>
+    <h2>Thank you</h2>
+    <p class="muted">Your details have been saved.</p>
+  </div>
+</div>
+<script>
+(function(){
+  var form = document.getElementById('f');
+  var err = document.getElementById('err');
+  var btn = document.getElementById('go');
+  form.addEventListener('submit', function(e){
+    e.preventDefault();
+    err.hidden = true;
+    var body = {
+      legalName: document.getElementById('legalName').value,
+      phone: document.getElementById('phone').value,
+      personalEmail: document.getElementById('personalEmail').value,
+      stateEmail: document.getElementById('stateEmail').value,
+      consent: document.getElementById('consent').checked
+    };
+    btn.disabled = true;
+    fetch(location.pathname, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+      .then(function(res){ return res.json().catch(function(){ return {}; }).then(function(data){ return { ok: res.ok, data: data }; }); })
+      .then(function(r){
+        if (!r.ok) { err.textContent = r.data.error || 'Could not save. Please try again.'; err.hidden = false; btn.disabled = false; return; }
+        form.hidden = true; document.getElementById('done').hidden = false;
+      })
+      .catch(function(){ err.textContent = 'Could not reach the server. Please try again.'; err.hidden = false; btn.disabled = false; });
+  });
+})();
+</script>`
+  });
+}
+
+function memberMessagePage({ title, message }) {
+  return page({
+    title,
+    body: `<div class="card"><h2>${esc(title)}</h2><p class="muted">${esc(message)}</p></div>`
+  });
+}
+
+module.exports = { memberContactForm, memberMessagePage, esc };

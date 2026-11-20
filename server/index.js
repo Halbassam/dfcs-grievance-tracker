@@ -13,6 +13,7 @@ const grievantNotify = require("./grievantNotify");
 const handoffNotify = require("./handoffNotify");
 const grievanceDraftBot = require("./grievanceDraftBot");
 const investigationForms = require("./investigationForms");
+const memberForms = require("./memberForms");
 const storage = require("./storage");
 
 const PORT = process.env.PORT || 3000;
@@ -204,6 +205,10 @@ async function getCurrentUser(req) {
   return db.getSessionUser(token);
 }
 
+function canManageMemberContacts(currentUser) {
+  return !!currentUser && ["admin", "steward_plus", "steward"].includes(currentUser.role);
+}
+
 function isAdmin(currentUser) {
   return !!(currentUser && currentUser.role === "admin");
 }
@@ -285,6 +290,39 @@ const server = http.createServer(async (req, res) => {
         const body = await readBody(req);
         try {
           await db.submitInvestigationForm(token, body);
+          return sendJson(res, 200, { ok: true });
+        } catch (err) {
+          return sendJson(res, 400, { error: err.message });
+        }
+      }
+    }
+
+    // Member contact link: a one-time personal page a steward sends to a member.
+    // No login. The token is random and only its hash is stored.
+    const memberMatch = pathname.match(/^\/member\/([a-f0-9]{48})$/);
+    if (memberMatch) {
+      const token = memberMatch[1];
+      if (req.method === "GET") {
+        const link = await db.getMemberLink(token);
+        if (!link) {
+          res.writeHead(404, { "Content-Type": "text/html; charset=utf-8" });
+          return res.end(memberForms.memberMessagePage({ title: "Link not found", message: "This link is not valid." }));
+        }
+        if (link.isExpired) {
+          res.writeHead(410, { "Content-Type": "text/html; charset=utf-8" });
+          return res.end(memberForms.memberMessagePage({ title: "Link expired", message: "This link has expired. Ask your steward for a new one." }));
+        }
+        if (link.isUsed) {
+          res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
+          return res.end(memberForms.memberMessagePage({ title: "Already submitted", message: "Your details have already been saved with this link. Ask your steward if anything needs changing." }));
+        }
+        res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
+        return res.end(memberForms.memberContactForm({ memberName: link.memberName, token }));
+      }
+      if (req.method === "POST") {
+        const body = await readBody(req);
+        try {
+          await db.submitMemberContact(token, body);
           return sendJson(res, 200, { ok: true });
         } catch (err) {
           return sendJson(res, 400, { error: err.message });
@@ -776,6 +814,41 @@ const server = http.createServer(async (req, res) => {
       // the session making this change.
       await db.deleteOtherSessions(currentUser.username, getSessionTokenFromRequest(req));
       return sendJson(res, 200, { ok: true });
+    }
+
+    // Member contact details (union contact). Stewards and admins only; read-only
+    // accounts cannot see them.
+    if (pathname.startsWith("/api/member-contacts")) {
+      if (!canManageMemberContacts(currentUser)) {
+        return sendJson(res, 403, { error: "Only stewards can see member contact details." });
+      }
+      if (pathname === "/api/member-contacts" && req.method === "GET") {
+        return sendJson(res, 200, { contacts: await db.listMemberContacts() });
+      }
+      if (pathname === "/api/member-contacts/link" && req.method === "POST") {
+        try {
+          const body = await readBody(req);
+          const created = await db.createMemberLink(body.memberName, currentUser.username, body.location);
+          const proto = req.headers["x-forwarded-proto"] || "https";
+          const host = req.headers.host || "";
+          return sendJson(res, 200, {
+            url: `${proto}://${host}/member/${created.token}`,
+            memberName: created.memberName,
+            location: created.location,
+            expiresAt: created.expiresAt
+          });
+        } catch (err) {
+          return sendJson(res, 400, { error: err.message });
+        }
+      }
+      if (pathname === "/api/member-contacts/remove" && req.method === "POST") {
+        try {
+          const body = await readBody(req);
+          return sendJson(res, 200, await db.removeMemberContact(body.memberName));
+        } catch (err) {
+          return sendJson(res, 400, { error: err.message });
+        }
+      }
     }
 
     // Email

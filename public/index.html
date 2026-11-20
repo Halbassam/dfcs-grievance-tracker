@@ -782,6 +782,18 @@ h1,h2,h3{letter-spacing:-0.012em;}
       </div>
     </div>
 
+    <div class="panel panel-pad" id="memberContactsPanel" style="margin-bottom:24px;">
+      <h3 style="font-family:var(--sans);color:var(--green-1);margin:0 0 6px;font-size:17px;">Member contacts</h3>
+      <p style="font-size:13px;color:var(--grey);margin:6px 0 14px;">Contact details that members give the union for union business. Only stewards can see them. Enter the member's name, send them the private link, and they fill in their own details. The link works once and expires after 7 days.</p>
+      <div style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;margin-bottom:12px;">
+        <div class="field" style="flex:1;min-width:220px;"><label for="mcName">Member name</label><input type="text" id="mcName" placeholder="Full name, as on the roster" maxlength="120"></div>
+        <div class="field" style="min-width:200px;"><label for="mcLocation">Location</label><select id="mcLocation"></select></div>
+        <button class="btn btn-primary" id="mcLinkBtn">Create link</button>
+      </div>
+      <div id="mcLinkOut" style="display:none;margin-bottom:14px;padding:12px 14px;border-radius:8px;background:var(--panel-alt,#f0f5f0);"></div>
+      <div id="mcTable" class="table-wrap" style="padding:0 14px;"></div>
+    </div>
+
     <div class="panel panel-pad" id="myPoolPanel" style="margin-bottom:24px;">
       <h3 style="font-family:var(--sans);color:var(--green-1);margin:0 0 6px;font-size:17px;">Grievance number pool</h3>
       <p style="font-size:13px;color:var(--grey);margin:6px 0 14px;">Add preset grievance numbers so the Intake Form can auto-assign them. Numbers already in the pool or already used are skipped automatically.</p>
@@ -962,6 +974,7 @@ h1,h2,h3{letter-spacing:-0.012em;}
         <div style="font-size:13.5px;line-height:1.7;">
           <p style="margin-bottom:8px;"><b>For every user</b> — <b>Change my password</b> (you need your current password) and, for stewards, the <b>Grievance number pool</b> panel for adding numbers. Everything below is for admins only.</p>
           <p style="margin-bottom:8px;"><b>Automatic sign-out</b> — you are signed out after 30 minutes with no activity (no mouse, keyboard or touch input). Save your work before stepping away; anything not yet saved is lost, and a grievance number you had assigned goes back to the pool.</p>
+          <p style="margin-bottom:8px;"><b>Member contacts</b> — stewards open <b>Settings → Member contacts</b>, enter a member's name and create a private link. The member opens it and enters their legal name, phone number, personal email and state email. The link works once and expires after 7 days. Only stewards can see these details; read-only accounts cannot.</p>
           <p style="margin-bottom:8px;"><b>Local chapter info</b> — stores the org-wide values (Agency, Local No., Bureau, County, Shift) that auto-fill on every printed grievance. Select a location in the dropdown to load and save that office's bureau and management email.</p>
           <p style="margin-bottom:8px;"><b>Location contact details</b> — configure a bureau name and management email address for each of your offices in one grid. The management email is used for courtesy reminder notices — each location gets its own address.</p>
           <p style="margin-bottom:8px;"><b>Manage users</b> — create, edit, and delete accounts. Each person is one record: their role (Steward / Steward Plus / Read-only Steward / Admin), locations, email address, and whether they appear as a steward (in the steward lists, with deadline and hand-off emails). A steward can be set up with no login by leaving the password blank. A steward with no location assigned cannot view or file grievances until one is set.</p>
@@ -2846,6 +2859,85 @@ function renderAll(){
   renderLocationContactsPanel();
 }
 
+/* ---------- Settings: Member contacts (personal links) ---------- */
+async function renderMemberContactsPanel(){
+  const table = $('mcTable');
+  if(!table || !CURRENT_USER || CURRENT_USER.role === 'read_only') return;
+  try{
+    const data = await apiGet('/api/member-contacts');
+    const contacts = data.contacts || [];
+    const locSel = $('mcLocation');
+    if(locSel){
+      const keep = locSel.value;
+      locSel.innerHTML = (SETUP.Location||[]).map(l=>`<option value="${escapeHtml(l)}">${escapeHtml(l)}</option>`).join('');
+      if((SETUP.Location||[]).includes(keep)) locSel.value = keep;
+    }
+    if(!contacts.length){
+      table.innerHTML = '<div style="padding:20px 0;text-align:center;color:var(--grey);font-size:13px;">No member contact details yet. Create a link above and send it to a member.</div>';
+      return;
+    }
+    table.innerHTML = `<table style="width:100%;border-collapse:collapse;font-size:13px;">
+      <thead><tr>
+        <th style="text-align:left;">Member</th><th style="text-align:left;">Location</th><th style="text-align:left;">Legal name</th><th style="text-align:left;">Phone</th>
+        <th style="text-align:left;">Personal email</th><th style="text-align:left;">State email</th>
+        <th style="text-align:left;">Updated</th><th></th>
+      </tr></thead>
+      <tbody>${contacts.map(c=>`<tr>
+        <td>${escapeHtml(c.memberName)}</td>
+        <td>${escapeHtml(c.location||'')}</td>
+        <td>${escapeHtml(c.legalName||'')}</td>
+        <td style="white-space:nowrap;">${escapeHtml(c.phone||'')}</td>
+        <td style="word-break:break-all;">${escapeHtml(c.personalEmail||'')}</td>
+        <td style="word-break:break-all;">${escapeHtml(c.stateEmail||'')}</td>
+        <td style="white-space:nowrap;font-size:12px;color:var(--grey);">${c.updatedAt ? escapeHtml(new Date(c.updatedAt).toLocaleDateString('en-US')) : ''}${c.updatedBy ? escapeHtml(c.updatedBy === 'member' ? ' · by member' : ' · by steward') : ''}</td>
+        <td style="text-align:right;white-space:nowrap;"><button class="btn btn-tiny" data-mc-remove="${escapeHtml(c.memberName)}">Remove</button></td>
+      </tr>`).join('')}</tbody>
+    </table>`;
+  }catch(err){
+    table.textContent = 'Could not load member contacts.';
+  }
+}
+
+$('mcLinkBtn')?.addEventListener('click', async ()=>{
+  const name = ($('mcName').value || '').trim();
+  if(!name){ toast("Enter the member's name.", 'err'); return; }
+  const location = ($('mcLocation').value || '').trim();
+  if(!location){ toast("Choose the member's location.", 'err'); return; }
+  try{
+    const r = await apiPost('/api/member-contacts/link', { memberName: name, location });
+    const out = $('mcLinkOut');
+    out.style.display = 'block';
+    out.innerHTML = `<div style="font-size:13px;margin-bottom:8px;">Send this private link to <b>${escapeHtml(r.memberName)}</b>. It works once and expires in 7 days.</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;">
+        <input type="text" readonly id="mcLinkText" value="${escapeHtml(r.url)}" style="flex:1;min-width:240px;font-family:var(--mono);font-size:12px;">
+        <button class="btn btn-secondary" id="mcCopyBtn">Copy link</button>
+      </div>`;
+    $('mcLinkText').addEventListener('focus', e=>e.target.select());
+    $('mcCopyBtn').addEventListener('click', ()=>{
+      navigator.clipboard.writeText(r.url)
+        .then(()=>toast('Link copied.'))
+        .catch(()=>{ $('mcLinkText').select(); toast('Select the link and copy it.'); });
+    });
+    $('mcName').value = '';
+  }catch(err){
+    toast(err.message || 'Could not create the link.', 'err');
+  }
+});
+
+$('mcTable')?.addEventListener('click', async (e)=>{
+  const btn = e.target.closest('[data-mc-remove]');
+  if(!btn) return;
+  const name = btn.getAttribute('data-mc-remove');
+  if(!confirm(`Remove the contact details for ${name}? This cannot be undone.`)) return;
+  try{
+    await apiPost('/api/member-contacts/remove', { memberName: name });
+    toast('Removed.');
+    renderMemberContactsPanel();
+  }catch(err){
+    toast(err.message || 'Could not remove the details.', 'err');
+  }
+});
+
 /* ---------- Settings tab: Grievance Number Pool ---------- */
 
 /** Updates the pool badge and warning on the Intake Form for all users. */
@@ -3391,6 +3483,7 @@ function renderSettingsCounts(isBackgroundPoll){
     renderLocationContactsPanel();
     renderPoolStatusPanel();
     renderMyPoolPanel();
+    renderMemberContactsPanel();
 
     // Org settings fields
     $('orgAgencyInput')   && ($('orgAgencyInput').value   = ORG_SETTINGS.agency   || '');
@@ -3920,6 +4013,8 @@ function showMainApp(user){
  * lives server-side, since hiding a button never stops a direct API call.
  */
 function applyRoleVisibility(user){
+  const memberPanel = $('memberContactsPanel');
+  if(memberPanel) memberPanel.style.display = (user && user.role === 'read_only') ? 'none' : '';
   const admin = !!(user && (user.role === 'admin' || !user.username));
   ['manageUsersBtn','manageHolidaysBtn','manageLocationsBtn'].forEach(id=>{
     const el = $(id);
