@@ -997,65 +997,64 @@ async function logEmailAttempt(entry) {
   });
 }
 
-// ---------- Member contact details (collected through personal links) ----------
-// Union contact only. Stewards can see these. A link is one-time and expires
-// after 7 days. Only a SHA-256 hash of each token is stored.
-const MEMBER_LINK_TTL_MS = 7 * 24 * 3600 * 1000;
+// ---------- Shared contact links (union members give their own details) ----------
+// One link per location is emailed to that location's employees. It is not
+// personal: no name is attached to it. A link is valid for 30 days, or until a
+// steward revokes it. Only a SHA-256 hash of each token is stored.
+const CONTACT_LINK_TTL_MS = 30 * 24 * 3600 * 1000;
 
-function hashMemberToken(token) {
+function hashContactToken(token) {
   return crypto.createHash("sha256").update(String(token)).digest("hex");
 }
-function normalizeMemberName(name) {
-  return String(name || "").trim().replace(/\s+/g, " ");
-}
-function isValidMemberEmail(email) {
+function isValidContactEmail(email) {
   return email.length <= 254 && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 }
-function isValidMemberPhone(phone) {
+function isValidContactPhone(phone) {
   const digits = phone.replace(/\D/g, "");
   return digits.length === 10 || (digits.length === 11 && digits[0] === "1");
 }
 
-/** Creates a one-time link for a member. Any earlier unused link for the same
- *  member stops working. Returns the raw token (shown once, never stored). */
-async function createMemberLink(memberName, createdBy, location) {
-  const name = normalizeMemberName(memberName);
-  if (!name) throw new Error("Member name is required.");
-  // The steward picks the member's location from the app's own list.
+/** Creates the link for a location. Any earlier active link for that location is
+ *  revoked, so each location has at most one active link. Returns the raw token. */
+async function createContactLink(location, createdBy) {
   const loc = String(location || "").trim();
-  if (!loc) throw new Error("Choose the member's location.");
+  if (!loc) throw new Error("Choose a location.");
   const setup = (await getAll()).setup || {};
   if (!(setup.Location || []).includes(loc)) throw new Error("That location is not in the location list.");
   const token = crypto.randomBytes(24).toString("hex");
-  const expiresAt = new Date(Date.now() + MEMBER_LINK_TTL_MS);
+  const expiresAt = new Date(Date.now() + CONTACT_LINK_TTL_MS);
   await withTransaction(async (client) => {
     await client.query(
-      "update member_links set expires_at = now() where member_name = $1 and used_at is null and expires_at > now()",
-      [name]
+      "update contact_links set revoked_at = now() where location = $1 and revoked_at is null and expires_at > now()",
+      [loc]
     );
     await client.query(
-      "insert into member_links (token_hash, member_name, location, created_by, expires_at) values ($1,$2,$3,$4,$5)",
-      [hashMemberToken(token), name, loc, String(createdBy || ""), expiresAt]
+      "insert into contact_links (token_hash, location, created_by, expires_at) values ($1,$2,$3,$4)",
+      [hashContactToken(token), loc, String(createdBy || ""), expiresAt]
     );
   });
-  return { token, memberName: name, location: loc, expiresAt: expiresAt.toISOString() };
+  return { token, location: loc, expiresAt: expiresAt.toISOString() };
 }
 
-async function getMemberLink(token) {
+/** Returns the location a link belongs to, or null if it does not exist. */
+async function getContactLink(token) {
   const res = await query(
-    "select member_name, expires_at, used_at from member_links where token_hash = $1",
-    [hashMemberToken(token)]
+    "select location, expires_at, revoked_at from contact_links where token_hash = $1",
+    [hashContactToken(token)]
   );
   if (!res.rows.length) return null;
   const r = res.rows[0];
-  return { memberName: r.member_name, isExpired: new Date(r.expires_at) < new Date(), isUsed: !!r.used_at };
+  return {
+    location: r.location,
+    isExpired: new Date(r.expires_at) < new Date(),
+    isRevoked: !!r.revoked_at
+  };
 }
 
-/** Saves a member's own details and uses up the link. Validation runs before
- *  the link is used, so a typo does not burn it.
- *  Required: legal name, and at least one way to reach them (phone or an email).
- *  Email addresses are checked only when given. */
-async function submitMemberContact(token, input) {
+/** Saves one person's details against the link's location. Validation happens
+ *  before anything is saved. Required: legal name, consent, and at least one
+ *  way to reach them (phone or an email). Any email given is checked. */
+async function submitContact(token, input) {
   const legalName = String((input && input.legalName) || "").trim().replace(/\s+/g, " ");
   const phone = String((input && input.phone) || "").trim();
   const personalEmail = String((input && input.personalEmail) || "").trim();
@@ -1063,60 +1062,59 @@ async function submitMemberContact(token, input) {
   if (!input || input.consent !== true) throw new Error("Please tick the box to agree to how your details will be used.");
   if (legalName.length < 2 || legalName.length > 120) throw new Error("Please enter your legal name.");
   if (!phone && !personalEmail && !stateEmail) throw new Error("Please enter a phone number or at least one email address.");
-  if (phone && !isValidMemberPhone(phone)) throw new Error("That phone number does not look right. Please include the 10-digit number.");
-  if (personalEmail && !isValidMemberEmail(personalEmail)) throw new Error("That personal email address does not look right.");
-  if (stateEmail && !isValidMemberEmail(stateEmail)) throw new Error("That state email address does not look right.");
+  if (phone && !isValidContactPhone(phone)) throw new Error("That phone number does not look right. Please include the 10-digit number.");
+  if (personalEmail && !isValidContactEmail(personalEmail)) throw new Error("That personal email address does not look right.");
+  if (stateEmail && !isValidContactEmail(stateEmail)) throw new Error("That state email address does not look right.");
 
-  const claim = await query(
-    "update member_links set used_at = now() where token_hash = $1 and used_at is null and expires_at > now() returning member_name, location",
-    [hashMemberToken(token)]
+  const link = await query(
+    "select location from contact_links where token_hash = $1 and revoked_at is null and expires_at > now()",
+    [hashContactToken(token)]
   );
-  if (!claim.rows.length) throw new Error("This link has expired or has already been used. Ask your steward for a new one.");
-  const name = claim.rows[0].member_name;
-  const location = claim.rows[0].location || "";
-  try {
-    await query(
-      `insert into member_contacts (member_name, location, legal_name, phone, personal_email, state_email, consent_at, updated_at, updated_by)
-       values ($1, $2, $3, $4, $5, $6, now(), now(), 'member')
-       on conflict (member_name) do update
-         set location = excluded.location, legal_name = excluded.legal_name, phone = excluded.phone,
-             personal_email = excluded.personal_email, state_email = excluded.state_email,
-             consent_at = excluded.consent_at, updated_at = now(), updated_by = 'member'`,
-      [name, location, legalName, phone, personalEmail, stateEmail]
-    );
-  } catch (err) {
-    await query("update member_links set used_at = null where token_hash = $1", [hashMemberToken(token)])
-      .catch(releaseErr => console.error("[db] Failed to release member link:", releaseErr.message));
-    throw err;
-  }
-  return { ok: true, memberName: name };
+  if (!link.rows.length) throw new Error("This link has expired or been replaced. Ask your steward for the current link.");
+
+  await query(
+    `insert into contact_submissions (id, location, legal_name, phone, personal_email, state_email)
+     values ($1, $2, $3, $4, $5, $6)`,
+    [crypto.randomBytes(12).toString("hex"), link.rows[0].location, legalName, phone, personalEmail, stateEmail]
+  );
+  return { ok: true };
 }
 
-async function listMemberContacts() {
-  const res = await query(
-    "select member_name, location, legal_name, phone, personal_email, state_email, consent_at, updated_at, updated_by from member_contacts order by member_name"
-  );
-  return res.rows.map(r => ({
-    memberName: r.member_name,
-    location: r.location,
-    legalName: r.legal_name,
-    phone: r.phone,
-    personalEmail: r.personal_email,
-    stateEmail: r.state_email,
-    consentAt: r.consent_at ? new Date(r.consent_at).toISOString() : null,
-    updatedAt: r.updated_at ? new Date(r.updated_at).toISOString() : null,
-    updatedBy: r.updated_by
-  }));
+/** Everything stewards need: the submissions (newest first) and the active links. */
+async function listContacts() {
+  const [subs, links] = await Promise.all([
+    query("select id, location, legal_name, phone, personal_email, state_email, submitted_at from contact_submissions order by submitted_at desc, id"),
+    query("select location, max(expires_at) as expires_at from contact_links where revoked_at is null and expires_at > now() group by location order by location")
+  ]);
+  return {
+    submissions: subs.rows.map(r => ({
+      id: r.id,
+      location: r.location,
+      legalName: r.legal_name,
+      phone: r.phone,
+      personalEmail: r.personal_email,
+      stateEmail: r.state_email,
+      submittedAt: r.submitted_at ? new Date(r.submitted_at).toISOString() : null
+    })),
+    activeLinks: links.rows.map(r => ({ location: r.location, expiresAt: new Date(r.expires_at).toISOString() }))
+  };
 }
 
-/** Removes a member's details and any links for them (e.g. when they leave). */
-async function removeMemberContact(memberName) {
-  const name = normalizeMemberName(memberName);
-  if (!name) throw new Error("Member name is required.");
-  await withTransaction(async (client) => {
-    await client.query("delete from member_contacts where member_name = $1", [name]);
-    await client.query("delete from member_links where member_name = $1", [name]);
-  });
+async function revokeContactLink(location) {
+  const loc = String(location || "").trim();
+  if (!loc) throw new Error("Choose a location.");
+  await query(
+    "update contact_links set revoked_at = now() where location = $1 and revoked_at is null",
+    [loc]
+  );
+  return { ok: true };
+}
+
+/** Removes one person's submission (for example, when someone asks for their details to be deleted). */
+async function removeContactSubmission(id) {
+  const key = String(id || "").trim();
+  if (!key) throw new Error("Submission id is required.");
+  await query("delete from contact_submissions where id = $1", [key]);
   return { ok: true };
 }
 
@@ -1715,7 +1713,7 @@ async function getAuditLog(limit = 200, filterUsername = null, filterActions = [
 }
 
 module.exports = {
-  getAll, readRaw, writeRawAtomic, getEmailLog, createMemberLink, getMemberLink, submitMemberContact, listMemberContacts, removeMemberContact, withLock, logEmailAttempt, pingKeepAlive,
+  getAll, readRaw, writeRawAtomic, getEmailLog, createContactLink, getContactLink, submitContact, listContacts, revokeContactLink, removeContactSubmission, withLock, logEmailAttempt, pingKeepAlive,
   getEmailRunState, saveEmailRunState, getLastEmailRunDate, linkGrievanceToInvestigation, deleteOtherSessions, chicagoDateISO,
   submitGrievance, logActivity, archiveClosed, sendCourtesyNotice,
   updateSetupList, getSetupList, updateHolidays, updateOrgSettings,

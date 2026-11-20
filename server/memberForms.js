@@ -1,6 +1,7 @@
 /**
- * Public pages for a member's personal contact link (/member/:token).
- * No login. Plain HTML, works on a phone. Values are escaped.
+ * Public pages for the shared contact link (/contact/:token).
+ * No login, and the link is not personal. A person enters their own details.
+ * Plain HTML, works on a phone. Values are escaped.
  */
 
 const esc = s => String(s == null ? "" : s).replace(/[&<>"']/g, c =>
@@ -35,6 +36,7 @@ function page({ title, body }) {
     button:disabled{opacity:.6;cursor:default;}
     .err{background:#fdeceb;border:1px solid #e3a8a5;color:#9c0006;border-radius:8px;padding:10px 12px;font-size:13.5px;margin-top:14px;}
     .muted{color:#5f6f64;font-size:14px;line-height:1.5;}
+    .trap{position:absolute;left:-9999px;width:1px;height:1px;overflow:hidden;}
   </style>
 </head>
 <body>
@@ -44,13 +46,13 @@ function page({ title, body }) {
 </html>`;
 }
 
-/** The form a member fills in. `memberName` is the roster name the steward chose. */
-function memberContactForm({ memberName, token }) {
+/** The form anyone with the link can fill in. `location` is fixed by the link. */
+function contactForm({ location, token }) {
   return page({
     title: "Your contact details",
     body: `<div class="card">
-  <h2>Hello ${esc(memberName)}</h2>
-  <div class="notice"><b>How your details will be used.</b> The union uses these details to contact you about union business. Only union stewards can see them. Sharing them is voluntary. They are kept until you ask the union to delete them or you leave the union. You can ask your steward to change or remove them at any time.</div>
+  <h2>Contact details for ${esc(location)}</h2>
+  <div class="notice"><b>How your details will be used.</b> The union uses these details to contact you about union business. Only union stewards can see them. Sharing them is voluntary. They are kept until you ask the union to delete them. You can ask your steward to change or remove them at any time.</div>
 
   <form id="f" novalidate>
     <div id="formFields">
@@ -66,6 +68,8 @@ function memberContactForm({ memberName, token }) {
       <label for="stateEmail">State email</label>
       <input type="email" id="stateEmail" autocomplete="email" maxlength="254">
       <p class="hint">Enter at least a phone number or one email address.</p>
+
+      <input type="text" id="website" class="trap" tabindex="-1" autocomplete="off" aria-hidden="true">
 
       <label class="check"><input type="checkbox" id="consent"> <span>I agree that the union may use these details to contact me about union business.</span></label>
     </div>
@@ -91,7 +95,8 @@ function memberContactForm({ memberName, token }) {
       phone: document.getElementById('phone').value,
       personalEmail: document.getElementById('personalEmail').value,
       stateEmail: document.getElementById('stateEmail').value,
-      consent: document.getElementById('consent').checked
+      consent: document.getElementById('consent').checked,
+      website: document.getElementById('website').value
     };
     btn.disabled = true;
     fetch(location.pathname, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
@@ -107,11 +112,11 @@ function memberContactForm({ memberName, token }) {
   });
 }
 
-function memberMessagePage({ title, message }) {
+function messagePage({ title, message }) {
   return page({
     title,
     body: `<div class="card"><h2>${esc(title)}</h2><p class="muted">${esc(message)}</p></div>`
   });
 }
 
-module.exports = { memberContactForm, memberMessagePage, esc };
+module.exports = { contactForm, messagePage, esc };

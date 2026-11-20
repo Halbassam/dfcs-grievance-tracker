@@ -205,6 +205,19 @@ async function getCurrentUser(req) {
   return db.getSessionUser(token);
 }
 
+// Public contact-form submissions: at most 5 per connection every 10 minutes.
+const CONTACT_WINDOW_MS = 10 * 60 * 1000;
+const CONTACT_MAX_PER_WINDOW = 5;
+const _contactHits = new Map();
+function contactSubmitAllowed(ip) {
+  const now = Date.now();
+  const recent = (_contactHits.get(ip) || []).filter(t => now - t < CONTACT_WINDOW_MS);
+  if (recent.length >= CONTACT_MAX_PER_WINDOW) { _contactHits.set(ip, recent); return false; }
+  recent.push(now);
+  _contactHits.set(ip, recent);
+  return true;
+}
+
 function canManageMemberContacts(currentUser) {
   return !!currentUser && ["admin", "steward_plus", "steward"].includes(currentUser.role);
 }
@@ -297,32 +310,34 @@ const server = http.createServer(async (req, res) => {
       }
     }
 
-    // Member contact link: a one-time personal page a steward sends to a member.
-    // No login. The token is random and only its hash is stored.
-    const memberMatch = pathname.match(/^\/member\/([a-f0-9]{48})$/);
-    if (memberMatch) {
-      const token = memberMatch[1];
+    // Shared contact link, emailed to a location's employees. Not personal: the
+    // link identifies only the location. Anyone with the link can enter their own
+    // details, so submissions are rate-limited and a hidden field catches bots.
+    const contactMatch = pathname.match(/^\/contact\/([a-f0-9]{48})$/);
+    if (contactMatch) {
+      const token = contactMatch[1];
       if (req.method === "GET") {
-        const link = await db.getMemberLink(token);
+        const link = await db.getContactLink(token);
         if (!link) {
           res.writeHead(404, { "Content-Type": "text/html; charset=utf-8" });
-          return res.end(memberForms.memberMessagePage({ title: "Link not found", message: "This link is not valid." }));
+          return res.end(memberForms.messagePage({ title: "Link not found", message: "This link is not valid." }));
         }
-        if (link.isExpired) {
+        if (link.isRevoked || link.isExpired) {
           res.writeHead(410, { "Content-Type": "text/html; charset=utf-8" });
-          return res.end(memberForms.memberMessagePage({ title: "Link expired", message: "This link has expired. Ask your steward for a new one." }));
-        }
-        if (link.isUsed) {
-          res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
-          return res.end(memberForms.memberMessagePage({ title: "Already submitted", message: "Your details have already been saved with this link. Ask your steward if anything needs changing." }));
+          return res.end(memberForms.messagePage({ title: "Link no longer valid", message: "This link has expired or been replaced. Ask your steward for the current link." }));
         }
         res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
-        return res.end(memberForms.memberContactForm({ memberName: link.memberName, token }));
+        return res.end(memberForms.contactForm({ location: link.location, token }));
       }
       if (req.method === "POST") {
+        if (!contactSubmitAllowed(clientIp(req))) {
+          return sendJson(res, 429, { error: "Too many submissions from this connection. Please wait a few minutes and try again." });
+        }
         const body = await readBody(req);
+        // A filled-in hidden field means an automatic form-filler. Pretend it worked.
+        if (body && body.website) return sendJson(res, 200, { ok: true });
         try {
-          await db.submitMemberContact(token, body);
+          await db.submitContact(token, body);
           return sendJson(res, 200, { ok: true });
         } catch (err) {
           return sendJson(res, 400, { error: err.message });
@@ -816,24 +831,22 @@ const server = http.createServer(async (req, res) => {
       return sendJson(res, 200, { ok: true });
     }
 
-    // Member contact details (union contact). Stewards and admins only; read-only
-    // accounts cannot see them.
+    // Shared contact links and the submissions they collect. Stewards and admins only.
     if (pathname.startsWith("/api/member-contacts")) {
       if (!canManageMemberContacts(currentUser)) {
         return sendJson(res, 403, { error: "Only stewards can see member contact details." });
       }
       if (pathname === "/api/member-contacts" && req.method === "GET") {
-        return sendJson(res, 200, { contacts: await db.listMemberContacts() });
+        return sendJson(res, 200, await db.listContacts());
       }
       if (pathname === "/api/member-contacts/link" && req.method === "POST") {
         try {
           const body = await readBody(req);
-          const created = await db.createMemberLink(body.memberName, currentUser.username, body.location);
+          const created = await db.createContactLink(body.location, currentUser.username);
           const proto = req.headers["x-forwarded-proto"] || "https";
           const host = req.headers.host || "";
           return sendJson(res, 200, {
-            url: `${proto}://${host}/member/${created.token}`,
-            memberName: created.memberName,
+            url: `${proto}://${host}/contact/${created.token}`,
             location: created.location,
             expiresAt: created.expiresAt
           });
@@ -841,10 +854,18 @@ const server = http.createServer(async (req, res) => {
           return sendJson(res, 400, { error: err.message });
         }
       }
+      if (pathname === "/api/member-contacts/revoke" && req.method === "POST") {
+        try {
+          const body = await readBody(req);
+          return sendJson(res, 200, await db.revokeContactLink(body.location));
+        } catch (err) {
+          return sendJson(res, 400, { error: err.message });
+        }
+      }
       if (pathname === "/api/member-contacts/remove" && req.method === "POST") {
         try {
           const body = await readBody(req);
-          return sendJson(res, 200, await db.removeMemberContact(body.memberName));
+          return sendJson(res, 200, await db.removeContactSubmission(body.id));
         } catch (err) {
           return sendJson(res, 400, { error: err.message });
         }
