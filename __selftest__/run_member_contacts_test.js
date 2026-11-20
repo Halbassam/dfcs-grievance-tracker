@@ -42,6 +42,7 @@ function request(port, method, pathname, { body, cookie, headers = {} } = {}) {
     create table contact_submissions (id text primary key, location text not null, legal_name text not null default '', phone text not null default '', personal_email text not null default '', state_email text not null default '', consent_at timestamptz not null default now(), submitted_at timestamptz not null default now());
   `);
   await pool.query(`insert into setup_lists (key, items) values ('Location', '["North Suburban FCRC","NorthSide FCRC"]')`);
+  await pool.query(`insert into app_meta (key, value) values ('orgLocalNo', '2858')`);
   const db = require(path.resolve(__dirname, '..', 'server/db.js'));
   await db.upsertUser({ username: 'admin1', displayName: 'Admin One', password: 'adminpass1' });
   await db.upsertUser({ username: 'steward1', displayName: 'Steward One', password: 'stewardpass1', role: 'steward' });
@@ -84,6 +85,8 @@ function request(port, method, pathname, { body, cookie, headers = {} } = {}) {
     assert.ok(page.text.includes('<option value="North Suburban FCRC">') && page.text.includes('<option value="NorthSide FCRC">'), 'the existing locations are offered');
     assert.ok(!/Hello|Contact details for/.test(page.text), 'the form is not personalised');
     assert.ok(page.text.includes('id="website"'), 'hidden trap field is present');
+    assert.ok(page.text.includes('Local 2858'), 'the local number is in the header');
+    assert.ok(page.text.includes('Developed by Hazem Albassam'), 'the developer credit is shown');
     console.log('✓ The link opens a form with a drop-down of the existing locations and no name');
 
     // 3. Refused entries say why and do not use up the link.

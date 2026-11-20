@@ -9,7 +9,8 @@ const esc = s => String(s == null ? "" : s).replace(/[&<>"']/g, c =>
 
 const BRAND_GREEN = "#00421e";
 
-function page({ title, body }) {
+function page({ title, body, localNo }) {
+  const headerName = localNo ? `AFSCME Council 31 &middot; Local ${esc(localNo)}` : "AFSCME Council 31";
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -37,20 +38,22 @@ function page({ title, body }) {
     .err{background:#fdeceb;border:1px solid #e3a8a5;color:#9c0006;border-radius:8px;padding:10px 12px;font-size:13.5px;margin-top:14px;}
     .muted{color:#5f6f64;font-size:14px;line-height:1.5;}
     .trap{position:absolute;left:-9999px;width:1px;height:1px;overflow:hidden;}
+    .credit{max-width:560px;margin:0 auto 32px;padding:0 16px;font-size:12px;color:#5f6f64;text-align:center;line-height:1.5;}
   </style>
 </head>
 <body>
-  <div class="header"><h1>AFSCME Council 31</h1><p>Member contact details</p></div>
+  <div class="header"><h1>${headerName}</h1><p>Member contact details</p></div>
   ${body}
 </body>
 </html>`;
 }
 
 /** The form anyone with the link can fill in. `locations` is the existing location list. */
-function contactForm({ locations, token }) {
+function contactForm({ locations, token, localNo }) {
   const options = (locations || []).map(l => `<option value="${esc(l)}">${esc(l)}</option>`).join("");
   return page({
     title: "Your contact details",
+    localNo,
     body: `<div class="card">
   <h2>Your contact details</h2>
   <div class="notice"><b>How your details will be used.</b> The union uses these details to contact you about union business. Only union stewards can see them. Sharing them is voluntary. They are kept until you ask the union to delete them. You can ask your steward to change or remove them at any time.</div>
@@ -115,7 +118,8 @@ function contactForm({ locations, token }) {
       .catch(function(){ err.textContent = 'Could not reach the server. Please try again.'; err.hidden = false; btn.disabled = false; });
   });
 })();
-</script>`
+</script>
+<div class="credit">Developed by Hazem Albassam &middot; &copy; 2026</div>`
   });
 }
 

@@ -327,7 +327,7 @@ const server = http.createServer(async (req, res) => {
           return res.end(memberForms.messagePage({ title: "Link no longer valid", message: "This link has expired or been replaced. Ask your steward for the current link." }));
         }
         res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
-        return res.end(memberForms.contactForm({ locations: await db.getLocationList(), token }));
+        return res.end(memberForms.contactForm({ locations: await db.getLocationList(), token, localNo: await db.getOrgLocalNo() }));
       }
       if (req.method === "POST") {
         if (!contactSubmitAllowed(clientIp(req))) {
