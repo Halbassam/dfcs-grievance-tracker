@@ -1134,6 +1134,97 @@ async function removeContactSubmission(id) {
   return { ok: true };
 }
 
+// ---------- Update links: a person changes their own entry ----------
+// A steward sends a one-time link to the person's personal email on file. The
+// link opens a blank form for that one entry, so it shows no existing details.
+const CONTACT_UPDATE_TTL_MS = 72 * 3600 * 1000;
+
+async function getSubmissionRow(id) {
+  const res = await query(
+    "select id, location, legal_name, phone, personal_email, state_email from contact_submissions where id = $1",
+    [String(id || "")]
+  );
+  return res.rows[0] || null;
+}
+
+/** Creates a link for one entry. Any earlier link for that entry stops working. */
+async function createContactUpdateLink(submissionId, createdBy) {
+  const sub = await getSubmissionRow(submissionId);
+  if (!sub) throw new Error("That entry no longer exists.");
+  if (!sub.personal_email) throw new Error("This person has no personal email on file, so a link cannot be sent. Ask them to use the contact link instead.");
+  const token = crypto.randomBytes(24).toString("hex");
+  const expiresAt = new Date(Date.now() + CONTACT_UPDATE_TTL_MS);
+  await withTransaction(async (client) => {
+    await client.query(
+      "update contact_update_links set expires_at = now() where submission_id = $1 and used_at is null and expires_at > now()",
+      [sub.id]
+    );
+    await client.query(
+      "insert into contact_update_links (token_hash, submission_id, sent_to, created_by, expires_at) values ($1,$2,$3,$4,$5)",
+      [hashContactToken(token), sub.id, sub.personal_email, String(createdBy || ""), expiresAt]
+    );
+  });
+  return { token, sentTo: sub.personal_email, legalName: sub.legal_name, expiresAt: expiresAt.toISOString() };
+}
+
+/** Stops a link that could not be delivered, so it cannot be used. */
+async function expireContactUpdateLink(token) {
+  await query("update contact_update_links set expires_at = now() where token_hash = $1", [hashContactToken(token)]);
+}
+
+async function getContactUpdateLink(token) {
+  const res = await query(
+    "select submission_id, expires_at, used_at from contact_update_links where token_hash = $1",
+    [hashContactToken(token)]
+  );
+  if (!res.rows.length) return null;
+  const r = res.rows[0];
+  return { submissionId: r.submission_id, isExpired: new Date(r.expires_at) < new Date(), isUsed: !!r.used_at };
+}
+
+/** Saves a person's changes to their own entry. Same checks as the sign-up form.
+ *  Returns the old and new personal email, so the caller can send a confirmation. */
+async function submitContactUpdate(token, input) {
+  const location = String((input && input.location) || "").trim();
+  const legalName = String((input && input.legalName) || "").trim().replace(/\s+/g, " ");
+  const phone = String((input && input.phone) || "").trim();
+  const personalEmail = String((input && input.personalEmail) || "").trim();
+  const stateEmail = String((input && input.stateEmail) || "").trim();
+  if (!input || input.consent !== true) throw new Error("Please tick the box to agree to how your details will be used.");
+  if (!location) throw new Error("Please choose your location.");
+  if (!(await getLocationList()).includes(location)) throw new Error("Please choose your location from the list.");
+  if (legalName.length < 2 || legalName.length > 120) throw new Error("Please enter your legal name.");
+  if (!phone && !personalEmail && !stateEmail) throw new Error("Please enter a phone number or at least one email address.");
+  if (phone && !isValidContactPhone(phone)) throw new Error("That phone number does not look right. Please include the 10-digit number.");
+  if (personalEmail && !isValidContactEmail(personalEmail)) throw new Error("That personal email address does not look right.");
+  if (stateEmail && !isValidContactEmail(stateEmail)) throw new Error("That state email address does not look right.");
+
+  const claim = await query(
+    "update contact_update_links set used_at = now() where token_hash = $1 and used_at is null and expires_at > now() returning submission_id",
+    [hashContactToken(token)]
+  );
+  if (!claim.rows.length) throw new Error("This link has expired or has already been used. Ask your steward for a new one.");
+  const submissionId = claim.rows[0].submission_id;
+
+  const before = await getSubmissionRow(submissionId);
+  if (!before) throw new Error("That entry no longer exists. Ask your steward for help.");
+  try {
+    await query(
+      `update contact_submissions
+          set location = $2, legal_name = $3, phone = $4, personal_email = $5, state_email = $6,
+              consent_at = now(), submitted_at = now()
+        where id = $1`,
+      [submissionId, location, legalName, phone, personalEmail, stateEmail]
+    );
+  } catch (err) {
+    await query("update contact_update_links set used_at = null where token_hash = $1", [hashContactToken(token)])
+      .catch(releaseErr => console.error("[db] Failed to release update link:", releaseErr.message));
+    throw err;
+  }
+  const oldEmail = (before.personal_email || "").trim();
+  return { ok: true, legalName, newPersonalEmail: personalEmail, emailChanged: !!personalEmail && personalEmail.toLowerCase() !== oldEmail.toLowerCase() };
+}
+
 /** Newest-first email log entries, for the admin Email log. */
 async function getEmailLog(limit = 200) {
   const res = await query("select data from email_log order by row_id desc limit $1", [limit]);
@@ -1729,7 +1820,7 @@ async function getAuditLog(limit = 200, filterUsername = null, filterActions = [
 }
 
 module.exports = {
-  getAll, readRaw, writeRawAtomic, getEmailLog, createContactLink, getContactLink, getLocationList, submitContact, listContacts, revokeContactLink, removeContactSubmission, withLock, logEmailAttempt, pingKeepAlive,
+  getAll, readRaw, writeRawAtomic, getEmailLog, createContactLink, getContactLink, getLocationList, submitContact, listContacts, revokeContactLink, removeContactSubmission, createContactUpdateLink, expireContactUpdateLink, getContactUpdateLink, submitContactUpdate, withLock, logEmailAttempt, pingKeepAlive,
   getEmailRunState, saveEmailRunState, getLastEmailRunDate, linkGrievanceToInvestigation, deleteOtherSessions, chicagoDateISO,
   submitGrievance, logActivity, archiveClosed, sendCourtesyNotice,
   updateSetupList, getSetupList, updateHolidays, updateOrgSettings,

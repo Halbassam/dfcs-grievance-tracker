@@ -14,6 +14,7 @@ const handoffNotify = require("./handoffNotify");
 const grievanceDraftBot = require("./grievanceDraftBot");
 const investigationForms = require("./investigationForms");
 const memberForms = require("./memberForms");
+const contactUpdate = require("./contactUpdate");
 const storage = require("./storage");
 
 const PORT = process.env.PORT || 3000;
@@ -339,6 +340,43 @@ const server = http.createServer(async (req, res) => {
         try {
           const result = await db.submitContact(token, body);
           return sendJson(res, 200, { ok: true, updated: !!result.updated });
+        } catch (err) {
+          return sendJson(res, 400, { error: err.message });
+        }
+      }
+    }
+
+    // One-time update link for a person's own entry. Sent to the personal email on
+    // file. The form opens blank, so no existing details are shown.
+    const updateMatch = pathname.match(/^\/update\/([a-f0-9]{48})$/);
+    if (updateMatch) {
+      const token = updateMatch[1];
+      if (req.method === "GET") {
+        const link = await db.getContactUpdateLink(token);
+        if (!link) {
+          res.writeHead(404, { "Content-Type": "text/html; charset=utf-8" });
+          return res.end(memberForms.messagePage({ title: "Link not found", message: "This link is not valid." }));
+        }
+        if (link.isUsed || link.isExpired) {
+          res.writeHead(410, { "Content-Type": "text/html; charset=utf-8" });
+          return res.end(memberForms.messagePage({ title: "Link no longer valid", message: "This link has expired or has already been used. Ask your steward for a new one." }));
+        }
+        res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
+        return res.end(memberForms.contactForm({ locations: await db.getLocationList(), token, localNo: await db.getOrgLocalNo(), mode: "update" }));
+      }
+      if (req.method === "POST") {
+        if (!contactSubmitAllowed(clientIp(req))) {
+          return sendJson(res, 429, { error: "Too many submissions from this connection. Please wait a few minutes and try again." });
+        }
+        const body = await readBody(req);
+        if (body && body.website) return sendJson(res, 200, { ok: true });
+        try {
+          const result = await db.submitContactUpdate(token, body);
+          if (result.emailChanged) {
+            contactUpdate.sendChangeConfirmation({ to: result.newPersonalEmail, legalName: result.legalName })
+              .catch(err => console.error("[update] confirmation email failed:", err.message));
+          }
+          return sendJson(res, 200, { ok: true });
         } catch (err) {
           return sendJson(res, 400, { error: err.message });
         }
@@ -857,6 +895,21 @@ const server = http.createServer(async (req, res) => {
         try {
           await readBody(req);
           return sendJson(res, 200, await db.revokeContactLink());
+        } catch (err) {
+          return sendJson(res, 400, { error: err.message });
+        }
+      }
+      if (pathname === "/api/member-contacts/send-update" && req.method === "POST") {
+        try {
+          const body = await readBody(req);
+          const proto = req.headers["x-forwarded-proto"] || "https";
+          const host = req.headers.host || "";
+          const sent = await contactUpdate.sendUpdateLink({
+            submissionId: body.id,
+            createdBy: currentUser.username,
+            baseUrl: `${proto}://${host}`
+          });
+          return sendJson(res, 200, { ok: true, sentTo: sent.sentTo });
         } catch (err) {
           return sendJson(res, 400, { error: err.message });
         }

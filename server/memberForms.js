@@ -49,13 +49,14 @@ function page({ title, body, localNo }) {
 }
 
 /** The form anyone with the link can fill in. `locations` is the existing location list. */
-function contactForm({ locations, token, localNo }) {
+function contactForm({ locations, token, localNo, mode }) {
+  const heading = mode === "update" ? "Update your contact details" : "Your contact details";
   const options = (locations || []).map(l => `<option value="${esc(l)}">${esc(l)}</option>`).join("");
   return page({
     title: "Your contact details",
     localNo,
     body: `<div class="card">
-  <h2>Your contact details</h2>
+  <h2>${esc(heading)}</h2>
   <div class="notice"><b>How your details will be used.</b> The union uses these details to contact you about union business. Only union stewards can see them. Sharing them is voluntary. They are kept until you ask the union to delete them. You can ask your steward to change or remove them at any time.</div>
 
   <form id="f" novalidate>

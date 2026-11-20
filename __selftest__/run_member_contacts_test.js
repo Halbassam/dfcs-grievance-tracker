@@ -39,6 +39,7 @@ function request(port, method, pathname, { body, cookie, headers = {} } = {}) {
     create table attachments (id text primary key, gid text not null, filename text not null, content_type text not null, size_bytes integer not null, storage_path text not null, uploaded_by text not null, uploaded_at timestamptz not null default now());
     create table audit_log (id serial primary key, username text not null, action text not null, detail text not null default '', ip text not null default '', created_at timestamptz not null default now());
     create table contact_links (token_hash text primary key, created_by text not null default '', created_at timestamptz not null default now(), expires_at timestamptz not null, revoked_at timestamptz);
+    create table contact_update_links (token_hash text primary key, submission_id text not null, sent_to text not null default '', created_by text not null default '', created_at timestamptz not null default now(), expires_at timestamptz not null, used_at timestamptz);
     create table contact_submissions (id text primary key, location text not null, legal_name text not null default '', phone text not null default '', personal_email text not null default '', state_email text not null default '', consent_at timestamptz not null default now(), submitted_at timestamptz not null default now());
   `);
   await pool.query(`insert into setup_lists (key, items) values ('Location', '["North Suburban FCRC","NorthSide FCRC"]')`);
@@ -48,6 +49,13 @@ function request(port, method, pathname, { body, cookie, headers = {} } = {}) {
   await db.upsertUser({ username: 'steward1', displayName: 'Steward One', password: 'stewardpass1', role: 'steward' });
   await db.upsertUser({ username: 'viewer1', displayName: 'Viewer One', password: 'viewerpass1', role: 'read_only' });
 
+  // Stub the mail service and record every message.
+  const sentMail = [];
+  const mailerPath = path.resolve(__dirname, '..', 'server/mailer.js');
+  require.cache[mailerPath] = { id: mailerPath, filename: mailerPath, loaded: true, exports: {
+    sendMail: async (args) => { sentMail.push({ to: args.to, subject: args.subject, text: args.text }); return { ok: true }; } } };
+  process.env.BREVO_API_KEY = 'test-key';
+  process.env.BREVO_SENDER_EMAIL = 'noreply@example.gov';
   const realCreateServer = http.createServer;
   let server;
   http.createServer = (...a) => { server = realCreateServer.apply(http, a); return server; };
@@ -179,6 +187,73 @@ function request(port, method, pathname, { body, cookie, headers = {} } = {}) {
     assert.ok(!after.json.submissions.some(s => s.legalName === 'Ann Lee'), 'the chosen entry is removed');
     assert.ok(after.json.submissions.some(s => s.legalName === 'Ben Ortiz'), 'other entries are kept');
     console.log('✓ Removing one entry leaves the others');
+    // 11. A steward sends an update link to a person's personal email. (Ann was removed above,
+    //     so put her entry back directly for this part.)
+    await pool.query(`insert into contact_submissions (id, location, legal_name, phone, personal_email, state_email) values ('ann-upd', 'NorthSide FCRC', 'Ann Lee', '312.555.0100', 'ANN@personal.example', '')`);
+    const ann2 = (await request(port, 'GET', '/api/member-contacts', { cookie: steward })).json.submissions.find(s => s.legalName === 'Ann Lee');
+    const sent = await request(port, 'POST', '/api/member-contacts/send-update', { cookie: steward, body: { id: ann2.id } });
+    assert.strictEqual(sent.status, 200, JSON.stringify(sent.json));
+    const mail = sentMail[sentMail.length - 1];
+    assert.strictEqual(mail.to.toLowerCase(), 'ann@personal.example', 'the link goes to the personal email on file');
+    const updToken = (mail.text.match(/\/update\/([a-f0-9]{48})/) || [])[1];
+    assert.ok(updToken, 'the email contains the update link');
+    assert.ok((await pool.query('select token_hash from contact_update_links')).rows.every(r => r.token_hash !== updToken), 'the raw update token is never stored');
+    console.log('✓ A steward sends an update link to the personal email on file, and only a hash is stored');
+
+    // 12. The update form opens blank: no existing details are shown.
+    const updPage = await request(port, 'GET', '/update/' + updToken);
+    assert.strictEqual(updPage.status, 200);
+    assert.ok(updPage.text.includes('Update your contact details'));
+    assert.ok(!/ann@personal|312\.555\.0100|Ann Lee/.test(updPage.text), 'no existing details are shown on the form');
+    console.log('✓ The update form opens blank');
+
+    // 13. A refused update does not use up the link.
+    const badUpd = await request(port, 'POST', '/update/' + updToken, { headers: ip(13), body: { location: 'NorthSide FCRC', legalName: 'Ann Lee', phone: '3125550111', consent: false } });
+    assert.strictEqual(badUpd.status, 400);
+    assert.strictEqual((await request(port, 'GET', '/update/' + updToken)).status, 200, 'the link still works after a refused update');
+    console.log('✓ A refused update does not use up the link');
+
+    // 14. A valid update changes the same entry, and the new email gets a confirmation.
+    const okUpd = await request(port, 'POST', '/update/' + updToken, { headers: ip(14), body: { location: 'NorthSide FCRC', legalName: 'Ann Lee', phone: '(312) 555-0111', personalEmail: 'ann.new@personal.example', consent: true } });
+    assert.strictEqual(okUpd.status, 200, JSON.stringify(okUpd.json));
+    const same = (await pool.query("select id, phone, personal_email from contact_submissions where legal_name = 'Ann Lee'")).rows;
+    assert.strictEqual(same.length, 1, 'still one entry for Ann');
+    assert.strictEqual(same[0].id, ann2.id, 'the same entry is updated');
+    assert.strictEqual(same[0].phone, '(312) 555-0111');
+    assert.strictEqual(same[0].personal_email, 'ann.new@personal.example');
+    for (let i = 0; i < 20 && !sentMail.some(m => m.to === 'ann.new@personal.example'); i++) await new Promise(r => setTimeout(r, 50));
+    assert.ok(sentMail.some(m => m.to === 'ann.new@personal.example' && /updated/.test(m.subject)), 'the new email gets a confirmation');
+    console.log('✓ A valid update changes the same entry, and the new email gets a confirmation');
+
+    // 15. The link cannot be used again.
+    assert.strictEqual((await request(port, 'POST', '/update/' + updToken, { headers: ip(15), body: { location: 'NorthSide FCRC', legalName: 'Ann Lee', phone: '3125550111', consent: true } })).status, 400, 'a used link is refused');
+    assert.strictEqual((await request(port, 'GET', '/update/' + updToken)).status, 410, 'a used link shows as no longer valid');
+    console.log('✓ An update link works once');
+
+    // 16. An expired link is refused.
+    await request(port, 'POST', '/api/member-contacts/send-update', { cookie: steward, body: { id: ann2.id } });
+    const oldToken = (sentMail[sentMail.length - 1].text.match(/\/update\/([a-f0-9]{48})/) || [])[1];
+    await pool.query("update contact_update_links set expires_at = now() - interval '1 minute' where token_hash = $1", [crypto.createHash('sha256').update(oldToken).digest('hex')]);
+    assert.strictEqual((await request(port, 'GET', '/update/' + oldToken)).status, 410, 'an expired update link is refused');
+    console.log('✓ An expired update link is refused');
+
+    // 17. A person with no personal email cannot be sent a link; read-only accounts cannot send one.
+    const dana = (await request(port, 'GET', '/api/member-contacts', { cookie: steward })).json.submissions.find(s => s.legalName === 'Dana Lee');
+    const noEmail = await request(port, 'POST', '/api/member-contacts/send-update', { cookie: steward, body: { id: dana.id } });
+    assert.strictEqual(noEmail.status, 400, 'no personal email means no link');
+    assert.ok(/no personal email/i.test(noEmail.json.error));
+    assert.strictEqual((await request(port, 'POST', '/api/member-contacts/send-update', { cookie: viewer, body: { id: ann2.id } })).status, 403, 'read-only accounts cannot send links');
+    console.log('✓ No link without a personal email on file; read-only accounts cannot send links');
+
+    // 18. If email is not configured, no link is created.
+    const before = (await pool.query('select count(*)::int as n from contact_update_links')).rows[0].n;
+    delete process.env.BREVO_API_KEY;
+    const unconfigured = await request(port, 'POST', '/api/member-contacts/send-update', { cookie: steward, body: { id: ann2.id } });
+    process.env.BREVO_API_KEY = 'test-key';
+    assert.strictEqual(unconfigured.status, 400);
+    assert.ok(/not configured/i.test(unconfigured.json.error));
+    assert.strictEqual((await pool.query('select count(*)::int as n from contact_update_links')).rows[0].n, before, 'no link is created when email is not configured');
+    console.log('✓ Without email configured, no link is created and the steward is told why');
   } finally {
     server.close();
   }

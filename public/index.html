@@ -2900,7 +2900,7 @@ async function renderMemberContactsPanel(){
         <td style="white-space:nowrap;">${escapeHtml(c.phone||'')}</td>
         <td style="word-break:break-all;">${escapeHtml(c.personalEmail||'')}</td>
         <td style="word-break:break-all;">${escapeHtml(c.stateEmail||'')}</td>
-        <td style="text-align:right;white-space:nowrap;"><button class="btn btn-tiny" data-mc-remove="${escapeHtml(c.id)}" data-mc-name="${escapeHtml(c.legalName||'')}">Remove</button></td>
+        <td style="text-align:right;white-space:nowrap;"><button class="btn btn-tiny" data-mc-update="${escapeHtml(c.id)}" data-mc-name="${escapeHtml(c.legalName||'')}"${c.personalEmail ? '' : ' disabled title="No personal email on file"'}>Send update link</button> <button class="btn btn-tiny" data-mc-remove="${escapeHtml(c.id)}" data-mc-name="${escapeHtml(c.legalName||'')}">Remove</button></td>
       </tr>`).join('')}</tbody>
     </table>`;
   }catch(err){
@@ -2943,6 +2943,18 @@ $('mcRevokeBtn')?.addEventListener('click', async ()=>{
 });
 
 $('mcTable')?.addEventListener('click', async (e)=>{
+  const upd = e.target.closest('[data-mc-update]');
+  if(upd){
+    const who = upd.getAttribute('data-mc-name') || 'this person';
+    if(!confirm(`Email ${who} a private link to update their own details? It goes to their personal email on file.`)) return;
+    try{
+      const r = await apiPost('/api/member-contacts/send-update', { id: upd.getAttribute('data-mc-update') });
+      toast(`Update link sent to ${r.sentTo}.`);
+    }catch(err){
+      toast(err.message || 'Could not send the update link.', 'err');
+    }
+    return;
+  }
   const btn = e.target.closest('[data-mc-remove]');
   if(!btn) return;
   const id = btn.getAttribute('data-mc-remove');
