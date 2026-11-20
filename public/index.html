@@ -253,6 +253,12 @@ footer.app-foot{text-align:center;color:var(--grey);font-size:11.5px;padding:30p
 .empty-state .icon .ico{width:34px;height:34px;color:var(--green-3);}
 select{appearance:none;-webkit-appearance:none;background-color:#fff;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1.5l5 5 5-5' fill='none' stroke='%23587062' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 11px center;padding-right:32px;}
 h1,h2,h3{letter-spacing:-0.012em;}
+/* Keep the top bar on one line on laptop-width screens, now that there are six tabs */
+@media (min-width:921px) and (max-width:1320px){
+  .tab-btn{padding:10px 9px;font-size:13px;}
+  .new-grievance-btn{font-size:11.5px;padding:8px 12px;}
+  #currentUserBadge{padding:10px 8px!important;gap:6px!important;}
+}
 </style>
 </head>
 <body>
@@ -292,6 +298,7 @@ h1,h2,h3{letter-spacing:-0.012em;}
     <button class="tab-btn active" data-tab="grievances">Grievances <span class="count" id="navOverdueCount">0</span></button>
     <button class="tab-btn" data-tab="investigations" id="investigationsTabBtn">Investigations</button>
     <button class="tab-btn" data-tab="reports" id="reportsTabBtn">Reports</button>
+    <button class="tab-btn" data-tab="members" id="membersTabBtn">Members</button>
     <button class="tab-btn" data-tab="settings">Settings</button>
     <button class="tab-btn" data-tab="help" title="Help"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M9.1 9a3 3 0 0 1 5.8 1c0 2-3 3-3 3"/><path d="M12 17h.01"/></svg></button>
     <span id="currentUserBadge" class="hidden" style="display:flex;align-items:center;gap:10px;padding:10px 14px;color:rgba(255,255,255,0.85);font-size:12.5px;white-space:nowrap;">
@@ -678,7 +685,21 @@ h1,h2,h3{letter-spacing:-0.012em;}
         </table>
       </div>
     </div>
-  </div></section><section class="page hidden" id="tab-settings">
+  </div></section><section class="page hidden" id="tab-members">
+    <div class="section-head"><div><h2>Members</h2><div class="sub">Share the member contact link and see who has given their details. Stewards and admins only.</div></div></div>
+    <div class="panel panel-pad" id="memberContactsPanel" style="margin-bottom:24px;">
+      <h3 style="font-family:var(--sans);color:var(--green-1);margin:0 0 6px;font-size:17px;">Member contacts</h3>
+      <p style="font-size:13px;color:var(--grey);margin:6px 0 14px;">Create one contact link and email it to all employees. Each person chooses their location from the list and enters their own details. The link expires after 30 days. Creating a new link replaces the old one. Only stewards can see the details.</p>
+      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:12px;">
+        <button class="btn btn-primary" id="mcLinkBtn">Create link</button>
+        <button class="btn btn-ghost" id="mcRevokeBtn">Revoke link</button>
+      </div>
+      <div id="mcLinkOut" style="display:none;margin-bottom:14px;padding:12px 14px;border-radius:8px;background:var(--panel-alt,#f0f5f0);"></div>
+      <div id="mcActive" style="font-size:12.5px;color:var(--grey);margin-bottom:12px;"></div>
+      <div id="mcTable" class="table-wrap" style="padding:0 14px;"></div>
+    </div>
+
+  </section><section class="page hidden" id="tab-settings">
     <div class="section-head"><div><h2>Settings</h2><div class="sub">User accounts, holiday list, FCRC locations, and deadline email reminders</div></div></div>
 
         <div class="panel panel-pad" style="margin-bottom:24px;" id="orgSettingsPanel">
@@ -783,18 +804,6 @@ h1,h2,h3{letter-spacing:-0.012em;}
         <label style="font-weight:600;font-size:13px;display:block;margin-bottom:6px;">Recent assignments</label>
         <div id="poolLogTable" style="font-size:12.5px;"></div>
       </div>
-    </div>
-
-    <div class="panel panel-pad" id="memberContactsPanel" style="margin-bottom:24px;">
-      <h3 style="font-family:var(--sans);color:var(--green-1);margin:0 0 6px;font-size:17px;">Member contacts</h3>
-      <p style="font-size:13px;color:var(--grey);margin:6px 0 14px;">Create one contact link and email it to all employees. Each person chooses their location from the list and enters their own details. The link expires after 30 days. Creating a new link replaces the old one. Only stewards can see the details.</p>
-      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:12px;">
-        <button class="btn btn-primary" id="mcLinkBtn">Create link</button>
-        <button class="btn btn-ghost" id="mcRevokeBtn">Revoke link</button>
-      </div>
-      <div id="mcLinkOut" style="display:none;margin-bottom:14px;padding:12px 14px;border-radius:8px;background:var(--panel-alt,#f0f5f0);"></div>
-      <div id="mcActive" style="font-size:12.5px;color:var(--grey);margin-bottom:12px;"></div>
-      <div id="mcTable" class="table-wrap" style="padding:0 14px;"></div>
     </div>
 
     <div class="panel panel-pad" id="myPoolPanel" style="margin-bottom:24px;">
@@ -977,7 +986,7 @@ h1,h2,h3{letter-spacing:-0.012em;}
         <div style="font-size:13.5px;line-height:1.7;">
           <p style="margin-bottom:8px;"><b>For every user</b> — <b>Change my password</b> (you need your current password) and, for stewards, the <b>Grievance number pool</b> panel for adding numbers. Everything below is for admins only.</p>
           <p style="margin-bottom:8px;"><b>Automatic sign-out</b> — you are signed out after 30 minutes with no activity (no mouse, keyboard or touch input). Save your work before stepping away; anything not yet saved is lost, and a grievance number you had assigned goes back to the pool.</p>
-          <p style="margin-bottom:8px;"><b>Member contacts</b> — stewards open <b>Settings → Member contacts</b>, choose a location and create its link. Email the link to that location's employees. Each person enters their own legal name, phone, personal email and state email. The link expires after 30 days, and a new link replaces the old one. Only stewards can see these details; read-only accounts cannot.</p>
+          <p style="margin-bottom:8px;"><b>Member contacts</b> — stewards open the <b>Members</b> tab, where you create the link and see the details that have been given. Email the link to that location's employees. Each person enters their own legal name, phone, personal email and state email. The link expires after 30 days, and a new link replaces the old one. Only stewards can see these details; read-only accounts cannot.</p>
           <p style="margin-bottom:8px;"><b>Local chapter info</b> — stores the org-wide values (Agency, Local No., Bureau, County, Shift) that auto-fill on every printed grievance. Select a location in the dropdown to load and save that office's bureau and management email.</p>
           <p style="margin-bottom:8px;"><b>Location contact details</b> — configure a bureau name and management email address for each of your offices in one grid. The management email is used for courtesy reminder notices — each location gets its own address.</p>
           <p style="margin-bottom:8px;"><b>Manage users</b> — create, edit, and delete accounts. Each person is one record: their role (Steward / Steward Plus / Read-only Steward / Admin), locations, email address, and whether they appear as a steward (in the steward lists, with deadline and hand-off emails). A steward can be set up with no login by leaving the password blank. A steward with no location assigned cannot view or file grievances until one is set.</p>
@@ -2649,6 +2658,7 @@ function switchTab(target){
   // Refresh audit log when admin opens it
   if(view === 'audit') loadAuditLog();
   if(view === 'emaillog') refreshEmailStatus();
+  if(page === 'members') renderMemberContactsPanel();
 }
 document.querySelectorAll('.view-bar [data-view]').forEach(b=>{
   b.addEventListener('click', ()=>switchTab(b.dataset.view));
@@ -4022,8 +4032,8 @@ function showMainApp(user){
  * lives server-side, since hiding a button never stops a direct API call.
  */
 function applyRoleVisibility(user){
-  const memberPanel = $('memberContactsPanel');
-  if(memberPanel) memberPanel.style.display = (user && user.role === 'read_only') ? 'none' : '';
+  const membersBtn = $('membersTabBtn');
+  if(membersBtn) membersBtn.style.display = (user && user.role === 'read_only') ? 'none' : '';
   const admin = !!(user && (user.role === 'admin' || !user.username));
   ['manageUsersBtn','manageHolidaysBtn','manageLocationsBtn'].forEach(id=>{
     const el = $(id);

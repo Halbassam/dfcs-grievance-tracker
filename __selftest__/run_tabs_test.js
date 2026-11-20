@@ -29,7 +29,7 @@ const { JSDOM } = require('jsdom');
   const tabs = [...w.document.querySelectorAll('nav.tabs .tab-btn')].map(b => b.dataset.tab);
 
   // 1. The nav: five pages, plus the new-grievance button.
-  assert.deepStrictEqual(tabs, ['grievances', 'investigations', 'reports', 'settings', 'help'], 'nav tabs: ' + tabs.join(','));
+  assert.deepStrictEqual(tabs, ['grievances', 'investigations', 'reports', 'members', 'settings', 'help'], 'nav tabs: ' + tabs.join(','));
   assert.ok($('newGrievanceBtn'), 'the + New grievance button must exist');
   console.log('✓ Five pages in the tab bar, plus + New grievance');
 
