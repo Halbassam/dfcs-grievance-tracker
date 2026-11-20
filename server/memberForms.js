@@ -46,16 +46,22 @@ function page({ title, body }) {
 </html>`;
 }
 
-/** The form anyone with the link can fill in. `location` is fixed by the link. */
-function contactForm({ location, token }) {
+/** The form anyone with the link can fill in. `locations` is the existing location list. */
+function contactForm({ locations, token }) {
+  const options = (locations || []).map(l => `<option value="${esc(l)}">${esc(l)}</option>`).join("");
   return page({
     title: "Your contact details",
     body: `<div class="card">
-  <h2>Contact details for ${esc(location)}</h2>
+  <h2>Your contact details</h2>
   <div class="notice"><b>How your details will be used.</b> The union uses these details to contact you about union business. Only union stewards can see them. Sharing them is voluntary. They are kept until you ask the union to delete them. You can ask your steward to change or remove them at any time.</div>
 
   <form id="f" novalidate>
     <div id="formFields">
+      <label for="location">Your location</label>
+      <select id="location" required style="width:100%;font-size:15px;padding:10px 12px;border:1px solid #cdd3d8;border-radius:8px;background:#fff;">
+        <option value="">Choose your location</option>${options}
+      </select>
+
       <label for="legalName">Legal name</label>
       <input type="text" id="legalName" autocomplete="name" maxlength="120" required>
 
@@ -91,6 +97,7 @@ function contactForm({ location, token }) {
     e.preventDefault();
     err.hidden = true;
     var body = {
+      location: document.getElementById('location').value,
       legalName: document.getElementById('legalName').value,
       phone: document.getElementById('phone').value,
       personalEmail: document.getElementById('personalEmail').value,

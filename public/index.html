@@ -784,9 +784,8 @@ h1,h2,h3{letter-spacing:-0.012em;}
 
     <div class="panel panel-pad" id="memberContactsPanel" style="margin-bottom:24px;">
       <h3 style="font-family:var(--sans);color:var(--green-1);margin:0 0 6px;font-size:17px;">Member contacts</h3>
-      <p style="font-size:13px;color:var(--grey);margin:6px 0 14px;">Create one contact link for a location and email it to that location's employees. Each person enters their own details. The link is not personal and expires after 30 days. Creating a new link for a location replaces the old one. Only stewards can see the details.</p>
-      <div style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;margin-bottom:12px;">
-        <div class="field" style="min-width:220px;flex:1;"><label for="mcLocation">Location</label><select id="mcLocation"></select></div>
+      <p style="font-size:13px;color:var(--grey);margin:6px 0 14px;">Create one contact link and email it to all employees. Each person chooses their location from the list and enters their own details. The link expires after 30 days. Creating a new link replaces the old one. Only stewards can see the details.</p>
+      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:12px;">
         <button class="btn btn-primary" id="mcLinkBtn">Create link</button>
         <button class="btn btn-ghost" id="mcRevokeBtn">Revoke link</button>
       </div>
@@ -2864,19 +2863,13 @@ function renderAll(){
 async function renderMemberContactsPanel(){
   const table = $('mcTable');
   if(!table || !CURRENT_USER || CURRENT_USER.role === 'read_only') return;
-  const locSel = $('mcLocation');
-  if(locSel){
-    const keep = locSel.value;
-    locSel.innerHTML = (SETUP.Location||[]).map(l=>`<option value="${escapeHtml(l)}">${escapeHtml(l)}</option>`).join('');
-    if((SETUP.Location||[]).includes(keep)) locSel.value = keep;
-  }
   try{
     const data = await apiGet('/api/member-contacts');
     const subs = data.submissions || [];
-    const active = data.activeLinks || [];
-    $('mcActive').innerHTML = active.length
-      ? 'Active links: ' + active.map(l=>`${escapeHtml(l.location)} (until ${escapeHtml(new Date(l.expiresAt).toLocaleDateString('en-US'))})`).join(' · ')
-      : 'No active links.';
+    const active = data.activeLink;
+    $('mcActive').innerHTML = active
+      ? `Link is live until ${escapeHtml(new Date(active.expiresAt).toLocaleDateString('en-US'))}.`
+      : 'No link is live.';
     if(!subs.length){
       table.innerHTML = '<div style="padding:20px 0;text-align:center;color:var(--grey);font-size:13px;">No details have been submitted yet.</div>';
       return;
@@ -2902,13 +2895,11 @@ async function renderMemberContactsPanel(){
 }
 
 $('mcLinkBtn')?.addEventListener('click', async ()=>{
-  const location = ($('mcLocation').value || '').trim();
-  if(!location){ toast('Choose a location.', 'err'); return; }
   try{
-    const r = await apiPost('/api/member-contacts/link', { location });
+    const r = await apiPost('/api/member-contacts/link', {});
     const out = $('mcLinkOut');
     out.style.display = 'block';
-    out.innerHTML = `<div style="font-size:13px;margin-bottom:8px;">Link for <b>${escapeHtml(r.location)}</b> (valid until ${escapeHtml(new Date(r.expiresAt).toLocaleDateString('en-US'))}). Email it to the employees at this location. It is not personal, so it can be sent to everyone in the same message.</div>
+    out.innerHTML = `<div style="font-size:13px;margin-bottom:8px;">Valid until ${escapeHtml(new Date(r.expiresAt).toLocaleDateString('en-US'))}. Email it to all employees. It is not personal, so the same link goes to everyone. Each person chooses their own location.</div>
       <div style="display:flex;gap:8px;flex-wrap:wrap;">
         <input type="text" readonly id="mcLinkText" value="${escapeHtml(r.url)}" style="flex:1;min-width:240px;font-family:var(--mono);font-size:12px;">
         <button class="btn btn-secondary" id="mcCopyBtn">Copy link</button>
@@ -2926,11 +2917,9 @@ $('mcLinkBtn')?.addEventListener('click', async ()=>{
 });
 
 $('mcRevokeBtn')?.addEventListener('click', async ()=>{
-  const location = ($('mcLocation').value || '').trim();
-  if(!location){ toast('Choose a location.', 'err'); return; }
-  if(!confirm(`Revoke the contact link for ${location}? Anyone who still has it will not be able to use it.`)) return;
+  if(!confirm('Revoke the contact link? Anyone who still has it will not be able to use it.')) return;
   try{
-    await apiPost('/api/member-contacts/revoke', { location });
+    await apiPost('/api/member-contacts/revoke', {});
     $('mcLinkOut').style.display = 'none';
     toast('Link revoked.');
     renderMemberContactsPanel();

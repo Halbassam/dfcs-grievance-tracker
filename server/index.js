@@ -327,7 +327,7 @@ const server = http.createServer(async (req, res) => {
           return res.end(memberForms.messagePage({ title: "Link no longer valid", message: "This link has expired or been replaced. Ask your steward for the current link." }));
         }
         res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
-        return res.end(memberForms.contactForm({ location: link.location, token }));
+        return res.end(memberForms.contactForm({ locations: await db.getLocationList(), token }));
       }
       if (req.method === "POST") {
         if (!contactSubmitAllowed(clientIp(req))) {
@@ -842,12 +842,11 @@ const server = http.createServer(async (req, res) => {
       if (pathname === "/api/member-contacts/link" && req.method === "POST") {
         try {
           const body = await readBody(req);
-          const created = await db.createContactLink(body.location, currentUser.username);
+          const created = await db.createContactLink(currentUser.username);
           const proto = req.headers["x-forwarded-proto"] || "https";
           const host = req.headers.host || "";
           return sendJson(res, 200, {
             url: `${proto}://${host}/contact/${created.token}`,
-            location: created.location,
             expiresAt: created.expiresAt
           });
         } catch (err) {
@@ -856,8 +855,8 @@ const server = http.createServer(async (req, res) => {
       }
       if (pathname === "/api/member-contacts/revoke" && req.method === "POST") {
         try {
-          const body = await readBody(req);
-          return sendJson(res, 200, await db.revokeContactLink(body.location));
+          await readBody(req);
+          return sendJson(res, 200, await db.revokeContactLink());
         } catch (err) {
           return sendJson(res, 400, { error: err.message });
         }

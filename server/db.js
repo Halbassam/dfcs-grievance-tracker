@@ -997,10 +997,11 @@ async function logEmailAttempt(entry) {
   });
 }
 
-// ---------- Shared contact links (union members give their own details) ----------
-// One link per location is emailed to that location's employees. It is not
-// personal: no name is attached to it. A link is valid for 30 days, or until a
-// steward revokes it. Only a SHA-256 hash of each token is stored.
+// ---------- Shared contact link (union members give their own details) ----------
+// One link for the whole local is emailed to employees. It is not personal: no
+// name is attached. Each person chooses their location from the existing list.
+// The link is valid for 30 days, or until a steward revokes it. Creating a new
+// link replaces the old one. Only a SHA-256 hash of the token is stored.
 const CONTACT_LINK_TTL_MS = 30 * 24 * 3600 * 1000;
 
 function hashContactToken(token) {
@@ -1014,52 +1015,47 @@ function isValidContactPhone(phone) {
   return digits.length === 10 || (digits.length === 11 && digits[0] === "1");
 }
 
-/** Creates the link for a location. Any earlier active link for that location is
- *  revoked, so each location has at most one active link. Returns the raw token. */
-async function createContactLink(location, createdBy) {
-  const loc = String(location || "").trim();
-  if (!loc) throw new Error("Choose a location.");
-  const setup = (await getAll()).setup || {};
-  if (!(setup.Location || []).includes(loc)) throw new Error("That location is not in the location list.");
+/** The locations people can choose from: the existing location list. */
+async function getLocationList() {
+  const res = await query("select items from setup_lists where key = 'Location'");
+  const items = res.rows.length ? res.rows[0].items : [];
+  return Array.isArray(items) ? items.map(x => String(x)).filter(Boolean) : [];
+}
+
+/** Creates the shared link. Any active link is revoked first. Returns the raw token. */
+async function createContactLink(createdBy) {
   const token = crypto.randomBytes(24).toString("hex");
   const expiresAt = new Date(Date.now() + CONTACT_LINK_TTL_MS);
   await withTransaction(async (client) => {
+    await client.query("update contact_links set revoked_at = now() where revoked_at is null and expires_at > now()");
     await client.query(
-      "update contact_links set revoked_at = now() where location = $1 and revoked_at is null and expires_at > now()",
-      [loc]
-    );
-    await client.query(
-      "insert into contact_links (token_hash, location, created_by, expires_at) values ($1,$2,$3,$4)",
-      [hashContactToken(token), loc, String(createdBy || ""), expiresAt]
+      "insert into contact_links (token_hash, created_by, expires_at) values ($1,$2,$3)",
+      [hashContactToken(token), String(createdBy || ""), expiresAt]
     );
   });
-  return { token, location: loc, expiresAt: expiresAt.toISOString() };
+  return { token, expiresAt: expiresAt.toISOString() };
 }
 
-/** Returns the location a link belongs to, or null if it does not exist. */
+/** Checks a token. Returns null if the link does not exist. */
 async function getContactLink(token) {
-  const res = await query(
-    "select location, expires_at, revoked_at from contact_links where token_hash = $1",
-    [hashContactToken(token)]
-  );
+  const res = await query("select expires_at, revoked_at from contact_links where token_hash = $1", [hashContactToken(token)]);
   if (!res.rows.length) return null;
   const r = res.rows[0];
-  return {
-    location: r.location,
-    isExpired: new Date(r.expires_at) < new Date(),
-    isRevoked: !!r.revoked_at
-  };
+  return { isExpired: new Date(r.expires_at) < new Date(), isRevoked: !!r.revoked_at };
 }
 
-/** Saves one person's details against the link's location. Validation happens
- *  before anything is saved. Required: legal name, consent, and at least one
+/** Saves one person's details. Validation happens before anything is saved.
+ *  Required: a location from the list, legal name, consent, and at least one
  *  way to reach them (phone or an email). Any email given is checked. */
 async function submitContact(token, input) {
+  const location = String((input && input.location) || "").trim();
   const legalName = String((input && input.legalName) || "").trim().replace(/\s+/g, " ");
   const phone = String((input && input.phone) || "").trim();
   const personalEmail = String((input && input.personalEmail) || "").trim();
   const stateEmail = String((input && input.stateEmail) || "").trim();
   if (!input || input.consent !== true) throw new Error("Please tick the box to agree to how your details will be used.");
+  if (!location) throw new Error("Please choose your location.");
+  if (!(await getLocationList()).includes(location)) throw new Error("Please choose your location from the list.");
   if (legalName.length < 2 || legalName.length > 120) throw new Error("Please enter your legal name.");
   if (!phone && !personalEmail && !stateEmail) throw new Error("Please enter a phone number or at least one email address.");
   if (phone && !isValidContactPhone(phone)) throw new Error("That phone number does not look right. Please include the 10-digit number.");
@@ -1067,7 +1063,7 @@ async function submitContact(token, input) {
   if (stateEmail && !isValidContactEmail(stateEmail)) throw new Error("That state email address does not look right.");
 
   const link = await query(
-    "select location from contact_links where token_hash = $1 and revoked_at is null and expires_at > now()",
+    "select 1 from contact_links where token_hash = $1 and revoked_at is null and expires_at > now()",
     [hashContactToken(token)]
   );
   if (!link.rows.length) throw new Error("This link has expired or been replaced. Ask your steward for the current link.");
@@ -1075,17 +1071,18 @@ async function submitContact(token, input) {
   await query(
     `insert into contact_submissions (id, location, legal_name, phone, personal_email, state_email)
      values ($1, $2, $3, $4, $5, $6)`,
-    [crypto.randomBytes(12).toString("hex"), link.rows[0].location, legalName, phone, personalEmail, stateEmail]
+    [crypto.randomBytes(12).toString("hex"), location, legalName, phone, personalEmail, stateEmail]
   );
   return { ok: true };
 }
 
-/** Everything stewards need: the submissions (newest first) and the active links. */
+/** Everything stewards need: the submissions (newest first) and whether a link is live. */
 async function listContacts() {
-  const [subs, links] = await Promise.all([
+  const [subs, link] = await Promise.all([
     query("select id, location, legal_name, phone, personal_email, state_email, submitted_at from contact_submissions order by submitted_at desc, id"),
-    query("select location, max(expires_at) as expires_at from contact_links where revoked_at is null and expires_at > now() group by location order by location")
+    query("select max(expires_at) as expires_at from contact_links where revoked_at is null and expires_at > now()")
   ]);
+  const expires = link.rows[0] && link.rows[0].expires_at;
   return {
     submissions: subs.rows.map(r => ({
       id: r.id,
@@ -1096,17 +1093,12 @@ async function listContacts() {
       stateEmail: r.state_email,
       submittedAt: r.submitted_at ? new Date(r.submitted_at).toISOString() : null
     })),
-    activeLinks: links.rows.map(r => ({ location: r.location, expiresAt: new Date(r.expires_at).toISOString() }))
+    activeLink: expires ? { expiresAt: new Date(expires).toISOString() } : null
   };
 }
 
-async function revokeContactLink(location) {
-  const loc = String(location || "").trim();
-  if (!loc) throw new Error("Choose a location.");
-  await query(
-    "update contact_links set revoked_at = now() where location = $1 and revoked_at is null",
-    [loc]
-  );
+async function revokeContactLink() {
+  await query("update contact_links set revoked_at = now() where revoked_at is null");
   return { ok: true };
 }
 
@@ -1713,7 +1705,7 @@ async function getAuditLog(limit = 200, filterUsername = null, filterActions = [
 }
 
 module.exports = {
-  getAll, readRaw, writeRawAtomic, getEmailLog, createContactLink, getContactLink, submitContact, listContacts, revokeContactLink, removeContactSubmission, withLock, logEmailAttempt, pingKeepAlive,
+  getAll, readRaw, writeRawAtomic, getEmailLog, createContactLink, getContactLink, getLocationList, submitContact, listContacts, revokeContactLink, removeContactSubmission, withLock, logEmailAttempt, pingKeepAlive,
   getEmailRunState, saveEmailRunState, getLastEmailRunDate, linkGrievanceToInvestigation, deleteOtherSessions, chicagoDateISO,
   submitGrievance, logActivity, archiveClosed, sendCourtesyNotice,
   updateSetupList, getSetupList, updateHolidays, updateOrgSettings,

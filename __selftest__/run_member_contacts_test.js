@@ -38,7 +38,7 @@ function request(port, method, pathname, { body, cookie, headers = {} } = {}) {
     create table app_meta (key text primary key, value text);
     create table attachments (id text primary key, gid text not null, filename text not null, content_type text not null, size_bytes integer not null, storage_path text not null, uploaded_by text not null, uploaded_at timestamptz not null default now());
     create table audit_log (id serial primary key, username text not null, action text not null, detail text not null default '', ip text not null default '', created_at timestamptz not null default now());
-    create table contact_links (token_hash text primary key, location text not null, created_by text not null default '', created_at timestamptz not null default now(), expires_at timestamptz not null, revoked_at timestamptz);
+    create table contact_links (token_hash text primary key, created_by text not null default '', created_at timestamptz not null default now(), expires_at timestamptz not null, revoked_at timestamptz);
     create table contact_submissions (id text primary key, location text not null, legal_name text not null default '', phone text not null default '', personal_email text not null default '', state_email text not null default '', consent_at timestamptz not null default now(), submitted_at timestamptz not null default now());
   `);
   await pool.query(`insert into setup_lists (key, items) values ('Location', '["North Suburban FCRC","NorthSide FCRC"]')`);
@@ -67,50 +67,50 @@ function request(port, method, pathname, { body, cookie, headers = {} } = {}) {
     const viewer = await login('viewer1', 'viewerpass1');
     const tokenOf = url => url.split('/contact/')[1];
 
-    // 1. A steward creates one link per location. Location is required and must be on the list.
-    assert.strictEqual((await request(port, 'POST', '/api/member-contacts/link', { cookie: steward, body: {} })).status, 400, 'a location is required');
-    assert.strictEqual((await request(port, 'POST', '/api/member-contacts/link', { cookie: steward, body: { location: 'Mars' } })).status, 400, 'location must be on the list');
-    const made = await request(port, 'POST', '/api/member-contacts/link', { cookie: steward, body: { location: 'NorthSide FCRC' } });
+    // 1. A steward creates the one shared link. It carries no location and no name.
+    const made = await request(port, 'POST', '/api/member-contacts/link', { cookie: steward, body: {} });
     assert.strictEqual(made.status, 200, JSON.stringify(made.json));
-    assert.ok(!('memberName' in made.json), 'the link carries no member name');
+    assert.ok(!('location' in made.json) && !('memberName' in made.json), 'the link carries no location or name');
     const token = tokenOf(made.json.url);
     assert.ok(/^[a-f0-9]{48}$/.test(token));
     const stored = await pool.query('select token_hash from contact_links');
     assert.ok(stored.rows.every(r => r.token_hash !== token), 'the raw token is never stored');
-    console.log('✓ A steward creates a location link; only a hash of the token is stored; no name is attached');
+    console.log('✓ A steward creates one shared link; only a hash of the token is stored');
 
-    // 2. The link opens the same form for anyone. It shows the location, not a name, and has a hidden trap field.
+    // 2. The form offers a drop-down of the existing locations, and no name.
     const page = await request(port, 'GET', '/contact/' + token);
     assert.strictEqual(page.status, 200);
-    assert.ok(page.text.includes('Contact details for NorthSide FCRC'));
-    assert.ok(!/Hello/.test(page.text), 'the form is not personalised');
+    assert.ok(page.text.includes('<select id="location"'), 'a location drop-down is on the form');
+    assert.ok(page.text.includes('<option value="North Suburban FCRC">') && page.text.includes('<option value="NorthSide FCRC">'), 'the existing locations are offered');
+    assert.ok(!/Hello|Contact details for/.test(page.text), 'the form is not personalised');
     assert.ok(page.text.includes('id="website"'), 'hidden trap field is present');
-    console.log('✓ The link opens an unpersonalised form for its location');
+    console.log('✓ The link opens a form with a drop-down of the existing locations and no name');
 
-    // 3. Refused entries say why and do not use up the link. Every attempt is counted against the limit,
-    //    so these use one connection and the valid entries use another.
-    const r1 = await request(port, 'POST', '/contact/' + token, { headers: ip(1), body: { legalName: 'Ann Lee', phone: '3125550100', consent: false } });
+    // 3. Refused entries say why and do not use up the link.
+    const r1 = await request(port, 'POST', '/contact/' + token, { headers: ip(1), body: { location: 'NorthSide FCRC', legalName: 'Ann Lee', phone: '3125550100', consent: false } });
     assert.strictEqual(r1.status, 400, 'no consent is refused');
-    const r2 = await request(port, 'POST', '/contact/' + token, { headers: ip(2), body: { legalName: 'A', phone: '3125550100', consent: true } });
-    assert.strictEqual(r2.status, 400, 'a one-letter name is refused');
-    const r3 = await request(port, 'POST', '/contact/' + token, { headers: ip(3), body: { legalName: 'Ann Lee', consent: true } });
-    assert.strictEqual(r3.status, 400, 'no phone and no email is refused');
-    const r4 = await request(port, 'POST', '/contact/' + token, { headers: ip(4), body: { legalName: 'Ann Lee', personalEmail: 'not-an-email', consent: true } });
-    assert.strictEqual(r4.status, 400, 'a bad personal email is refused');
+    const r2 = await request(port, 'POST', '/contact/' + token, { headers: ip(2), body: { legalName: 'Ann Lee', phone: '3125550100', consent: true } });
+    assert.strictEqual(r2.status, 400, 'no location is refused');
+    assert.ok(/location/i.test(r2.json.error));
+    const r3 = await request(port, 'POST', '/contact/' + token, { headers: ip(3), body: { location: 'Mars Office', legalName: 'Ann Lee', phone: '3125550100', consent: true } });
+    assert.strictEqual(r3.status, 400, 'a location outside the list is refused');
+    const r4 = await request(port, 'POST', '/contact/' + token, { headers: ip(4), body: { location: 'NorthSide FCRC', legalName: 'A', phone: '3125550100', consent: true } });
+    assert.strictEqual(r4.status, 400, 'a one-letter name is refused');
+    const r5 = await request(port, 'POST', '/contact/' + token, { headers: ip(5), body: { location: 'NorthSide FCRC', legalName: 'Ann Lee', consent: true } });
+    assert.strictEqual(r5.status, 400, 'no phone and no email is refused');
     console.log('✓ Refused entries explain why');
 
-    // 4. Several people can use the same link; each entry is kept separately.
-    const a = await request(port, 'POST', '/contact/' + token, { headers: ip(5), body: { legalName: 'Ann Lee', phone: '(312) 555-0100', personalEmail: 'ann@personal.example', stateEmail: 'ann.lee@state.example', consent: true } });
+    // 4. Several people use the same link and each chooses their own location.
+    const a = await request(port, 'POST', '/contact/' + token, { headers: ip(6), body: { location: 'NorthSide FCRC', legalName: 'Ann Lee', phone: '(312) 555-0100', personalEmail: 'ann@personal.example', stateEmail: 'ann.lee@state.example', consent: true } });
     assert.strictEqual(a.status, 200, JSON.stringify(a.json));
-    const b = await request(port, 'POST', '/contact/' + token, { headers: ip(6), body: { legalName: 'Ben Ortiz', phone: '3125550199', consent: true } });
+    const b = await request(port, 'POST', '/contact/' + token, { headers: ip(7), body: { location: 'North Suburban FCRC', legalName: 'Ben Ortiz', phone: '3125550199', consent: true } });
     assert.strictEqual(b.status, 200, JSON.stringify(b.json));
-    const rows = (await pool.query('select location, legal_name from contact_submissions order by legal_name')).rows;
-    assert.deepStrictEqual(rows.map(r => r.legal_name), ['Ann Lee', 'Ben Ortiz'], 'two people, two entries');
-    assert.ok(rows.every(r => r.location === 'NorthSide FCRC'), 'entries carry the link location');
-    console.log('✓ One link serves many people; each person’s entry is kept separately');
+    const rows = (await pool.query('select legal_name, location from contact_submissions order by legal_name')).rows;
+    assert.deepStrictEqual(rows.map(r => [r.legal_name, r.location]), [['Ann Lee', 'NorthSide FCRC'], ['Ben Ortiz', 'North Suburban FCRC']], 'each person keeps their own location');
+    console.log('✓ One link serves many people; each person chooses and keeps their own location');
 
     // 5. A filled-in hidden field is treated as a bot: it reports success and saves nothing.
-    const bot = await request(port, 'POST', '/contact/' + token, { headers: ip(7), body: { legalName: 'Bot Name', phone: '3125550123', consent: true, website: 'spam' } });
+    const bot = await request(port, 'POST', '/contact/' + token, { headers: ip(8), body: { location: 'NorthSide FCRC', legalName: 'Bot Name', phone: '3125550123', consent: true, website: 'spam' } });
     assert.strictEqual(bot.status, 200);
     assert.strictEqual((await pool.query("select count(*)::int as n from contact_submissions where legal_name='Bot Name'")).rows[0].n, 0, 'bot entries are not saved');
     console.log('✓ A bot that fills the hidden field gets a success message but nothing is saved');
@@ -118,46 +118,43 @@ function request(port, method, pathname, { body, cookie, headers = {} } = {}) {
     // 6. Too many submissions from one connection are refused for a while.
     let limited = null;
     for (let i = 0; i < 6; i++) {
-      const r = await request(port, 'POST', '/contact/' + token, { headers: ip(8), body: { legalName: 'Flood Test', phone: '3125550177', consent: true } });
+      const r = await request(port, 'POST', '/contact/' + token, { headers: ip(9), body: { location: 'NorthSide FCRC', legalName: 'Flood Test', phone: '3125550177', consent: true } });
       if (r.status === 429) { limited = r; break; }
     }
     assert.ok(limited, 'repeated submissions from one connection are limited');
     console.log('✓ Repeated submissions from one connection are limited (429)');
 
-    // 7. A new link for the same location replaces the old one.
-    const newer = await request(port, 'POST', '/api/member-contacts/link', { cookie: steward, body: { location: 'NorthSide FCRC' } });
+    // 7. A new link replaces the old one.
+    const newer = await request(port, 'POST', '/api/member-contacts/link', { cookie: steward, body: {} });
     const newToken = tokenOf(newer.json.url);
     assert.strictEqual((await request(port, 'GET', '/contact/' + token)).status, 410, 'the old link stops working');
     assert.strictEqual((await request(port, 'GET', '/contact/' + newToken)).status, 200, 'the new link works');
-    console.log('✓ A new link for a location replaces the old one');
+    console.log('✓ A new link replaces the old one');
 
-    // 8. Revoking a link stops it at once; an expired link is refused.
-    await request(port, 'POST', '/api/member-contacts/revoke', { cookie: steward, body: { location: 'NorthSide FCRC' } });
+    // 8. Revoking stops the link at once; an expired link is refused.
+    await request(port, 'POST', '/api/member-contacts/revoke', { cookie: steward, body: {} });
     assert.strictEqual((await request(port, 'GET', '/contact/' + newToken)).status, 410, 'a revoked link is refused');
-    assert.strictEqual((await request(port, 'POST', '/contact/' + newToken, { headers: ip(9), body: { legalName: 'Late Entry', phone: '3125550111', consent: true } })).status, 400, 'a revoked link cannot submit');
-    const third = await request(port, 'POST', '/api/member-contacts/link', { cookie: steward, body: { location: 'North Suburban FCRC' } });
+    assert.strictEqual((await request(port, 'POST', '/contact/' + newToken, { headers: ip(10), body: { location: 'NorthSide FCRC', legalName: 'Late Entry', phone: '3125550111', consent: true } })).status, 400, 'a revoked link cannot submit');
+    const third = await request(port, 'POST', '/api/member-contacts/link', { cookie: steward, body: {} });
     const thirdToken = tokenOf(third.json.url);
     await pool.query("update contact_links set expires_at = now() - interval '1 minute' where token_hash = $1", [crypto.createHash('sha256').update(thirdToken).digest('hex')]);
     assert.strictEqual((await request(port, 'GET', '/contact/' + thirdToken)).status, 410, 'an expired link is refused');
     assert.strictEqual((await request(port, 'GET', '/contact/' + 'a'.repeat(48))).status, 404, 'an unknown link is not found');
     console.log('✓ Revoked and expired links are refused');
 
-    // 9. Stewards see submissions and active links; read-only accounts see nothing.
-    const list = await request(port, 'GET', '/api/member-contacts', { cookie: steward });
-    assert.strictEqual(list.status, 200);
-    assert.ok(list.json.submissions.some(s => s.legalName === 'Ben Ortiz'), 'submissions are listed');
-    assert.ok(list.json.submissions.some(s => s.legalName === 'Ann Lee' && s.stateEmail === 'ann.lee@state.example'));
-    assert.deepStrictEqual(list.json.activeLinks, [], 'revoked and expired links are not listed as active');
-    const live = await request(port, 'POST', '/api/member-contacts/link', { cookie: steward, body: { location: 'NorthSide FCRC' } });
+    // 9. Stewards see submissions and whether a link is live; read-only accounts see nothing.
+    const none = await request(port, 'GET', '/api/member-contacts', { cookie: steward });
+    assert.strictEqual(none.json.activeLink, null, 'no link is live after revoking');
+    const live = await request(port, 'POST', '/api/member-contacts/link', { cookie: steward, body: {} });
     const liveList = await request(port, 'GET', '/api/member-contacts', { cookie: steward });
-    assert.deepStrictEqual(liveList.json.activeLinks.map(l => l.location), ['NorthSide FCRC'], 'a live link is listed as active');
-    await request(port, 'POST', '/api/member-contacts/revoke', { cookie: steward, body: { location: 'NorthSide FCRC' } });
+    assert.ok(liveList.json.activeLink && liveList.json.activeLink.expiresAt, 'a live link is shown');
+    assert.ok(liveList.json.submissions.some(s => s.legalName === 'Ann Lee' && s.location === 'NorthSide FCRC' && s.stateEmail === 'ann.lee@state.example'), 'submissions show location and details');
     assert.strictEqual((await request(port, 'GET', '/api/member-contacts', { cookie: viewer })).status, 403, 'a read-only account cannot see them');
-    assert.strictEqual((await request(port, 'POST', '/api/member-contacts/link', { cookie: viewer, body: { location: 'NorthSide FCRC' } })).status, 403, 'a read-only account cannot create links');
-    console.log('✓ Stewards see submissions and active links; read-only accounts cannot');
+    assert.strictEqual((await request(port, 'POST', '/api/member-contacts/link', { cookie: viewer, body: {} })).status, 403, 'a read-only account cannot create links');
+    console.log('✓ Stewards see submissions and whether the link is live; read-only accounts cannot');
 
     // 10. Removing one person's entry leaves the others.
-    const ann = list.json.submissions.find(s => s.legalName === 'Ann Lee');
+    const ann = liveList.json.submissions.find(s => s.legalName === 'Ann Lee');
     assert.strictEqual((await request(port, 'POST', '/api/member-contacts/remove', { cookie: steward, body: { id: ann.id } })).status, 200);
     const after = await request(port, 'GET', '/api/member-contacts', { cookie: steward });
     assert.ok(!after.json.submissions.some(s => s.legalName === 'Ann Lee'), 'the chosen entry is removed');

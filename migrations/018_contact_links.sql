@@ -1,9 +1,9 @@
 -- AFSCME Council 31 — FCRC Grievance Tracker
--- Migration 018: Shared contact links for union members.
+-- Migration 018: Shared contact link for union members.
 --
--- A link is not personal. One link per location is emailed to that location's
--- employees, and each person who uses it enters their own details. Stewards
--- can see the submissions and revoke a link.
+-- One link for the whole local is emailed to employees. Each person chooses
+-- their location from the existing location list and enters their own details.
+-- Stewards can see the submissions and revoke the link.
 --   contact_links:       one row per link. Only a SHA-256 hash of the token is stored.
 --   contact_submissions: one row per person who submits.
 --
@@ -11,14 +11,11 @@
 
 create table if not exists contact_links (
   token_hash  text primary key,
-  location    text not null,
   created_by  text not null default '',
   created_at  timestamptz not null default now(),
   expires_at  timestamptz not null,
   revoked_at  timestamptz
 );
-
-create index if not exists idx_contact_links_location on contact_links (location);
 
 create table if not exists contact_submissions (
   id             text primary key,
