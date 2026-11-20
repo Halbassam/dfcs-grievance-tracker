@@ -696,6 +696,12 @@ h1,h2,h3{letter-spacing:-0.012em;}
       </div>
       <div id="mcLinkOut" style="display:none;margin-bottom:14px;padding:12px 14px;border-radius:8px;background:var(--panel-alt,#f0f5f0);"></div>
       <div id="mcActive" style="font-size:12.5px;color:var(--grey);margin-bottom:12px;"></div>
+      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:12px;">
+        <input type="search" id="mcSearch" placeholder="Search name, phone, email or location" style="flex:1;min-width:220px;max-width:420px;">
+        <select id="mcLocFilter" style="width:auto;min-width:200px;"><option value="">All locations</option></select>
+        <button class="btn btn-secondary" id="mcExportBtn">Export CSV</button>
+        <span id="mcCount" style="font-size:12.5px;color:var(--grey);"></span>
+      </div>
       <div id="mcTable" class="table-wrap" style="padding:0 14px;"></div>
     </div>
 
@@ -2874,39 +2880,96 @@ function renderAll(){
 }
 
 /* ---------- Settings: Member contacts (shared location links) ---------- */
+let _memberSubs = [];
+
+function memberMatches(c, q){
+  if(!q) return true;
+  const text = [c.legalName, c.location, c.personalEmail, c.stateEmail].join(' ').toLowerCase();
+  if(text.includes(q)) return true;
+  const qd = q.replace(/\D/g, '');
+  return qd.length >= 3 && String(c.phone||'').replace(/\D/g, '').includes(qd);
+}
+
+function applyMemberFilters(){
+  const table = $('mcTable');
+  if(!table) return;
+  const q = ($('mcSearch') ? $('mcSearch').value : '').trim().toLowerCase();
+  const loc = $('mcLocFilter') ? $('mcLocFilter').value : '';
+  const rows = _memberSubs.filter(c => (!loc || c.location === loc) && memberMatches(c, q));
+  $('mcCount').textContent = `${rows.length} of ${_memberSubs.length} shown`;
+  if(!_memberSubs.length){
+    table.innerHTML = '<div style="padding:20px 0;text-align:center;color:var(--grey);font-size:13px;">No details have been submitted yet.</div>';
+    return;
+  }
+  if(!rows.length){
+    table.innerHTML = '<div style="padding:20px 0;text-align:center;color:var(--grey);font-size:13px;">No one matches this search or location.</div>';
+    return;
+  }
+  table.innerHTML = `<table style="width:100%;border-collapse:collapse;font-size:13px;">
+    <thead><tr>
+      <th style="text-align:left;">Submitted</th><th style="text-align:left;">Location</th><th style="text-align:left;">Legal name</th>
+      <th style="text-align:left;">Phone</th><th style="text-align:left;">Personal email</th><th style="text-align:left;">State email</th><th></th>
+    </tr></thead>
+    <tbody>${rows.map(c=>`<tr>
+      <td style="white-space:nowrap;font-size:12px;color:var(--grey);">${c.submittedAt ? escapeHtml(new Date(c.submittedAt).toLocaleDateString('en-US')) : ''}</td>
+      <td>${escapeHtml(c.location||'')}</td>
+      <td>${escapeHtml(c.legalName||'')}</td>
+      <td style="white-space:nowrap;">${escapeHtml(c.phone||'')}</td>
+      <td style="word-break:break-all;">${escapeHtml(c.personalEmail||'')}</td>
+      <td style="word-break:break-all;">${escapeHtml(c.stateEmail||'')}</td>
+      <td style="text-align:right;white-space:nowrap;"><button class="btn btn-tiny" data-mc-update="${escapeHtml(c.id)}" data-mc-name="${escapeHtml(c.legalName||'')}"${c.personalEmail ? '' : ' disabled title="No personal email on file"'}>Send update link</button> <button class="btn btn-tiny" data-mc-remove="${escapeHtml(c.id)}" data-mc-name="${escapeHtml(c.legalName||'')}">Remove</button></td>
+    </tr>`).join('')}</tbody>
+  </table>`;
+}
+
 async function renderMemberContactsPanel(){
   const table = $('mcTable');
   if(!table || !CURRENT_USER || CURRENT_USER.role === 'read_only') return;
+  const locSel = $('mcLocFilter');
+  if(locSel){
+    const keep = locSel.value;
+    locSel.innerHTML = '<option value="">All locations</option>' + (SETUP.Location||[]).map(l=>`<option value="${escapeHtml(l)}">${escapeHtml(l)}</option>`).join('');
+    if(keep && (SETUP.Location||[]).includes(keep)) locSel.value = keep;
+  }
   try{
     const data = await apiGet('/api/member-contacts');
-    const subs = data.submissions || [];
+    _memberSubs = data.submissions || [];
     const active = data.activeLink;
     $('mcActive').innerHTML = active
       ? `Link is live until ${escapeHtml(new Date(active.expiresAt).toLocaleDateString('en-US'))}.`
       : 'No link is live.';
-    if(!subs.length){
-      table.innerHTML = '<div style="padding:20px 0;text-align:center;color:var(--grey);font-size:13px;">No details have been submitted yet.</div>';
-      return;
-    }
-    table.innerHTML = `<table style="width:100%;border-collapse:collapse;font-size:13px;">
-      <thead><tr>
-        <th style="text-align:left;">Submitted</th><th style="text-align:left;">Location</th><th style="text-align:left;">Legal name</th>
-        <th style="text-align:left;">Phone</th><th style="text-align:left;">Personal email</th><th style="text-align:left;">State email</th><th></th>
-      </tr></thead>
-      <tbody>${subs.map(c=>`<tr>
-        <td style="white-space:nowrap;font-size:12px;color:var(--grey);">${c.submittedAt ? escapeHtml(new Date(c.submittedAt).toLocaleDateString('en-US')) : ''}</td>
-        <td>${escapeHtml(c.location||'')}</td>
-        <td>${escapeHtml(c.legalName||'')}</td>
-        <td style="white-space:nowrap;">${escapeHtml(c.phone||'')}</td>
-        <td style="word-break:break-all;">${escapeHtml(c.personalEmail||'')}</td>
-        <td style="word-break:break-all;">${escapeHtml(c.stateEmail||'')}</td>
-        <td style="text-align:right;white-space:nowrap;"><button class="btn btn-tiny" data-mc-update="${escapeHtml(c.id)}" data-mc-name="${escapeHtml(c.legalName||'')}"${c.personalEmail ? '' : ' disabled title="No personal email on file"'}>Send update link</button> <button class="btn btn-tiny" data-mc-remove="${escapeHtml(c.id)}" data-mc-name="${escapeHtml(c.legalName||'')}">Remove</button></td>
-      </tr>`).join('')}</tbody>
-    </table>`;
+    applyMemberFilters();
   }catch(err){
     table.textContent = 'Could not load member contacts.';
   }
 }
+
+$('mcSearch')?.addEventListener('input', applyMemberFilters);
+$('mcLocFilter')?.addEventListener('change', applyMemberFilters);
+
+$('mcExportBtn')?.addEventListener('click', async ()=>{
+  const loc = $('mcLocFilter') ? $('mcLocFilter').value : '';
+  try{
+    const res = await fetch('/api/member-contacts/export' + (loc ? '?location=' + encodeURIComponent(loc) : ''), { credentials: 'same-origin' });
+    if(!res.ok){
+      const data = await res.json().catch(()=>({}));
+      throw new Error(data.error || 'Could not export.');
+    }
+    const blob = await res.blob();
+    const cd = res.headers.get('Content-Disposition') || '';
+    const name = (cd.match(/filename="([^"]+)"/) || [])[1] || 'members.csv';
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = name;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    setTimeout(()=>URL.revokeObjectURL(link.href), 1000);
+    toast(loc ? `Exported members for ${loc}.` : 'Exported all members.');
+  }catch(err){
+    toast(err.message || 'Could not export.', 'err');
+  }
+});
 
 $('mcLinkBtn')?.addEventListener('click', async ()=>{
   try{

@@ -254,6 +254,27 @@ function request(port, method, pathname, { body, cookie, headers = {} } = {}) {
     assert.ok(/not configured/i.test(unconfigured.json.error));
     assert.strictEqual((await pool.query('select count(*)::int as n from contact_update_links')).rows[0].n, before, 'no link is created when email is not configured');
     console.log('✓ Without email configured, no link is created and the steward is told why');
+    // 19. Export: all members, or one location; spreadsheet-safe; audited; stewards only.
+    await pool.query(`insert into contact_submissions (id, location, legal_name, phone, personal_email, state_email) values ('exp-1', 'NorthSide FCRC', 'Smith, Jo', '3125550123', 'jo@x.gov', '')`);
+    await pool.query(`insert into contact_submissions (id, location, legal_name, phone, personal_email, state_email) values ('exp-2', 'NorthSide FCRC', '=HYPERLINK("http://bad.example")', '', 'evil@x.gov', '')`);
+    const all = await request(port, 'GET', '/api/member-contacts/export', { cookie: steward });
+    assert.strictEqual(all.status, 200, all.text.slice(0, 120));
+    assert.ok(/text\/csv/.test(all.headers['content-type']), 'served as CSV');
+    assert.ok(/attachment; filename="members-all-\d{4}-\d{2}-\d{2}\.csv"/.test(all.headers['content-disposition']), 'downloads as an attachment');
+    assert.ok(all.text.startsWith('\uFEFF'), 'has a byte-order mark so Excel reads the names');
+    assert.ok(all.text.includes('Submitted,Location,Legal name,Phone,Personal email,State email'), 'header row');
+    assert.ok(all.text.includes('"Smith, Jo"'), 'commas are quoted');
+    assert.ok(all.text.includes("'=HYPERLINK"), 'formula-like values are neutralised');
+    assert.ok(!/(^|\r\n)=HYPERLINK/.test(all.text), 'no cell starts with a bare formula');
+    const north = await request(port, 'GET', '/api/member-contacts/export?location=' + encodeURIComponent('North Suburban FCRC'), { cookie: steward });
+    assert.strictEqual(north.status, 200);
+    assert.ok(/members-north-suburban-fcrc-/.test(north.headers['content-disposition']), 'the file name names the location');
+    assert.ok(north.text.includes('Ben Ortiz') && !north.text.includes('Smith, Jo'), 'only that location is exported');
+    assert.strictEqual((await request(port, 'GET', '/api/member-contacts/export?location=Mars', { cookie: steward })).status, 400, 'a location outside the list is refused');
+    assert.strictEqual((await request(port, 'GET', '/api/member-contacts/export', { cookie: viewer })).status, 403, 'read-only accounts cannot export');
+    const logged = (await pool.query("select detail from audit_log where action = 'member_export' order by id")).rows.map(r => r.detail);
+    assert.ok(logged.some(d => /all/.test(d)) && logged.some(d => /North Suburban/.test(d)), 'each export is recorded in the audit log: ' + JSON.stringify(logged));
+    console.log('✓ Export: all or one location, spreadsheet-safe, stewards only, and every export is audited');
   } finally {
     server.close();
   }

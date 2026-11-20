@@ -219,6 +219,14 @@ function contactSubmitAllowed(ip) {
   return true;
 }
 
+// Spreadsheet-safe CSV cell: values that a spreadsheet would run as a formula
+// (starting with = + - @ or a tab/CR) are prefixed so they stay plain text.
+function csvCellValue(val) {
+  let s = val === null || val === undefined ? "" : String(val);
+  if (/^[=+\-@\t\r]/.test(s)) s = "'" + s;
+  return /[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+}
+
 function canManageMemberContacts(currentUser) {
   return !!currentUser && ["admin", "steward_plus", "steward"].includes(currentUser.role);
 }
@@ -876,6 +884,31 @@ const server = http.createServer(async (req, res) => {
       }
       if (pathname === "/api/member-contacts" && req.method === "GET") {
         return sendJson(res, 200, await db.listContacts());
+      }
+      if (pathname === "/api/member-contacts/export" && req.method === "GET") {
+        const wanted = (url.searchParams.get("location") || "").trim();
+        const locations = await db.getLocationList();
+        if (wanted && !locations.includes(wanted)) {
+          return sendJson(res, 400, { error: "That location is not in the location list." });
+        }
+        const { submissions } = await db.listContacts();
+        const rows = wanted ? submissions.filter(r => r.location === wanted) : submissions;
+        const header = ["Submitted", "Location", "Legal name", "Phone", "Personal email", "State email"];
+        const lines = [header.map(csvCellValue).join(",")].concat(rows.map(r => [
+          r.submittedAt ? r.submittedAt.slice(0, 10) : "", r.location, r.legalName, r.phone, r.personalEmail, r.stateEmail
+        ].map(csvCellValue).join(",")));
+        const scope = wanted || "all";
+        const slug = wanted ? wanted.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") : "all";
+        const date = new Date().toISOString().slice(0, 10);
+        // Every export is recorded: this file holds personal contact details.
+        await db.writeAuditLog(currentUser.username, "member_export", `${rows.length} row(s), ${scope}`, clientIp(req))
+          .catch(err => console.error("[audit] member export log failed:", err.message));
+        res.writeHead(200, {
+          "Content-Type": "text/csv; charset=utf-8",
+          "Content-Disposition": `attachment; filename="members-${slug}-${date}.csv"`,
+          "Cache-Control": "no-store"
+        });
+        return res.end("\uFEFF" + lines.join("\r\n") + "\r\n");
       }
       if (pathname === "/api/member-contacts/link" && req.method === "POST") {
         try {
