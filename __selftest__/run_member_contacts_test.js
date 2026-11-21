@@ -178,7 +178,9 @@ function request(port, method, pathname, { body, cookie, headers = {} } = {}) {
     const liveList = await request(port, 'GET', '/api/member-contacts', { cookie: steward });
     assert.ok(liveList.json.activeLink && liveList.json.activeLink.expiresAt, 'a live link is shown');
     assert.ok(liveList.json.submissions.some(s => s.legalName === 'Ann Lee' && s.location === 'NorthSide FCRC' && s.stateEmail === ''), 'submissions show location and details');
-    assert.strictEqual((await request(port, 'GET', '/api/member-contacts', { cookie: viewer })).status, 403, 'a read-only account cannot see them');
+    assert.strictEqual((await request(port, 'GET', '/api/member-contacts', { cookie: viewer })).status, 200, 'a read-only account can view the list');
+    assert.strictEqual((await request(port, 'POST', '/api/member-contacts/remove', { cookie: viewer, body: { id: 'x' } })).status, 403, 'a read-only account cannot remove entries');
+    assert.strictEqual((await request(port, 'GET', '/api/member-contacts/export', { cookie: viewer })).status, 403, 'a read-only account cannot export');
     assert.strictEqual((await request(port, 'POST', '/api/member-contacts/link', { cookie: viewer, body: {} })).status, 403, 'a read-only account cannot create links');
     console.log('✓ Stewards see submissions and whether the link is live; read-only accounts cannot');
 

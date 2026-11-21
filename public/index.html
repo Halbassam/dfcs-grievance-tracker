@@ -2952,7 +2952,7 @@ function nlSetStatus(msg, bad){
 
 async function renderNewsletterHistory(){
   const box = $('nlHistory');
-  if(!box || !CURRENT_USER || CURRENT_USER.role === 'read_only') return;
+  if(!box || !CURRENT_USER) return;
   try{
     const data = await apiGet('/api/newsletters');
     const rows = data.newsletters || [];
@@ -3071,7 +3071,7 @@ function applyMemberFilters(){
 
 async function renderMemberContactsPanel(){
   const table = $('mcTable');
-  if(!table || !CURRENT_USER || CURRENT_USER.role === 'read_only') return;
+  if(!table || !CURRENT_USER) return;
   const locSel = $('mcLocFilter');
   if(locSel){
     const keep = locSel.value;
@@ -4260,7 +4260,12 @@ function applyRoleVisibility(user){
   const revokeBtn = $('mcRevokeBtn');
   if(revokeBtn) revokeBtn.style.display = canEdit ? '' : 'none';
   const membersBtn = $('membersTabBtn');
-  if(membersBtn) membersBtn.style.display = (user && user.role === 'read_only') ? 'none' : '';
+  if(membersBtn) membersBtn.style.display = user ? '' : 'none';
+  const canWrite = !!(user && user.role !== 'read_only');
+  const createBtn = $('mcLinkBtn');
+  if(createBtn) createBtn.style.display = canWrite ? '' : 'none';
+  const exportBtn = $('mcExportBtn');
+  if(exportBtn) exportBtn.style.display = canWrite ? '' : 'none';
   const admin = !!(user && (user.role === 'admin' || !user.username));
   ['manageUsersBtn','manageHolidaysBtn','manageLocationsBtn'].forEach(id=>{
     const el = $(id);

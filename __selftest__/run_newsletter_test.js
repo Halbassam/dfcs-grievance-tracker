@@ -167,7 +167,8 @@ const wait = ms => new Promise(r => setTimeout(r, ms));
     const stewardHistoryOk = await request(port, 'GET', '/api/newsletters', { cookie: steward });
     assert.strictEqual(stewardHistoryOk.status, 200, 'a steward can read the newsletter history');
     assert.strictEqual((await request(port, 'POST', '/api/newsletters/send', { cookie: viewer, body: { subject: 'x', body: 'y', audience: 'all', addressType: 'personal' } })).status, 403, 'read-only accounts cannot send');
-    assert.strictEqual((await request(port, 'GET', '/api/newsletters', { cookie: viewer })).status, 403, 'read-only accounts cannot see the history');
+    assert.strictEqual((await request(port, 'GET', '/api/newsletters', { cookie: viewer })).status, 200, 'read-only accounts can read the history');
+    assert.strictEqual((await request(port, 'POST', '/api/newsletters/send', { cookie: viewer, body: { subject: 'x', body: 'y', audience: 'all', addressType: 'personal' } })).status, 403, 'read-only accounts cannot send');
     const adminAll = await request(port, 'POST', '/api/newsletters/preview', { cookie: admin, body: { audience: 'all', addressType: 'personal' } });
     assert.strictEqual(adminAll.status, 200);
     assert.strictEqual(adminAll.json.recipients, 2, 'admin preview counts the whole local');
@@ -175,7 +176,7 @@ const wait = ms => new Promise(r => setTimeout(r, ms));
     assert.ok(Array.isArray(stewardHistory.json.newsletters));
     const adminSeesAll = await request(port, 'GET', '/api/newsletters', { cookie: admin });
     assert.ok(adminSeesAll.json.newsletters.length >= 1);
-    console.log('✓ Only admins and super stewards send (super stewards only to their location); other stewards read the history only; read-only accounts see nothing');
+    console.log('✓ Only admins and super stewards send (super stewards only to their location); other stewards and read-only accounts can read the history only');
 
     // The unsubscribe page and its button.
     const tokenNow = (await pool.query("select unsubscribe_token from contact_submissions where legal_name = 'Cy Park'")).rows[0].unsubscribe_token;

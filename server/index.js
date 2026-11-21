@@ -915,7 +915,9 @@ const server = http.createServer(async (req, res) => {
 
     // Shared contact links and the submissions they collect. Stewards and admins only.
     if (pathname.startsWith("/api/member-contacts")) {
-      if (!canManageMemberContacts(currentUser)) {
+      // Everyone with access to the app may view the list. Other actions need a steward or admin.
+      const viewOnly = req.method === "GET" && pathname === "/api/member-contacts";
+      if (!viewOnly && !canManageMemberContacts(currentUser)) {
         return sendJson(res, 403, { error: "Only stewards can see member contact details." });
       }
       if (pathname === "/api/member-contacts" && req.method === "GET") {
@@ -1000,8 +1002,10 @@ const server = http.createServer(async (req, res) => {
     // whole local. Stewards can send only to their own locations. Read-only accounts
     // cannot send or see the list.
     if (pathname.startsWith("/api/newsletters")) {
-      if (!canManageMemberContacts(currentUser)) {
-        return sendJson(res, 403, { error: "Only stewards and admins can see newsletters." });
+      // Everyone with access to the app may read the history. Sending needs more.
+      const readOnly = req.method === "GET" && pathname === "/api/newsletters";
+      if (!readOnly && !canManageMemberContacts(currentUser)) {
+        return sendJson(res, 403, { error: "Only stewards and admins can send newsletters." });
       }
       if (req.method === "POST" && !["admin", "steward_plus"].includes(currentUser.role)) {
         return sendJson(res, 403, { error: "Only admins and super stewards can send newsletters." });
