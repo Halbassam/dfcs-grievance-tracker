@@ -54,7 +54,7 @@ function request(port, method, pathname, { body, cookie, headers = {} } = {}) {
   const sentMail = [];
   const mailerPath = path.resolve(__dirname, '..', 'server/mailer.js');
   require.cache[mailerPath] = { id: mailerPath, filename: mailerPath, loaded: true, exports: {
-    sendMail: async (args) => { sentMail.push({ to: args.to, subject: args.subject, text: args.text }); return { ok: true }; } } };
+    sendMail: async (args) => { sentMail.push({ to: args.to, subject: args.subject, text: args.text, senderName: args.senderName, replyTo: args.replyTo }); return { ok: true }; } } };
   process.env.BREVO_API_KEY = 'test-key';
   process.env.BREVO_SENDER_EMAIL = 'noreply@example.gov';
   const realCreateServer = http.createServer;
@@ -208,6 +208,8 @@ function request(port, method, pathname, { body, cookie, headers = {} } = {}) {
     assert.strictEqual(sent.status, 200, JSON.stringify(sent.json));
     const mail = sentMail[sentMail.length - 1];
     assert.strictEqual(mail.to.toLowerCase(), 'ann@personal.example', 'the link goes to the personal email on file');
+    assert.ok(/^AFSCME Local 2858$/.test(mail.senderName), 'the update email comes from the union, not the app: ' + mail.senderName);
+    assert.strictEqual(mail.replyTo, 'local2858fcrc@gmail.com', 'replies go to the union address');
     const updToken = (mail.text.match(/\/update\/([a-f0-9]{48})/) || [])[1];
     assert.ok(updToken, 'the email contains the update link');
     assert.ok((await pool.query('select token_hash from contact_update_links')).rows.every(r => r.token_hash !== updToken), 'the raw update token is never stored');

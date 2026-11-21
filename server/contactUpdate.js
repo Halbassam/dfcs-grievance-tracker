@@ -8,13 +8,20 @@
 const { sendMail } = require("./mailer");
 const db = require("./db");
 
+const DEFAULT_REPLY_TO = "local2858fcrc@gmail.com";
+
 function mailConfig() {
   const apiKey = process.env.BREVO_API_KEY || "";
   const senderEmail = process.env.BREVO_SENDER_EMAIL || "";
   if (!apiKey || !senderEmail) {
     throw new Error("Email is not configured (BREVO_API_KEY and BREVO_SENDER_EMAIL). The link was not sent.");
   }
-  return { apiKey, senderEmail };
+  return { apiKey, senderEmail, replyTo: process.env.NEWSLETTER_REPLY_TO || DEFAULT_REPLY_TO };
+}
+
+// The sender name is the union, not the app, so members see who is writing.
+function unionSenderName(localNo) {
+  return localNo ? `AFSCME Local ${localNo}` : "AFSCME Council 31";
 }
 
 async function sendUpdateLink({ submissionId, createdBy, baseUrl }) {
@@ -34,7 +41,7 @@ async function sendUpdateLink({ submissionId, createdBy, baseUrl }) {
     "— FCRC Grievance Tracker (automated message)"
   ].join("\n");
   try {
-    await sendMail({ ...cfg, to: link.sentTo, subject: `[${tag}] Update your contact details`, text });
+    await sendMail({ ...cfg, senderName: unionSenderName(localNo), to: link.sentTo, subject: `[${tag}] Update your contact details`, text });
   } catch (err) {
     await db.expireContactUpdateLink(link.token).catch(() => {});
     throw err;
@@ -55,7 +62,7 @@ async function sendChangeConfirmation({ to, legalName }) {
     "",
     "— FCRC Grievance Tracker (automated message)"
   ].join("\n");
-  await sendMail({ ...cfg, to, subject: `[${tag}] Your contact details were updated`, text });
+  await sendMail({ ...cfg, senderName: unionSenderName(localNo), to, subject: `[${tag}] Your contact details were updated`, text });
   await db.logEmailAttempt({ kind: "contact-update-confirmation", to, ok: true }).catch(() => {});
 }
 
