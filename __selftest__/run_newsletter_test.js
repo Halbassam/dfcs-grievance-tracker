@@ -41,7 +41,7 @@ const wait = ms => new Promise(r => setTimeout(r, ms));
     create table contact_links (token_hash text primary key, created_by text not null default '', created_at timestamptz not null default now(), expires_at timestamptz not null, revoked_at timestamptz);
     create table contact_update_links (token_hash text primary key, submission_id text not null, sent_to text not null default '', created_by text not null default '', created_at timestamptz not null default now(), expires_at timestamptz not null, used_at timestamptz);
     create table contact_submissions (id text primary key, location text not null, legal_name text not null default '', phone text not null default '', personal_email text not null default '', state_email text not null default '', consent_at timestamptz not null default now(), submitted_at timestamptz not null default now(), newsletter_opt_in boolean not null default false, newsletter_opt_in_at timestamptz, newsletter_unsubscribed_at timestamptz, unsubscribe_token text not null default '');
-    create table newsletters (id text primary key, subject text not null, body text not null, audience text not null, location text not null default '', address_type text not null, reason text not null default '', sent_by text not null default '', created_at timestamptz not null default now(), finished_at timestamptz, recipients integer not null default 0, sent integer not null default 0, failed integer not null default 0, status text not null default 'sending');
+    create table newsletters (id text primary key, subject text not null, body text not null, audience text not null, location text not null default '', address_type text not null, reason text not null default '', sent_by text not null default '', created_at timestamptz not null default now(), finished_at timestamptz, recipients integer not null default 0, sent integer not null default 0, failed integer not null default 0, status text not null default 'sending', kind text not null default 'newsletter');
   `);
   await pool.query(`insert into setup_lists (key, items) values ('Location', '["North Suburban FCRC","NorthSide FCRC"]')`);
   await pool.query(`insert into app_meta (key, value) values ('orgLocalNo', '2858')`);
@@ -67,6 +67,7 @@ const wait = ms => new Promise(r => setTimeout(r, ms));
   await db.submitContact(tok, base('Ben Ortiz', 'NorthSide FCRC', 'ben@x.gov', '', false));
   await db.submitContact(tok, base('Cy Park', 'North Suburban FCRC', 'cy@x.gov', '', true));
   await db.submitContact(tok, base('Dee Ward', 'NorthSide FCRC', '', 'dee@state.gov', true));
+  await db.submitContact(tok, base('Eve Park', 'North Suburban FCRC', '', 'eve@state.gov', false));
 
   const who = async (opts) => (await db.getNewsletterRecipients(opts)).map(r => r.legalName).sort();
   assert.deepStrictEqual(await who({ location: 'NorthSide FCRC', addressType: 'personal' }), ['Ann Lee'], 'only opted-in people with a personal email');
@@ -110,6 +111,29 @@ const wait = ms => new Promise(r => setTimeout(r, ms));
   await db.submitContact(tok, base('Ann Lee', 'NorthSide FCRC', 'ann@x.gov', '', true));
   assert.deepStrictEqual(await who({ location: 'NorthSide FCRC', addressType: 'personal' }), ['Ann Lee'], 'ticking the box again opts back in');
   console.log('✓ Unsubscribing is permanent until the person ticks the box again');
+
+  // Union business notices: state emails only, regardless of newsletter opt-in, no unsubscribe.
+  const noticeWho = (await db.getNoticeRecipients({ location: '' })).map(r => r.legalName).sort();
+  assert.deepStrictEqual(noticeWho, ['Dee Ward', 'Eve Park'], 'notices go to everyone who gave a state email');
+  assert.throws(() => nl.validateNotice({ subject: 'Meeting', body: 'x', reason: '', businessConfirm: true }), /reason/);
+  assert.throws(() => nl.validateNotice({ subject: 'Meeting', body: 'x', reason: 'Contract vote', businessConfirm: false }), /union business/);
+  const noticeMsg = nl.buildNotice({ subject: 'Meeting', body: 'Friday', localNo: '2858', recipientName: 'Eve Park', replyTo: 'local2858fcrc@gmail.com' });
+  assert.ok(!/unsubscribe/i.test(noticeMsg.html + noticeMsg.text), 'a union notice has no unsubscribe link');
+  assert.ok(noticeMsg.html.includes('union business notice') && noticeMsg.text.includes('local2858fcrc@gmail.com'), 'the notice says why it was sent and how to reply');
+  sent.length = 0;
+  const notice = await nl.startNewsletter({ kind: 'notice', subject: 'Contract vote', body: 'Vote on Friday.', audience: 'location', location: 'North Suburban FCRC', addressType: 'state', reason: 'Contract vote notice', businessConfirm: true, sentBy: 'admin1', baseUrl: 'https://app.example', localNo: '2858' });
+  assert.strictEqual(notice.recipients, 1, 'one state-email recipient at North Suburban');
+  for (let i = 0; i < 40; i++) {
+    const row = (await pool.query('select status from newsletters where id = $1', [notice.id])).rows[0];
+    if (row && row.status === 'sent') break;
+    await wait(100);
+  }
+  assert.deepStrictEqual(sent.map(m => m.to), ['eve@state.gov'], 'the notice goes only to the state address');
+  assert.ok(!/unsubscribe/i.test(sent[0].html + sent[0].text), 'no unsubscribe link in the notice');
+  const noticeRow = (await db.listNewsletterRecords('admin1', true)).find(r => r.id === notice.id);
+  assert.strictEqual(noticeRow.kind, 'notice', 'the record shows it was a notice');
+  assert.strictEqual(noticeRow.reason, 'Contract vote notice', 'the reason is recorded');
+  console.log('✓ Union notices go to state emails only, have no unsubscribe, and record the reason');
 
   // Test send goes to the test address only.
   sent.length = 0;
@@ -164,6 +188,12 @@ const wait = ms => new Promise(r => setTimeout(r, ms));
     assert.strictEqual(plusOther.status, 403, 'a super steward cannot send to another location');
     const plusOwn = await request(port, 'POST', '/api/newsletters/send', { cookie: plus, body: { subject: 'Super steward note', body: 'Hello', audience: 'location', location: 'NorthSide FCRC', addressType: 'personal' } });
     assert.strictEqual(plusOwn.status, 202, 'a super steward can send to an assigned location');
+    // Notices: a super steward needs the reason and the confirmation; a steward cannot send one.
+    assert.strictEqual((await request(port, 'POST', '/api/newsletters/send', { cookie: steward, body: { kind: 'notice', subject: 'x', body: 'y', audience: 'location', location: 'NorthSide FCRC', reason: 'r', businessConfirm: true } })).status, 403, 'a steward cannot send a notice');
+    assert.strictEqual((await request(port, 'POST', '/api/newsletters/send', { cookie: plus, body: { kind: 'notice', subject: 'x', body: 'y', audience: 'location', location: 'NorthSide FCRC', reason: 'r', businessConfirm: false } })).status, 400, 'a notice needs the union-business confirmation');
+    assert.strictEqual((await request(port, 'POST', '/api/newsletters/send', { cookie: plus, body: { kind: 'notice', subject: 'x', body: 'y', audience: 'location', location: 'NorthSide FCRC', reason: '', businessConfirm: true } })).status, 400, 'a notice needs a reason');
+    const noticeOk = await request(port, 'POST', '/api/newsletters/send', { cookie: plus, body: { kind: 'notice', subject: 'Vote notice', body: 'Vote Friday', audience: 'location', location: 'NorthSide FCRC', reason: 'Vote', businessConfirm: true } });
+    assert.strictEqual(noticeOk.status, 202, JSON.stringify(noticeOk.json));
     const stewardHistoryOk = await request(port, 'GET', '/api/newsletters', { cookie: steward });
     assert.strictEqual(stewardHistoryOk.status, 200, 'a steward can read the newsletter history');
     assert.strictEqual((await request(port, 'POST', '/api/newsletters/send', { cookie: viewer, body: { subject: 'x', body: 'y', audience: 'all', addressType: 'personal' } })).status, 403, 'read-only accounts cannot send');

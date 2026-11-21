@@ -1023,9 +1023,13 @@ const server = http.createServer(async (req, res) => {
             return sendJson(res, 403, { error: "You can send newsletters only to your own location." });
           }
           const loc = body.audience === "location" ? String(body.location || "").trim() : "";
-          const people = await db.getNewsletterRecipients({ location: loc, addressType: body.addressType === "state" ? "state" : "personal" });
-          const unique = new Set(people.map(p => p.email.toLowerCase())).size;
-          return sendJson(res, 200, { recipients: unique });
+          const isNotice = body.kind === "notice";
+          const people = await newsletter.recipientsFor({
+            kind: isNotice ? "notice" : "newsletter",
+            location: loc,
+            addressType: isNotice ? "state" : (body.addressType === "state" ? "state" : "personal")
+          });
+          return sendJson(res, 200, { recipients: people.length });
         } catch (err) {
           return sendJson(res, 400, { error: err.message });
         }
@@ -1033,7 +1037,7 @@ const server = http.createServer(async (req, res) => {
       if (pathname === "/api/newsletters/test" && req.method === "POST") {
         try {
           const body = await readBody(req);
-          const sent = await newsletter.sendTest({ subject: body.subject, body: body.body, addressType: body.addressType, reason: body.reason, baseUrl: baseUrlOf(), localNo });
+          const sent = await newsletter.sendTest({ kind: body.kind, subject: body.subject, body: body.body, addressType: body.addressType, reason: body.reason, businessConfirm: body.businessConfirm, baseUrl: baseUrlOf(), localNo });
           return sendJson(res, 200, { ok: true, sentTo: sent.sentTo });
         } catch (err) {
           return sendJson(res, 400, { error: err.message });
@@ -1046,9 +1050,9 @@ const server = http.createServer(async (req, res) => {
             return sendJson(res, 403, { error: "You can send newsletters only to your own location." });
           }
           const started = await newsletter.startNewsletter({
-            subject: body.subject, body: body.body, audience: body.audience, location: body.location,
-            addressType: body.addressType, reason: body.reason, sentBy: currentUser.username,
-            baseUrl: baseUrlOf(), localNo
+            kind: body.kind, subject: body.subject, body: body.body, audience: body.audience, location: body.location,
+            addressType: body.addressType, reason: body.reason, businessConfirm: body.businessConfirm,
+            sentBy: currentUser.username, baseUrl: baseUrlOf(), localNo
           });
           return sendJson(res, 202, { ok: true, id: started.id, recipients: started.recipients });
         } catch (err) {

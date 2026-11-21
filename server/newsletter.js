@@ -1,7 +1,10 @@
 /**
- * Newsletters to members who opted in. One email per person, a short pause between
- * sends, and a log entry for every send. Each email carries that person's own
- * unsubscribe link.
+ * Sends to members in two ways:
+ *  - "newsletter": to people who opted in, on personal email, with an unsubscribe link.
+ *  - "notice": union business to people who gave a state email as union contact.
+ *    There is no unsubscribe for notices. Each send needs a reason and a confirmation
+ *    that the content is union business.
+ * One email per person, a short pause between sends, and a log entry for each send.
  */
 
 const { sendMail } = require("./mailer");
@@ -26,13 +29,15 @@ function localTag(localNo) {
   return localNo ? `AFSCME Local ${localNo}` : "AFSCME Council 31";
 }
 
-/** The header is the union name and local number. The footer carries the developer
- *  credit and the unsubscribe link. The body is escaped, so it cannot inject markup. */
+function paragraphsHtml(body) {
+  return String(body || "").split(/\n{2,}/).map(p =>
+    `<p style="margin:0 0 14px;line-height:1.55;">${esc(p).replace(/\n/g, "<br>")}</p>`).join("");
+}
+
+/** Newsletter email: header, text, developer credit, and that person's unsubscribe link. */
 function buildEmail({ subject, body, localNo, unsubscribeUrl, recipientName }) {
   const tag = localTag(localNo);
   const greeting = recipientName ? `Hello ${recipientName},` : "Hello,";
-  const paragraphs = String(body || "").split(/\n{2,}/).map(p =>
-    `<p style="margin:0 0 14px;line-height:1.55;">${esc(p).replace(/\n/g, "<br>")}</p>`).join("");
   const html = `<!DOCTYPE html><html><body style="margin:0;background:#f5f3ef;font-family:-apple-system,Segoe UI,sans-serif;color:#1a2b22;">
   <div style="max-width:600px;margin:0 auto;background:#fff;">
     <div style="background:#005daa;color:#fff;padding:20px 24px;">
@@ -41,7 +46,7 @@ function buildEmail({ subject, body, localNo, unsubscribeUrl, recipientName }) {
     </div>
     <div style="padding:24px;font-size:15px;">
       <p style="margin:0 0 14px;">${esc(greeting)}</p>
-      ${paragraphs}
+      ${paragraphsHtml(body)}
     </div>
     <div style="padding:16px 24px;background:#f1f5f8;font-size:12px;color:#5f6f64;line-height:1.5;">
       You are receiving this because you opted in to union newsletters.
@@ -49,17 +54,37 @@ function buildEmail({ subject, body, localNo, unsubscribeUrl, recipientName }) {
       Developed by Hazem Albassam &middot; &copy; 2026
     </div>
   </div></body></html>`;
-  const text = [
-    greeting,
-    "",
-    String(body || ""),
-    "",
-    "----",
-    `You are receiving this because you opted in to union newsletters.`,
-    `To unsubscribe: ${unsubscribeUrl}`,
-    "Developed by Hazem Albassam"
-  ].join("\n");
+  const text = [greeting, "", String(body || ""), "", "----",
+    "You are receiving this because you opted in to union newsletters.",
+    `To unsubscribe: ${unsubscribeUrl}`, "Developed by Hazem Albassam"].join("\n");
   return { subject: `[${tag}] ${subject}`, html, text };
+}
+
+/** Union business notice: no unsubscribe. The footer explains why the person received it. */
+function buildNotice({ subject, body, localNo, recipientName, replyTo }) {
+  const tag = localTag(localNo);
+  const greeting = recipientName ? `Hello ${recipientName},` : "Hello,";
+  const html = `<!DOCTYPE html><html><body style="margin:0;background:#f5f3ef;font-family:-apple-system,Segoe UI,sans-serif;color:#1a2b22;">
+  <div style="max-width:600px;margin:0 auto;background:#fff;">
+    <div style="background:#005daa;color:#fff;padding:20px 24px;">
+      <div style="font-size:19px;font-weight:700;">${esc(tag)}</div>
+      <div style="font-size:13px;opacity:.9;margin-top:4px;">Union business notice</div>
+    </div>
+    <div style="padding:24px;font-size:15px;">
+      <p style="margin:0 0 14px;">${esc(greeting)}</p>
+      ${paragraphsHtml(body)}
+    </div>
+    <div style="padding:16px 24px;background:#f1f5f8;font-size:12px;color:#5f6f64;line-height:1.5;">
+      You are receiving this union business notice because you gave this state email address as your union contact.
+      To correct your details, contact your steward${replyTo ? ` or write to ${esc(replyTo)}` : ""}.<br>
+      Developed by Hazem Albassam &middot; &copy; 2026
+    </div>
+  </div></body></html>`;
+  const text = [greeting, "", String(body || ""), "", "----",
+    "You are receiving this union business notice because you gave this state email address as your union contact.",
+    `To correct your details, contact your steward${replyTo ? ` or write to ${replyTo}` : ""}.`,
+    "Developed by Hazem Albassam"].join("\n");
+  return { subject: `[${tag}] Union notice: ${subject}`, html, text };
 }
 
 function validateNewsletter({ subject, body, addressType, reason }) {
@@ -76,46 +101,66 @@ function validateNewsletter({ subject, body, addressType, reason }) {
   return { subject: s, body: b };
 }
 
-/** Sends a newsletter to everyone who opted in for the chosen audience. Returns at once
- *  with the record id and the number of recipients. Sending continues in the background. */
-async function startNewsletter({ subject, body, audience, location, addressType, reason, sentBy, baseUrl, localNo }) {
-  const v = validateNewsletter({ subject, body, addressType, reason });
+/** A union business notice needs a reason and a confirmation that it is union business. */
+function validateNotice({ subject, body, reason, businessConfirm }) {
+  const v = validateNewsletter({ subject, body, addressType: "state", reason });
+  if (!String(reason || "").trim()) throw new Error("Give the reason for this notice.");
+  if (businessConfirm !== true) throw new Error("Confirm that this notice is union business only.");
+  return v;
+}
+
+/** Recipients for a send, with one email per address. */
+async function recipientsFor({ kind, location, addressType }) {
+  const people = kind === "notice"
+    ? await db.getNoticeRecipients({ location })
+    : await db.getNewsletterRecipients({ location, addressType });
+  const seen = new Set();
+  return people.filter(p => {
+    const key = p.email.toLowerCase();
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+/** Sends to everyone for the chosen audience. Returns at once with the record id and the
+ *  number of recipients. Sending continues in the background. */
+async function startNewsletter({ kind, subject, body, audience, location, addressType, reason, businessConfirm, sentBy, baseUrl, localNo }) {
+  const isNotice = kind === "notice";
+  const v = isNotice ? validateNotice({ subject, body, reason, businessConfirm }) : validateNewsletter({ subject, body, addressType, reason });
   const cfg = mailConfig();
   if (audience !== "all" && audience !== "location") throw new Error("Choose a location or the whole local.");
   const loc = audience === "location" ? String(location || "").trim() : "";
   if (audience === "location" && !(await db.getLocationList()).includes(loc)) {
     throw new Error("That location is not in the location list.");
   }
-
-  // One email per address, even if two entries share it.
-  const people = await db.getNewsletterRecipients({ location: loc, addressType });
-  const seen = new Set();
-  const recipients = people.filter(p => {
-    const key = p.email.toLowerCase();
-    if (seen.has(key)) return false;
-    seen.add(key);
-    return true;
-  });
+  const type = isNotice ? "state" : addressType;
+  const recipients = await recipientsFor({ kind: isNotice ? "notice" : "newsletter", location: loc, addressType: type });
 
   const id = await db.createNewsletterRecord({
-    subject: v.subject, body: v.body, audience, location: loc, addressType,
-    reason: addressType === "state" ? String(reason).trim() : "", sentBy, recipients: recipients.length
+    subject: v.subject, body: v.body, audience, location: loc, addressType: type,
+    reason: type === "state" ? String(reason).trim() : "", sentBy, recipients: recipients.length,
+    kind: isNotice ? "notice" : "newsletter"
   });
 
-  // Background send: one email at a time, with a pause between them.
   (async () => {
     let sent = 0, failed = 0;
     for (const person of recipients) {
-      const unsubscribeUrl = `${baseUrl}/unsubscribe/${person.unsubscribeToken}`;
-      const msg = buildEmail({ subject: v.subject, body: v.body, localNo, unsubscribeUrl, recipientName: person.legalName });
+      let msg;
+      if (isNotice) {
+        msg = buildNotice({ subject: v.subject, body: v.body, localNo, recipientName: person.legalName, replyTo: cfg.replyTo });
+      } else {
+        const unsubscribeUrl = `${baseUrl}/unsubscribe/${person.unsubscribeToken}`;
+        msg = buildEmail({ subject: v.subject, body: v.body, localNo, unsubscribeUrl, recipientName: person.legalName });
+      }
       try {
         await sendMail({ ...cfg, senderName: person.location ? `${localTag(localNo)} · ${person.location}` : localTag(localNo),
           to: person.email, subject: msg.subject, text: msg.text, html: msg.html, replyTo: cfg.replyTo });
         sent++;
-        await db.logEmailAttempt({ kind: "newsletter", gid: id, to: person.email, ok: true }).catch(() => {});
+        await db.logEmailAttempt({ kind: isNotice ? "union-notice" : "newsletter", gid: id, to: person.email, ok: true }).catch(() => {});
       } catch (err) {
         failed++;
-        await db.logEmailAttempt({ kind: "newsletter", gid: id, to: person.email, ok: false, error: err.message }).catch(() => {});
+        await db.logEmailAttempt({ kind: isNotice ? "union-notice" : "newsletter", gid: id, to: person.email, ok: false, error: err.message }).catch(() => {});
       }
       await db.updateNewsletterProgress(id, sent, failed).catch(() => {});
       await new Promise(r => setTimeout(r, SEND_PAUSE_MS));
@@ -128,13 +173,16 @@ async function startNewsletter({ subject, body, audience, location, addressType,
 }
 
 /** One test email to the test address. No recipient list is used. */
-async function sendTest({ subject, body, addressType, reason, baseUrl, localNo }) {
-  const v = validateNewsletter({ subject, body, addressType, reason });
+async function sendTest({ kind, subject, body, addressType, reason, businessConfirm, baseUrl, localNo }) {
+  const isNotice = kind === "notice";
+  const v = isNotice ? validateNotice({ subject, body, reason, businessConfirm }) : validateNewsletter({ subject, body, addressType, reason });
   const cfg = mailConfig();
   const to = process.env.NEWSLETTER_TEST_EMAIL || DEFAULT_REPLY_TO;
-  const msg = buildEmail({ subject: v.subject, body: v.body, localNo, unsubscribeUrl: `${baseUrl}/unsubscribe/test`, recipientName: "" });
+  const msg = isNotice
+    ? buildNotice({ subject: v.subject, body: v.body, localNo, recipientName: "", replyTo: cfg.replyTo })
+    : buildEmail({ subject: v.subject, body: v.body, localNo, unsubscribeUrl: `${baseUrl}/unsubscribe/test`, recipientName: "" });
   await sendMail({ ...cfg, senderName: localTag(localNo), to, subject: `TEST ${msg.subject}`, text: msg.text, html: msg.html, replyTo: cfg.replyTo });
   return { sentTo: to };
 }
 
-module.exports = { startNewsletter, sendTest, buildEmail, validateNewsletter };
+module.exports = { startNewsletter, sendTest, recipientsFor, buildEmail, buildNotice, validateNewsletter, validateNotice };

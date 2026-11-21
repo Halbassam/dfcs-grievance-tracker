@@ -1252,6 +1252,22 @@ async function getNewsletterRecipients({ location, addressType }) {
   }));
 }
 
+/** People who get a union business notice: anyone who gave a state email. Newsletter
+ *  opt-in does not apply, and there is no unsubscribe for notices. */
+async function getNoticeRecipients({ location }) {
+  const params = [];
+  let where = `state_email <> ''`;
+  if (location) {
+    params.push(location);
+    where += ` and location = $${params.length}`;
+  }
+  const res = await query(
+    `select id, location, legal_name, state_email as email from contact_submissions where ${where} order by legal_name`,
+    params
+  );
+  return res.rows.map(r => ({ id: r.id, location: r.location, legalName: r.legal_name, email: r.email }));
+}
+
 /** Unsubscribes the person who holds this token. Permanent, unless they tick the box again. */
 async function unsubscribeByToken(token) {
   const key = String(token || "");
@@ -1267,9 +1283,9 @@ async function unsubscribeByToken(token) {
 async function createNewsletterRecord(n) {
   const id = crypto.randomBytes(10).toString("hex");
   await query(
-    `insert into newsletters (id, subject, body, audience, location, address_type, reason, sent_by, recipients, status)
-     values ($1,$2,$3,$4,$5,$6,$7,$8,$9,'sending')`,
-    [id, n.subject, n.body, n.audience, n.location || "", n.addressType, n.reason || "", n.sentBy || "", n.recipients || 0]
+    `insert into newsletters (id, subject, body, audience, location, address_type, reason, sent_by, recipients, status, kind)
+     values ($1,$2,$3,$4,$5,$6,$7,$8,$9,'sending',$10)`,
+    [id, n.subject, n.body, n.audience, n.location || "", n.addressType, n.reason || "", n.sentBy || "", n.recipients || 0, n.kind || "newsletter"]
   );
   return id;
 }
@@ -1287,13 +1303,13 @@ async function finishNewsletterRecord(id, sent, failed) {
 
 async function listNewsletterRecords(username, admin) {
   const res = await query(
-    `select id, subject, audience, location, address_type, reason, sent_by, created_at, finished_at, recipients, sent, failed, status
+    `select id, subject, audience, location, address_type, reason, sent_by, created_at, finished_at, recipients, sent, failed, status, kind
        from newsletters ${admin ? "" : "where sent_by = $1"} order by created_at desc limit 100`,
     admin ? [] : [String(username || "")]
   );
   return res.rows.map(r => ({
     id: r.id, subject: r.subject, audience: r.audience, location: r.location, addressType: r.address_type,
-    reason: r.reason, sentBy: r.sent_by,
+    kind: r.kind, reason: r.reason, sentBy: r.sent_by,
     createdAt: r.created_at ? new Date(r.created_at).toISOString() : null,
     finishedAt: r.finished_at ? new Date(r.finished_at).toISOString() : null,
     recipients: r.recipients, sent: r.sent, failed: r.failed, status: r.status
@@ -1900,7 +1916,7 @@ async function getAuditLog(limit = 200, filterUsername = null, filterActions = [
 }
 
 module.exports = {
-  getAll, readRaw, writeRawAtomic, getEmailLog, createContactLink, getContactLink, getLocationList, submitContact, listContacts, revokeContactLink, removeContactSubmission, createContactUpdateLink, expireContactUpdateLink, getContactUpdateLink, submitContactUpdate, getNewsletterRecipients, unsubscribeByToken, createNewsletterRecord, updateNewsletterProgress, finishNewsletterRecord, listNewsletterRecords, purgeOldNewsletters, withLock, logEmailAttempt, pingKeepAlive,
+  getAll, readRaw, writeRawAtomic, getEmailLog, createContactLink, getContactLink, getLocationList, submitContact, listContacts, revokeContactLink, removeContactSubmission, createContactUpdateLink, expireContactUpdateLink, getContactUpdateLink, submitContactUpdate, getNewsletterRecipients, unsubscribeByToken, createNewsletterRecord, updateNewsletterProgress, finishNewsletterRecord, listNewsletterRecords, purgeOldNewsletters, getNoticeRecipients, withLock, logEmailAttempt, pingKeepAlive,
   getEmailRunState, saveEmailRunState, getLastEmailRunDate, linkGrievanceToInvestigation, deleteOtherSessions, chicagoDateISO,
   submitGrievance, logActivity, archiveClosed, sendCourtesyNotice,
   updateSetupList, getSetupList, updateHolidays, updateOrgSettings,

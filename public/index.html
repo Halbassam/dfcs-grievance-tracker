@@ -717,16 +717,23 @@ h1,h2,h3{letter-spacing:-0.012em;}
       <h3 style="font-family:var(--sans);color:var(--green-1);margin:0 0 6px;font-size:17px;">Newsletter</h3>
       <p style="font-size:13px;color:var(--grey);margin:6px 0 14px;">Send to members who have opted in to newsletters. Each person gets their own email with an unsubscribe link. Stewards can send to their own location; admins can send to any location or the whole local. Emails go out one at a time, and the record is kept for one year.</p>
       <div id="nlCompose">
+      <div class="field" style="margin-bottom:12px;"><label for="nlKind">What is this?</label>
+        <select id="nlKind">
+          <option value="newsletter">Newsletter: members who opted in, personal email, with an unsubscribe link</option>
+          <option value="notice">Union business notice: state email only, no unsubscribe</option>
+        </select>
+      </div>
       <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;margin-bottom:12px;">
         <div class="field"><label for="nlAudience">Send to</label><select id="nlAudience"></select></div>
-        <div class="field"><label>Address to use</label>
+        <div class="field" id="nlAddressWrap"><label>Address to use</label>
           <div style="display:flex;gap:14px;font-size:14px;padding-top:6px;">
             <label style="font-weight:400;display:flex;gap:6px;align-items:center;"><input type="radio" name="nlAddress" value="personal" checked> Personal email</label>
             <label style="font-weight:400;display:flex;gap:6px;align-items:center;"><input type="radio" name="nlAddress" value="state"> State email</label>
           </div>
         </div>
       </div>
-      <div id="nlReasonWrap" class="field" style="display:none;margin-bottom:12px;"><label for="nlReason">Reason for using state emails (special circumstances)</label><input type="text" id="nlReason" maxlength="300"></div>
+      <div id="nlReasonWrap" class="field" style="display:none;margin-bottom:12px;"><label for="nlReason">Reason (special circumstances; recorded with the send)</label><input type="text" id="nlReason" maxlength="300"></div>
+      <label id="nlConfirmWrap" style="display:none;font-weight:400;font-size:14px;align-items:flex-start;gap:8px;margin-bottom:12px;"><input type="checkbox" id="nlBusinessConfirm" style="margin-top:3px;"> <span>This notice is union business only. It contains no newsletter or promotional content.</span></label>
       <div class="field" style="margin-bottom:12px;"><label for="nlSubject">Subject</label><input type="text" id="nlSubject" maxlength="150"></div>
       <div class="field" style="margin-bottom:12px;"><label for="nlBody">Newsletter text</label><textarea id="nlBody" rows="10" maxlength="20000" style="font-family:var(--sans);"></textarea>
         <span class="field-note">Plain text. Blank lines start a new paragraph. The header and the unsubscribe link are added automatically.</span></div>
@@ -2699,7 +2706,7 @@ function switchTab(target){
   // Refresh audit log when admin opens it
   if(view === 'audit') loadAuditLog();
   if(view === 'emaillog') refreshEmailStatus();
-  if(page === 'members'){ renderMemberContactsPanel(); nlAudienceOptions(); renderNewsletterHistory(); }
+  if(page === 'members'){ renderMemberContactsPanel(); nlAudienceOptions(); nlApplyKind(); renderNewsletterHistory(); }
 }
 document.querySelectorAll('.view-bar [data-view]').forEach(b=>{
   b.addEventListener('click', ()=>switchTab(b.dataset.view));
@@ -2934,13 +2941,24 @@ function nlPayload(){
   const v = $('nlAudience').value || '';
   const audience = v === 'all' ? 'all' : 'location';
   const location = v.startsWith('loc:') ? v.slice(4) : '';
-  const addressType = (document.querySelector('input[name="nlAddress"]:checked')||{}).value || 'personal';
+  const kind = $('nlKind').value === 'notice' ? 'notice' : 'newsletter';
+  const addressType = kind === 'notice' ? 'state' : ((document.querySelector('input[name="nlAddress"]:checked')||{}).value || 'personal');
   return {
-    audience, location, addressType,
+    kind, audience, location, addressType,
     reason: $('nlReason').value.trim(),
+    businessConfirm: $('nlBusinessConfirm').checked,
     subject: $('nlSubject').value.trim(),
     body: $('nlBody').value
   };
+}
+
+function nlApplyKind(){
+  const isNotice = $('nlKind').value === 'notice';
+  const isState = isNotice || (document.querySelector('input[name="nlAddress"]:checked')||{}).value === 'state';
+  $('nlAddressWrap').style.display = isNotice ? 'none' : '';
+  $('nlReasonWrap').style.display = isState ? '' : 'none';
+  $('nlConfirmWrap').style.display = isNotice ? 'flex' : 'none';
+  $('nlSendBtn').textContent = isNotice ? 'Send notice' : 'Send newsletter';
 }
 
 function nlSetStatus(msg, bad){
@@ -2966,7 +2984,7 @@ async function renderNewsletterHistory(){
         <td style="white-space:nowrap;font-size:12px;color:var(--grey);">${r.createdAt ? escapeHtml(new Date(r.createdAt).toLocaleString('en-US')) : ''}</td>
         <td>${escapeHtml(r.subject)}</td>
         <td>${escapeHtml(r.audience === 'all' ? 'Whole local' : r.location)}</td>
-        <td>${escapeHtml(r.addressType === 'state' ? 'State email' : 'Personal email')}</td>
+        <td>${escapeHtml(r.kind === 'notice' ? 'Union notice (state email)' : (r.addressType === 'state' ? 'Newsletter, state email' : 'Newsletter, personal email'))}</td>
         <td>${r.sent} / ${r.failed} of ${r.recipients}</td>
         <td>${escapeHtml(r.status === 'sent' ? 'Finished' : 'Sending…')}</td>
         <td>${escapeHtml(r.sentBy || '')}</td>
@@ -3009,7 +3027,8 @@ $('nlSendBtn')?.addEventListener('click', async ()=>{
   try{ check = await apiPost('/api/newsletters/preview', p); }
   catch(err){ nlSetStatus(err.message || 'Could not check recipients.', true); return; }
   if(!check.recipients){ nlSetStatus('Nobody has opted in to newsletters for this audience yet, so nothing was sent. Members opt in with the newsletter box on their sign-up or update form. Use Send test email to check the email first.', true); return; }
-  if(!confirm(`Send "${p.subject}" to ${check.recipients} member(s) now? Emails go out one at a time and cannot be recalled.`)) return;
+  const what = p.kind === 'notice' ? 'union business notice' : 'newsletter';
+  if(!confirm(`Send this ${what}, "${p.subject}", to ${check.recipients} member(s) now? Emails go out one at a time and cannot be recalled.`)) return;
   try{
     const r = await apiPost('/api/newsletters/send', p);
     nlSetStatus(`Sending to ${r.recipients} member(s). You can leave this page; the history shows progress.`);
@@ -3017,10 +3036,8 @@ $('nlSendBtn')?.addEventListener('click', async ()=>{
   }catch(err){ nlSetStatus(err.message || 'Could not start the newsletter.', true); }
 });
 
-document.querySelectorAll('input[name="nlAddress"]').forEach(r=>r.addEventListener('change', ()=>{
-  const isState = (document.querySelector('input[name="nlAddress"]:checked')||{}).value === 'state';
-  $('nlReasonWrap').style.display = isState ? '' : 'none';
-}));
+document.querySelectorAll('input[name="nlAddress"]').forEach(r=>r.addEventListener('change', nlApplyKind));
+$('nlKind')?.addEventListener('change', nlApplyKind);
 
 /* ---------- Settings: Member contacts (shared location links) ---------- */
 let _memberSubs = [];
