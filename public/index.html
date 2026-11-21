@@ -3008,7 +3008,7 @@ $('nlSendBtn')?.addEventListener('click', async ()=>{
   let check;
   try{ check = await apiPost('/api/newsletters/preview', p); }
   catch(err){ nlSetStatus(err.message || 'Could not check recipients.', true); return; }
-  if(!check.recipients){ nlSetStatus('No members match. Nothing was sent.', true); return; }
+  if(!check.recipients){ nlSetStatus('Nobody has opted in to newsletters for this audience yet, so nothing was sent. Members opt in with the newsletter box on their sign-up or update form. Use Send test email to check the email first.', true); return; }
   if(!confirm(`Send "${p.subject}" to ${check.recipients} member(s) now? Emails go out one at a time and cannot be recalled.`)) return;
   try{
     const r = await apiPost('/api/newsletters/send', p);
