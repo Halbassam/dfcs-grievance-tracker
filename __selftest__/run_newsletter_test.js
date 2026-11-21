@@ -59,6 +59,7 @@ const wait = ms => new Promise(r => setTimeout(r, ms));
   await db.upsertUser({ username: 'admin1', displayName: 'Admin One', password: 'adminpass1' });
   await db.upsertUser({ username: 'steward1', displayName: 'Steward One', password: 'stewardpass1', role: 'steward', locations: ['NorthSide FCRC'] });
   await db.upsertUser({ username: 'viewer1', displayName: 'Viewer One', password: 'viewerpass1', role: 'read_only' });
+  await db.upsertUser({ username: 'plus1', displayName: 'Plus One', password: 'pluspass1', role: 'steward_plus', locations: ['NorthSide FCRC'] });
 
   const base = (name, location, email, state, news) => ({ location, legalName: name, phone: '3125550100', personalEmail: email, stateEmail: state, consent: true, newsletter: news });
   const { token: tok } = await db.createContactLink('admin1');
@@ -150,11 +151,21 @@ const wait = ms => new Promise(r => setTimeout(r, ms));
     const steward = await cookieFor('steward1', 'stewardpass1');
     const viewer = await cookieFor('viewer1', 'viewerpass1');
     const admin = await cookieFor('admin1', 'adminpass1');
+    const plus = await cookieFor('plus1', 'pluspass1');
 
-    const allByStew = await request(port, 'POST', '/api/newsletters/send', { cookie: steward, body: { subject: 'x', body: 'y', audience: 'all', addressType: 'personal' } });
-    assert.strictEqual(allByStew.status, 403, 'a steward cannot send to the whole local');
-    const otherLoc = await request(port, 'POST', '/api/newsletters/send', { cookie: steward, body: { subject: 'x', body: 'y', audience: 'location', location: 'North Suburban FCRC', addressType: 'personal' } });
-    assert.strictEqual(otherLoc.status, 403, 'a steward cannot send to another location');
+    // Other stewards cannot send, preview or test; only admins and super stewards can.
+    assert.strictEqual((await request(port, 'POST', '/api/newsletters/send', { cookie: steward, body: { subject: 'x', body: 'y', audience: 'location', location: 'NorthSide FCRC', addressType: 'personal' } })).status, 403, 'a steward cannot send a newsletter, even to their own location');
+    assert.strictEqual((await request(port, 'POST', '/api/newsletters/preview', { cookie: steward, body: { audience: 'location', location: 'NorthSide FCRC', addressType: 'personal' } })).status, 403, 'a steward cannot preview a newsletter');
+    assert.strictEqual((await request(port, 'POST', '/api/newsletters/test', { cookie: steward, body: { subject: 'x', body: 'y', addressType: 'personal' } })).status, 403, 'a steward cannot send a test');
+    // A super steward can send to an assigned location, but not to the whole local.
+    const plusAll = await request(port, 'POST', '/api/newsletters/send', { cookie: plus, body: { subject: 'x', body: 'y', audience: 'all', addressType: 'personal' } });
+    assert.strictEqual(plusAll.status, 403, 'a super steward cannot send to the whole local');
+    const plusOther = await request(port, 'POST', '/api/newsletters/send', { cookie: plus, body: { subject: 'x', body: 'y', audience: 'location', location: 'North Suburban FCRC', addressType: 'personal' } });
+    assert.strictEqual(plusOther.status, 403, 'a super steward cannot send to another location');
+    const plusOwn = await request(port, 'POST', '/api/newsletters/send', { cookie: plus, body: { subject: 'Super steward note', body: 'Hello', audience: 'location', location: 'NorthSide FCRC', addressType: 'personal' } });
+    assert.strictEqual(plusOwn.status, 202, 'a super steward can send to an assigned location');
+    const stewardHistoryOk = await request(port, 'GET', '/api/newsletters', { cookie: steward });
+    assert.strictEqual(stewardHistoryOk.status, 200, 'a steward can read the newsletter history');
     assert.strictEqual((await request(port, 'POST', '/api/newsletters/send', { cookie: viewer, body: { subject: 'x', body: 'y', audience: 'all', addressType: 'personal' } })).status, 403, 'read-only accounts cannot send');
     assert.strictEqual((await request(port, 'GET', '/api/newsletters', { cookie: viewer })).status, 403, 'read-only accounts cannot see the history');
     const adminAll = await request(port, 'POST', '/api/newsletters/preview', { cookie: admin, body: { audience: 'all', addressType: 'personal' } });
@@ -162,7 +173,9 @@ const wait = ms => new Promise(r => setTimeout(r, ms));
     assert.strictEqual(adminAll.json.recipients, 2, 'admin preview counts the whole local');
     const stewardHistory = await request(port, 'GET', '/api/newsletters', { cookie: steward });
     assert.ok(Array.isArray(stewardHistory.json.newsletters));
-    console.log('✓ Stewards send only to their own location; admins to any; read-only accounts cannot send or view');
+    const adminSeesAll = await request(port, 'GET', '/api/newsletters', { cookie: admin });
+    assert.ok(adminSeesAll.json.newsletters.length >= 1);
+    console.log('✓ Only admins and super stewards send (super stewards only to their location); other stewards read the history only; read-only accounts see nothing');
 
     // The unsubscribe page and its button.
     const tokenNow = (await pool.query("select unsubscribe_token from contact_submissions where legal_name = 'Cy Park'")).rows[0].unsubscribe_token;

@@ -230,11 +230,20 @@ function csvCellValue(val) {
 
 // Admins may send to any location or the whole local. Stewards may send only to a
 // location they are assigned to.
+// Only admins and super stewards (steward_plus) send newsletters. Admins may send to
+// any location or the whole local; a super steward only to an assigned location.
 function canSendNewsletterTo(currentUser, audience, location) {
   if (!currentUser) return false;
   if (currentUser.role === "admin") return true;
+  if (currentUser.role !== "steward_plus") return false;
   if (audience !== "location") return false;
   return (currentUser.locations || []).includes(String(location || "").trim());
+}
+
+// Removing entries, sending update links and revoking the link are for admins and
+// super stewards. Other stewards can view, export and create the link.
+function canEditMemberContacts(currentUser) {
+  return !!currentUser && ["admin", "steward_plus"].includes(currentUser.role);
 }
 
 function canManageMemberContacts(currentUser) {
@@ -952,6 +961,7 @@ const server = http.createServer(async (req, res) => {
         }
       }
       if (pathname === "/api/member-contacts/revoke" && req.method === "POST") {
+        if (!canEditMemberContacts(currentUser)) return sendJson(res, 403, { error: "Only admins and super stewards can revoke the link." });
         try {
           await readBody(req);
           return sendJson(res, 200, await db.revokeContactLink());
@@ -960,6 +970,7 @@ const server = http.createServer(async (req, res) => {
         }
       }
       if (pathname === "/api/member-contacts/send-update" && req.method === "POST") {
+        if (!canEditMemberContacts(currentUser)) return sendJson(res, 403, { error: "Only admins and super stewards can send update links." });
         try {
           const body = await readBody(req);
           const proto = req.headers["x-forwarded-proto"] || "https";
@@ -975,6 +986,7 @@ const server = http.createServer(async (req, res) => {
         }
       }
       if (pathname === "/api/member-contacts/remove" && req.method === "POST") {
+        if (!canEditMemberContacts(currentUser)) return sendJson(res, 403, { error: "Only admins and super stewards can remove entries." });
         try {
           const body = await readBody(req);
           return sendJson(res, 200, await db.removeContactSubmission(body.id));
@@ -989,7 +1001,10 @@ const server = http.createServer(async (req, res) => {
     // cannot send or see the list.
     if (pathname.startsWith("/api/newsletters")) {
       if (!canManageMemberContacts(currentUser)) {
-        return sendJson(res, 403, { error: "Only stewards and admins can use newsletters." });
+        return sendJson(res, 403, { error: "Only stewards and admins can see newsletters." });
+      }
+      if (req.method === "POST" && !["admin", "steward_plus"].includes(currentUser.role)) {
+        return sendJson(res, 403, { error: "Only admins and super stewards can send newsletters." });
       }
       const baseUrlOf = () => `${req.headers["x-forwarded-proto"] || "https"}://${req.headers.host || ""}`;
       const localNo = await db.getOrgLocalNo().catch(() => "");

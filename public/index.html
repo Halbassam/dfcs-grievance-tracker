@@ -716,6 +716,7 @@ h1,h2,h3{letter-spacing:-0.012em;}
     <div class="panel panel-pad" id="newsletterPanel" style="margin-top:24px;">
       <h3 style="font-family:var(--sans);color:var(--green-1);margin:0 0 6px;font-size:17px;">Newsletter</h3>
       <p style="font-size:13px;color:var(--grey);margin:6px 0 14px;">Send to members who have opted in to newsletters. Each person gets their own email with an unsubscribe link. Stewards can send to their own location; admins can send to any location or the whole local. Emails go out one at a time, and the record is kept for one year.</p>
+      <div id="nlCompose">
       <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;margin-bottom:12px;">
         <div class="field"><label for="nlAudience">Send to</label><select id="nlAudience"></select></div>
         <div class="field"><label>Address to use</label>
@@ -734,6 +735,7 @@ h1,h2,h3{letter-spacing:-0.012em;}
         <button class="btn btn-secondary" id="nlTestBtn">Send test email</button>
         <button class="btn btn-primary" id="nlSendBtn">Send newsletter</button>
         <span id="nlStatus" style="font-size:13px;color:var(--grey);"></span>
+      </div>
       </div>
       <h4 style="font-family:var(--sans);font-size:14px;color:var(--green-1);margin:12px 0 8px;">Past newsletters</h4>
       <div id="nlHistory" class="table-wrap" style="padding:0 14px;"></div>
@@ -3031,6 +3033,10 @@ function memberMatches(c, q){
   return qd.length >= 3 && String(c.phone||'').replace(/\D/g, '').includes(qd);
 }
 
+function canEditMembers(){
+  return !!(CURRENT_USER && (CURRENT_USER.role === 'admin' || CURRENT_USER.role === 'steward_plus'));
+}
+
 function applyMemberFilters(){
   const table = $('mcTable');
   if(!table) return;
@@ -3058,7 +3064,7 @@ function applyMemberFilters(){
       <td style="white-space:nowrap;">${escapeHtml(c.phone||'')}</td>
       <td style="word-break:break-all;">${escapeHtml(c.personalEmail||'')}</td>
       <td style="word-break:break-all;">${escapeHtml(c.stateEmail||'')}</td>
-      <td style="text-align:right;white-space:nowrap;"><button class="btn btn-tiny" data-mc-update="${escapeHtml(c.id)}" data-mc-name="${escapeHtml(c.legalName||'')}"${c.personalEmail ? '' : ' disabled title="No personal email on file"'}>Send update link</button> <button class="btn btn-tiny" data-mc-remove="${escapeHtml(c.id)}" data-mc-name="${escapeHtml(c.legalName||'')}">Remove</button></td>
+      <td style="text-align:right;white-space:nowrap;">${canEditMembers() ? `<button class="btn btn-tiny" data-mc-update="${escapeHtml(c.id)}" data-mc-name="${escapeHtml(c.legalName||'')}"${c.personalEmail ? '' : ' disabled title="No personal email on file"'}>Send update link</button> <button class="btn btn-tiny" data-mc-remove="${escapeHtml(c.id)}" data-mc-name="${escapeHtml(c.legalName||'')}">Remove</button>` : ''}</td>
     </tr>`).join('')}</tbody>
   </table>`;
 }
@@ -4248,6 +4254,11 @@ function showMainApp(user){
  * lives server-side, since hiding a button never stops a direct API call.
  */
 function applyRoleVisibility(user){
+  const canEdit = !!(user && (user.role === 'admin' || user.role === 'steward_plus'));
+  const nlCompose = $('nlCompose');
+  if(nlCompose) nlCompose.style.display = canEdit ? '' : 'none';
+  const revokeBtn = $('mcRevokeBtn');
+  if(revokeBtn) revokeBtn.style.display = canEdit ? '' : 'none';
   const membersBtn = $('membersTabBtn');
   if(membersBtn) membersBtn.style.display = (user && user.role === 'read_only') ? 'none' : '';
   const admin = !!(user && (user.role === 'admin' || !user.username));

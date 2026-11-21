@@ -48,6 +48,7 @@ function request(port, method, pathname, { body, cookie, headers = {} } = {}) {
   await db.upsertUser({ username: 'admin1', displayName: 'Admin One', password: 'adminpass1' });
   await db.upsertUser({ username: 'steward1', displayName: 'Steward One', password: 'stewardpass1', role: 'steward' });
   await db.upsertUser({ username: 'viewer1', displayName: 'Viewer One', password: 'viewerpass1', role: 'read_only' });
+  await db.upsertUser({ username: 'plus1', displayName: 'Plus One', password: 'pluspass1', role: 'steward_plus', locations: ['NorthSide FCRC'] });
 
   // Stub the mail service and record every message.
   const sentMail = [];
@@ -74,6 +75,7 @@ function request(port, method, pathname, { body, cookie, headers = {} } = {}) {
     };
     const steward = await login('steward1', 'stewardpass1');
     const viewer = await login('viewer1', 'viewerpass1');
+    const plus = await login('plus1', 'pluspass1');
     const tokenOf = url => url.split('/contact/')[1];
 
     // 1. A steward creates the one shared link. It carries no location and no name.
@@ -159,7 +161,7 @@ function request(port, method, pathname, { body, cookie, headers = {} } = {}) {
     console.log('✓ A new link replaces the old one');
 
     // 8. Revoking stops the link at once; an expired link is refused.
-    await request(port, 'POST', '/api/member-contacts/revoke', { cookie: steward, body: {} });
+    await request(port, 'POST', '/api/member-contacts/revoke', { cookie: plus, body: {} });
     assert.strictEqual((await request(port, 'GET', '/contact/' + newToken)).status, 410, 'a revoked link is refused');
     assert.strictEqual((await request(port, 'POST', '/contact/' + newToken, { headers: ip(10), body: { location: 'NorthSide FCRC', legalName: 'Late Entry', phone: '3125550111', consent: true } })).status, 400, 'a revoked link cannot submit');
     const third = await request(port, 'POST', '/api/member-contacts/link', { cookie: steward, body: {} });
@@ -180,9 +182,18 @@ function request(port, method, pathname, { body, cookie, headers = {} } = {}) {
     assert.strictEqual((await request(port, 'POST', '/api/member-contacts/link', { cookie: viewer, body: {} })).status, 403, 'a read-only account cannot create links');
     console.log('✓ Stewards see submissions and whether the link is live; read-only accounts cannot');
 
+    // 9b. Other stewards can view, export and create the link, but not edit.
+    const stewardEdit = (await request(port, 'POST', '/api/member-contacts/remove', { cookie: steward, body: { id: 'x' } }));
+    assert.strictEqual(stewardEdit.status, 403, 'a steward cannot remove entries');
+    assert.strictEqual((await request(port, 'POST', '/api/member-contacts/revoke', { cookie: steward, body: {} })).status, 403, 'a steward cannot revoke the link');
+    assert.strictEqual((await request(port, 'POST', '/api/member-contacts/send-update', { cookie: steward, body: { id: 'x' } })).status, 403, 'a steward cannot send update links');
+    assert.strictEqual((await request(port, 'GET', '/api/member-contacts', { cookie: steward })).status, 200, 'a steward can view');
+    assert.strictEqual((await request(port, 'POST', '/api/member-contacts/link', { cookie: steward, body: {} })).status, 200, 'a steward can create the link');
+    console.log('✓ Other stewards can view, export and create the link, but cannot remove, revoke, or send update links');
+
     // 10. Removing one person's entry leaves the others.
     const ann = liveList.json.submissions.find(s => s.legalName === 'Ann Lee');
-    assert.strictEqual((await request(port, 'POST', '/api/member-contacts/remove', { cookie: steward, body: { id: ann.id } })).status, 200);
+    assert.strictEqual((await request(port, 'POST', '/api/member-contacts/remove', { cookie: plus, body: { id: ann.id } })).status, 200);
     const after = await request(port, 'GET', '/api/member-contacts', { cookie: steward });
     assert.ok(!after.json.submissions.some(s => s.legalName === 'Ann Lee'), 'the chosen entry is removed');
     assert.ok(after.json.submissions.some(s => s.legalName === 'Ben Ortiz'), 'other entries are kept');
@@ -191,7 +202,7 @@ function request(port, method, pathname, { body, cookie, headers = {} } = {}) {
     //     so put her entry back directly for this part.)
     await pool.query(`insert into contact_submissions (id, location, legal_name, phone, personal_email, state_email) values ('ann-upd', 'NorthSide FCRC', 'Ann Lee', '312.555.0100', 'ANN@personal.example', '')`);
     const ann2 = (await request(port, 'GET', '/api/member-contacts', { cookie: steward })).json.submissions.find(s => s.legalName === 'Ann Lee');
-    const sent = await request(port, 'POST', '/api/member-contacts/send-update', { cookie: steward, body: { id: ann2.id } });
+    const sent = await request(port, 'POST', '/api/member-contacts/send-update', { cookie: plus, body: { id: ann2.id } });
     assert.strictEqual(sent.status, 200, JSON.stringify(sent.json));
     const mail = sentMail[sentMail.length - 1];
     assert.strictEqual(mail.to.toLowerCase(), 'ann@personal.example', 'the link goes to the personal email on file');
@@ -231,7 +242,7 @@ function request(port, method, pathname, { body, cookie, headers = {} } = {}) {
     console.log('✓ An update link works once');
 
     // 16. An expired link is refused.
-    await request(port, 'POST', '/api/member-contacts/send-update', { cookie: steward, body: { id: ann2.id } });
+    await request(port, 'POST', '/api/member-contacts/send-update', { cookie: plus, body: { id: ann2.id } });
     const oldToken = (sentMail[sentMail.length - 1].text.match(/\/update\/([a-f0-9]{48})/) || [])[1];
     await pool.query("update contact_update_links set expires_at = now() - interval '1 minute' where token_hash = $1", [crypto.createHash('sha256').update(oldToken).digest('hex')]);
     assert.strictEqual((await request(port, 'GET', '/update/' + oldToken)).status, 410, 'an expired update link is refused');
@@ -239,7 +250,7 @@ function request(port, method, pathname, { body, cookie, headers = {} } = {}) {
 
     // 17. A person with no personal email cannot be sent a link; read-only accounts cannot send one.
     const dana = (await request(port, 'GET', '/api/member-contacts', { cookie: steward })).json.submissions.find(s => s.legalName === 'Dana Lee');
-    const noEmail = await request(port, 'POST', '/api/member-contacts/send-update', { cookie: steward, body: { id: dana.id } });
+    const noEmail = await request(port, 'POST', '/api/member-contacts/send-update', { cookie: plus, body: { id: dana.id } });
     assert.strictEqual(noEmail.status, 400, 'no personal email means no link');
     assert.ok(/no personal email/i.test(noEmail.json.error));
     assert.strictEqual((await request(port, 'POST', '/api/member-contacts/send-update', { cookie: viewer, body: { id: ann2.id } })).status, 403, 'read-only accounts cannot send links');
@@ -248,7 +259,7 @@ function request(port, method, pathname, { body, cookie, headers = {} } = {}) {
     // 18. If email is not configured, no link is created.
     const before = (await pool.query('select count(*)::int as n from contact_update_links')).rows[0].n;
     delete process.env.BREVO_API_KEY;
-    const unconfigured = await request(port, 'POST', '/api/member-contacts/send-update', { cookie: steward, body: { id: ann2.id } });
+    const unconfigured = await request(port, 'POST', '/api/member-contacts/send-update', { cookie: plus, body: { id: ann2.id } });
     process.env.BREVO_API_KEY = 'test-key';
     assert.strictEqual(unconfigured.status, 400);
     assert.ok(/not configured/i.test(unconfigured.json.error));
