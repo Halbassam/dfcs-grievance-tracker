@@ -38,7 +38,7 @@ async function sendUpdateLink({ submissionId, createdBy, baseUrl }) {
     "",
     "The link works once and expires in 72 hours. If you did not ask for this, you can ignore this email.",
     "",
-    "— FCRC Grievance Tracker (automated message)"
+    `— ${tag} (automated message)`
   ].join("\n");
   try {
     await sendMail({ ...cfg, senderName: unionSenderName(localNo), to: link.sentTo, subject: `[${tag}] Update your contact details`, text });
@@ -60,7 +60,7 @@ async function sendChangeConfirmation({ to, legalName }) {
     `Your contact details with ${tag} were updated, and this address is now the personal email on file.`,
     "If you did not make this change, please tell your steward straight away.",
     "",
-    "— FCRC Grievance Tracker (automated message)"
+    `— ${tag} (automated message)`
   ].join("\n");
   await sendMail({ ...cfg, senderName: unionSenderName(localNo), to, subject: `[${tag}] Your contact details were updated`, text });
   await db.logEmailAttempt({ kind: "contact-update-confirmation", to, ok: true }).catch(() => {});
