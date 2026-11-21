@@ -80,9 +80,9 @@ async function testFrontend() {
 
   // Confirm the CSS class actually has blue background + white text
   const styleText = [...w.document.querySelectorAll('style')].map(s=>s.textContent).join('\n');
-  assert.ok(/row-blue\s*\{[^}]*background:\s*#1a4fa0/.test(styleText), 'row-blue must have the blue background color');
-  assert.ok(/row-blue\s*\{[^}]*color:\s*#fff/.test(styleText), 'row-blue must have white text color');
-  console.log('✓ CSS: .row-blue has blue background (#1a4fa0) and white text (#fff)');
+  assert.ok(/row-blue\s*\{[^}]*background:\s*#e8f0fb/.test(styleText), 'row-blue must have the light blue tint background');
+  assert.ok(/row-blue\s*\{[^}]*color:\s*var\(--ink\)/.test(styleText), 'row-blue must have dark text for readability');
+  console.log('✓ CSS: .row-blue has a light blue tint background and dark text');
 }
 
 async function testAmberCss() {
