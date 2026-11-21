@@ -16,7 +16,7 @@
  * ================================================================
  */
 
-const { sendMail } = require("./mailer");
+const { sendMail, GRIEVANCE_SENDER_NAME } = require("./mailer");
 const db = require("./db");
 
 function parseEmailList(raw) {
@@ -127,7 +127,7 @@ async function sendGrievantStepNotifications(rec, newlyFiledSteps) {
     const text = buildStepEmailBody(rec, step, localNo);
     for (const to of recipients) {
       try {
-        await sendWithRetry({ apiKey, senderEmail, to, subject, text });
+        await sendWithRetry({ apiKey, senderEmail, senderName: GRIEVANCE_SENDER_NAME, to, subject, text });
         summary.sent.push({ step, to });
         await db.logEmailAttempt({
           kind: "grievant-update", gid: rec.id, step, to, ok: true

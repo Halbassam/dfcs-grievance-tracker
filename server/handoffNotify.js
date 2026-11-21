@@ -16,7 +16,7 @@
  * ================================================================
  */
 
-const { sendMail } = require("./mailer");
+const { sendMail, GRIEVANCE_SENDER_NAME } = require("./mailer");
 const db = require("./db");
 
 const APP_URL = "https://dfcs-grievance-tracker.onrender.com";
@@ -75,7 +75,7 @@ async function sendHandoffNotification({ gid, employee, toUser, fromUser }) {
   const localTag = localNo ? `AFSCME Local ${localNo}` : "FCRC Grievance Tracker";
   try {
     await sendMail({
-      apiKey, senderEmail, to,
+      apiKey, senderEmail, senderName: GRIEVANCE_SENDER_NAME, to,
       subject: `[${localTag}] Grievance ${gid} handed off to you`,
       text: buildHandoffEmailBody({ toName, fromName, gid, employee, localNo })
     });

@@ -399,7 +399,7 @@ async function sendCourtesyNotice(gid, step) {
       `— ${localTag} | FCRC${rec.steward ? ", " + rec.steward : ""}`
     ].join("\n");
 
-    const { sendMail } = require("./mailer");
+    const { sendMail, GRIEVANCE_SENDER_NAME } = require("./mailer");
 
     // Send to every configured management recipient. A courtesy notice
     // is a paper-trail action, so we send to each address independently
@@ -408,7 +408,7 @@ async function sendCourtesyNotice(gid, step) {
     const sendResults = [];
     for (const to of recipients) {
       try {
-        await sendMail({ apiKey, senderEmail, to, subject, text });
+        await sendMail({ apiKey, senderEmail, senderName: GRIEVANCE_SENDER_NAME, to, subject, text });
         sendResults.push({ to, ok: true });
         await logEmailAttempt({
           kind: "management-courtesy-notice", gid, step, to, ok: true

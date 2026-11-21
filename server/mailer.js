@@ -38,7 +38,11 @@
 const https = require("https");
 
 const BREVO_API_HOST = "api.brevo.com";
-const DEFAULT_SENDER_NAME = "FCRC Grievance Tracker";
+// Grievance-related emails (step notices, deadline reminders, hand-offs, courtesy
+// notices) come from the grievance tracker. Newsletters, union notices and
+// member-contact emails come from the union, and say so.
+const GRIEVANCE_SENDER_NAME = "FCRC Grievance Tracker";
+const DEFAULT_SENDER_NAME = GRIEVANCE_SENDER_NAME;
 
 /**
  * Sends a plain-text email via the Brevo API.
@@ -113,4 +117,4 @@ function sendMail({ apiKey, senderEmail, senderName, to, subject, text, html, re
   });
 }
 
-module.exports = { sendMail };
+module.exports = { GRIEVANCE_SENDER_NAME, sendMail };

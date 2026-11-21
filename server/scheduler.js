@@ -7,7 +7,7 @@
  */
 
 const db = require("./db");
-const { sendMail } = require("./mailer");
+const { sendMail, GRIEVANCE_SENDER_NAME } = require("./mailer");
 
 const REMINDER_WINDOW_DAYS = 3;
 const CHECK_INTERVAL_MS = 60 * 60 * 1000; // check every hour
@@ -114,7 +114,7 @@ async function runDeadlineCheck({ manual = false } = {}) {
       : `[${localTag}] ${group.items.length} upcoming deadline${group.items.length > 1 ? "s" : ""}`;
     try {
       await sendMail({
-        apiKey, senderEmail, to: email,
+        apiKey, senderEmail, senderName: GRIEVANCE_SENDER_NAME, to: email,
         subject,
         text: buildEmailBody(group.stewardName, group.items, localNo)
       });
