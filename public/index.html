@@ -695,6 +695,17 @@ h1,h2,h3{letter-spacing:-0.012em;}
     </div>
   </div></section><section class="page hidden" id="tab-members">
     <div class="section-head"><div><h2>Members</h2><div class="sub">Share the member contact link and see who has given their details. Stewards and admins only.</div></div></div>
+    <style>
+      /* Members sub-tabs: "Members" shows the list and the newsletter form; "Past communications" shows the history. */
+      #tab-members.members-show-past #mcToolbar,
+      #tab-members.members-show-past #memberContactsPanel,
+      #tab-members.members-show-past #newsletterPanel { display: none !important; }
+      #tab-members:not(.members-show-past) #membersSubPast { display: none !important; }
+    </style>
+    <div id="membersSubTabs" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px;">
+      <button type="button" class="btn btn-primary" data-members-sub="list" aria-pressed="true">Members and newsletter</button>
+      <button type="button" class="btn btn-secondary" data-members-sub="past" aria-pressed="false">Past communications</button>
+    </div>
     <div id="mcToolbar" class="panel panel-pad" style="margin-bottom:16px;padding-top:16px;padding-bottom:16px;">
       <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:12px;">
         <input type="search" id="mcSearch" placeholder="Search name, phone, email or location" style="flex:1;min-width:220px;max-width:420px;">
@@ -768,8 +779,11 @@ h1,h2,h3{letter-spacing:-0.012em;}
         <span id="nlStatus" style="font-size:13px;color:var(--grey);"></span>
       </div>
       </div>
-      <h4 style="font-family:var(--sans);font-size:14px;color:var(--green-1);margin:12px 0 4px;">Past communications</h4>
-      <p style="font-size:13px;color:var(--grey);margin:0 0 10px;">Everything sent to members, kept for one year. Click a newsletter or notice to read its full text and see who it went to. Update links are listed without the link itself.</p>
+    </div>
+
+    <div id="membersSubPast" class="panel panel-pad" style="margin-top:24px;">
+      <h3 style="font-family:var(--sans);color:var(--green-1);margin:0 0 6px;font-size:17px;">Past communications</h3>
+      <p style="font-size:13px;color:var(--grey);margin:6px 0 14px;">Everything sent to members, kept for one year. Click a newsletter or notice to read its full text and see who it went to. Update links are listed without the link itself.</p>
       <div id="nlDetail" class="panel" style="display:none;padding:14px;margin:0 0 12px;box-shadow:none;"></div>
       <div id="nlHistory" class="table-wrap" style="padding:0 14px;"></div>
     </div>
@@ -1098,7 +1112,7 @@ h1,h2,h3{letter-spacing:-0.012em;}
         <div style="font-size:13.5px;line-height:1.7;">
           <p style="margin-bottom:8px;">The <b>Members</b> tab holds the member list, the shared sign-up link, and the <b>Newsletter</b> panel. Admins and super stewards can add, edit and send. Stewards can view and export the list and create the link. Read-only accounts can view.</p>
           <p style="margin-bottom:8px;"><b>Copies</b> — a copy of every newsletter and union notice goes to the copy address shown above the newsletter form. It is set to local2858fcrc@gmail.com. Admins and super stewards can change it there. Admins can also set a record-keeping address in <b>Settings</b>, which gets the same copies. The copy has the text and the results, but not the list of names and addresses.</p>
-          <p style="margin-bottom:8px;"><b>Past communications</b> — at the bottom of the Members tab. It lists every newsletter, union notice, update link and update confirmation sent to members, kept for one year. Click a newsletter or notice to read its full text and see who it went to, with each person's result. Update links are listed with the person's name and email, but the link itself is never kept.</p>
+          <p style="margin-bottom:8px;"><b>Past communications</b> — the second tab inside the Members tab, next to <b>Members and newsletter</b>. It lists every newsletter, union notice, update link and update confirmation sent to members, kept for one year. Click a newsletter or notice to read its full text and see who it went to, with each person's result. Update links are listed with the person's name and email, but the link itself is never kept.</p>
           <p style="margin-bottom:8px;"><b>Who can see it</b> — everyone who can open the Members tab, including read-only accounts. The list shows names and email addresses, so keep it to people who need it.</p>
         </div>
       </div>
@@ -3191,6 +3205,23 @@ function closeNewsletterDetail(){
   const box = $('nlDetail');
   if(box){ box.style.display = 'none'; box.innerHTML = ''; }
 }
+
+function setMembersSub(which){
+  const section = $('tab-members');
+  if(!section) return;
+  const past = which === 'past';
+  section.classList.toggle('members-show-past', past);
+  document.querySelectorAll('[data-members-sub]').forEach(b => {
+    const on = (b.dataset.membersSub === 'past') === past;
+    b.className = on ? 'btn btn-primary' : 'btn btn-secondary';
+    b.setAttribute('aria-pressed', on ? 'true' : 'false');
+  });
+  if(past) renderNewsletterHistory();
+}
+
+document.querySelectorAll('[data-members-sub]').forEach(b => {
+  b.addEventListener('click', () => setMembersSub(b.dataset.membersSub));
+});
 
 $('nlHistory')?.addEventListener('click', e => {
   const btn = e.target.closest('[data-nl-open]');
