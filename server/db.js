@@ -1179,6 +1179,43 @@ async function updateContactSubmission(id, input) {
   return { ok: true, changed };
 }
 
+/** Adds a member by hand, from the Members tab. Same checks as the forms. A manually
+ *  added member starts opted in to newsletters, and stays opted in until they unsubscribe.
+ *  A person with the same name and a matching phone or email is not added twice. */
+async function addContactManually(input, addedBy) {
+  const v = input || {};
+  const location = String(v.location || "").trim();
+  const legalName = String(v.legalName || "").trim().replace(/\s+/g, " ");
+  const phone = String(v.phone || "").trim();
+  const personalEmail = String(v.personalEmail || "").trim();
+  const stateEmail = String(v.stateEmail || "").trim();
+  if (!(await getLocationList()).includes(location)) throw new Error("Choose a location from the list.");
+  if (legalName.length < 2 || legalName.length > 120) throw new Error("Enter the legal name.");
+  if (!phone && !personalEmail && !stateEmail) throw new Error("Enter a phone number or at least one email address.");
+  if (phone && !isValidContactPhone(phone)) throw new Error("That phone number does not look right.");
+  if (personalEmail && !isValidContactEmail(personalEmail)) throw new Error("That personal email address does not look right.");
+  if (stateEmail && !isValidContactEmail(stateEmail)) throw new Error("That state email address does not look right.");
+
+  const digits = (phone.match(/\d/g) || []).join("").slice(-10);
+  const existing = await query("select id, legal_name, phone, personal_email, state_email from contact_submissions");
+  const dup = existing.rows.find(r =>
+    String(r.legal_name || "").trim().replace(/\s+/g, " ").toLowerCase() === legalName.toLowerCase() && (
+      (digits && (r.phone.match(/\d/g) || []).join("").slice(-10) === digits) ||
+      (personalEmail && r.personal_email.toLowerCase() === personalEmail.toLowerCase()) ||
+      (stateEmail && r.state_email.toLowerCase() === stateEmail.toLowerCase())
+    ));
+  if (dup) throw new Error("This person is already listed. Edit their entry instead of adding them again.");
+
+  const id = crypto.randomBytes(12).toString("hex");
+  await query(
+    `insert into contact_submissions (id, location, legal_name, phone, personal_email, state_email,
+                                      newsletter_opt_in, newsletter_opt_in_at, unsubscribe_token)
+     values ($1, $2, $3, $4, $5, $6, true, now(), $7)`,
+    [id, location, legalName, phone, personalEmail, stateEmail, crypto.randomBytes(16).toString("hex")]
+  );
+  return { ok: true, id, addedBy: String(addedBy || "") };
+}
+
 async function revokeContactLink() {
   await query("update contact_links set revoked_at = now() where revoked_at is null");
   return { ok: true };
@@ -1965,7 +2002,7 @@ async function getAuditLog(limit = 200, filterUsername = null, filterActions = [
 }
 
 module.exports = {
-  getAll, readRaw, writeRawAtomic, getEmailLog, createContactLink, getContactLink, getLocationList, submitContact, listContacts, revokeContactLink, removeContactSubmission, updateContactSubmission, createContactUpdateLink, expireContactUpdateLink, getContactUpdateLink, submitContactUpdate, getNewsletterRecipients, unsubscribeByToken, createNewsletterRecord, updateNewsletterProgress, finishNewsletterRecord, listNewsletterRecords, purgeOldNewsletters, getNoticeRecipients, withLock, logEmailAttempt, pingKeepAlive,
+  getAll, readRaw, writeRawAtomic, getEmailLog, createContactLink, getContactLink, getLocationList, submitContact, listContacts, revokeContactLink, removeContactSubmission, updateContactSubmission, addContactManually, createContactUpdateLink, expireContactUpdateLink, getContactUpdateLink, submitContactUpdate, getNewsletterRecipients, unsubscribeByToken, createNewsletterRecord, updateNewsletterProgress, finishNewsletterRecord, listNewsletterRecords, purgeOldNewsletters, getNoticeRecipients, withLock, logEmailAttempt, pingKeepAlive,
   getEmailRunState, saveEmailRunState, getLastEmailRunDate, linkGrievanceToInvestigation, deleteOtherSessions, chicagoDateISO,
   submitGrievance, logActivity, archiveClosed, sendCourtesyNotice,
   updateSetupList, getSetupList, updateHolidays, updateOrgSettings,

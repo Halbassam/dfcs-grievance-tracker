@@ -184,6 +184,24 @@ function request(port, method, pathname, { body, cookie, headers = {} } = {}) {
     assert.strictEqual((await request(port, 'POST', '/api/member-contacts/link', { cookie: viewer, body: {} })).status, 403, 'a read-only account cannot create links');
     console.log('✓ Stewards see submissions and whether the link is live; read-only accounts cannot');
 
+    // 9z. Manual adds: admins and super stewards only. Added members start opted in to newsletters.
+    const addBody = { location: 'NorthSide FCRC', legalName: 'Lia Chen', phone: '(312) 555-0177', personalEmail: 'lia@x.gov', stateEmail: '' };
+    assert.strictEqual((await request(port, 'POST', '/api/member-contacts/add', { cookie: steward, body: addBody })).status, 403, 'a steward cannot add members');
+    const added = await request(port, 'POST', '/api/member-contacts/add', { cookie: plus, body: addBody });
+    assert.strictEqual(added.status, 200, JSON.stringify(added.json));
+    const liaRow = (await pool.query("select newsletter_opt_in, newsletter_opt_in_at, newsletter_unsubscribed_at, unsubscribe_token from contact_submissions where legal_name = 'Lia Chen'")).rows[0];
+    assert.strictEqual(liaRow.newsletter_opt_in, true, 'a manually added member starts opted in');
+    assert.ok(liaRow.newsletter_opt_in_at && !liaRow.newsletter_unsubscribed_at, 'the opt-in is dated and not unsubscribed');
+    assert.strictEqual(liaRow.unsubscribe_token.length, 32, 'the member has an unsubscribe link');
+    const dupAdd = await request(port, 'POST', '/api/member-contacts/add', { cookie: plus, body: { ...addBody, phone: '' } });
+    assert.strictEqual(dupAdd.status, 400, 'the same person is not added twice');
+    assert.ok(/already listed/i.test(dupAdd.json.error));
+    assert.strictEqual((await request(port, 'POST', '/api/member-contacts/add', { cookie: plus, body: { ...addBody, legalName: 'Lia Park', personalEmail: 'bad', phone: '' } })).status, 400, 'a bad email is refused');
+    assert.strictEqual((await request(port, 'POST', '/api/member-contacts/add', { cookie: plus, body: { ...addBody, legalName: 'Lia Park', personalEmail: '', phone: '' } })).status, 400, 'a contact method is required');
+    const addAudit = (await pool.query("select detail from audit_log where action = 'member_add'")).rows.map(r => r.detail);
+    assert.ok(addAudit.length >= 1 && addAudit.every(d => !/Lia|lia@x/.test(d)), 'the add is logged without the details');
+    console.log('✓ Admins and super stewards can add members; added members start opted in with an unsubscribe link; duplicates are refused');
+
     // 9a. Staff edits: admins and super stewards can correct any field; other stewards cannot.
     await pool.query(`insert into contact_submissions (id, location, legal_name, phone, personal_email, state_email) values ('staff-edit', 'NorthSide FCRC', 'Sam Trial', '3125550140', 'sam@x.gov', '')`);
     const target = { id: 'staff-edit' };

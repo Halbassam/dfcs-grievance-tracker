@@ -987,6 +987,19 @@ const server = http.createServer(async (req, res) => {
           return sendJson(res, 400, { error: err.message });
         }
       }
+      if (pathname === "/api/member-contacts/add" && req.method === "POST") {
+        if (!canEditMemberContacts(currentUser)) return sendJson(res, 403, { error: "Only admins and super stewards can add members." });
+        try {
+          const body = await readBody(req);
+          const result = await db.addContactManually(body, currentUser.username);
+          // The log records that a member was added, not their details.
+          await db.writeAuditLog(currentUser.username, "member_add", `${result.id}: added manually`, clientIp(req))
+            .catch(err => console.error("[audit] member add log failed:", err.message));
+          return sendJson(res, 200, { ok: true, id: result.id });
+        } catch (err) {
+          return sendJson(res, 400, { error: err.message });
+        }
+      }
       if (pathname === "/api/member-contacts/update" && req.method === "POST") {
         if (!canEditMemberContacts(currentUser)) return sendJson(res, 403, { error: "Only admins and super stewards can edit entries." });
         try {
