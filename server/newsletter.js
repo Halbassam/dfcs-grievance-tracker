@@ -158,9 +158,11 @@ async function startNewsletter({ kind, subject, body, audience, location, addres
           to: person.email, subject: msg.subject, text: msg.text, html: msg.html, replyTo: cfg.replyTo });
         sent++;
         await db.logEmailAttempt({ kind: isNotice ? "union-notice" : "newsletter", gid: id, to: person.email, ok: true }).catch(() => {});
+        await db.logMemberMail({ kind: isNotice ? "union-notice" : "newsletter", newsletterId: id, legalName: person.legalName, email: person.email, ok: true }).catch(() => {});
       } catch (err) {
         failed++;
         await db.logEmailAttempt({ kind: isNotice ? "union-notice" : "newsletter", gid: id, to: person.email, ok: false, error: err.message }).catch(() => {});
+        await db.logMemberMail({ kind: isNotice ? "union-notice" : "newsletter", newsletterId: id, legalName: person.legalName, email: person.email, ok: false, error: err.message }).catch(() => {});
       }
       await db.updateNewsletterProgress(id, sent, failed).catch(() => {});
       await new Promise(r => setTimeout(r, SEND_PAUSE_MS));

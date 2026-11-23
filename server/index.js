@@ -1026,11 +1026,11 @@ const server = http.createServer(async (req, res) => {
     }
 
     // Newsletters to members who opted in. Admins can send to any location or the
-    // whole local. Stewards can send only to their own locations. Read-only accounts
-    // cannot send or see the list.
+    // whole local. Stewards can send only to their own locations. Everyone who can open
+    // the Members tab, read-only accounts included, can read the past communications.
     if (pathname.startsWith("/api/newsletters")) {
       // Everyone with access to the app may read the history. Sending needs more.
-      const readOnly = req.method === "GET" && pathname === "/api/newsletters";
+      const readOnly = req.method === "GET";
       if (!readOnly && !canManageMemberContacts(currentUser)) {
         return sendJson(res, 403, { error: "Only stewards and admins can send newsletters." });
       }
@@ -1040,8 +1040,14 @@ const server = http.createServer(async (req, res) => {
       const baseUrlOf = () => `${req.headers["x-forwarded-proto"] || "https"}://${req.headers.host || ""}`;
       const localNo = await db.getOrgLocalNo().catch(() => "");
       if (pathname === "/api/newsletters" && req.method === "GET") {
-        const rows = await db.listNewsletterRecords(currentUser.username, currentUser.role === "admin");
+        const rows = await db.listNewsletterRecords();
         return sendJson(res, 200, { newsletters: rows });
+      }
+      const detailMatch = pathname.match(/^\/api\/newsletters\/([a-f0-9]{1,40})$/);
+      if (detailMatch && req.method === "GET") {
+        const record = await db.getNewsletterRecord(detailMatch[1]);
+        if (!record) return sendJson(res, 404, { error: "That newsletter was not found." });
+        return sendJson(res, 200, { newsletter: record });
       }
       if (pathname === "/api/newsletters/preview" && req.method === "POST") {
         try {
@@ -1086,6 +1092,13 @@ const server = http.createServer(async (req, res) => {
           return sendJson(res, 400, { error: err.message });
         }
       }
+    }
+
+    // Update links and update confirmations sent to members. Everyone who can open the
+    // Members tab can read them. The private link itself is never stored.
+    if (pathname === "/api/member-mail" && req.method === "GET") {
+      const rows = await db.listMemberMail(500);
+      return sendJson(res, 200, { mail: rows });
     }
 
     // Email

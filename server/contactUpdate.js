@@ -44,9 +44,11 @@ async function sendUpdateLink({ submissionId, createdBy, baseUrl }) {
     await sendMail({ ...cfg, senderName: unionSenderName(localNo), to: link.sentTo, subject: `[${tag}] Update your contact details`, text });
   } catch (err) {
     await db.expireContactUpdateLink(link.token).catch(() => {});
+    await db.logMemberMail({ kind: "contact-update-link", legalName: link.legalName, email: link.sentTo, ok: false, error: err.message, sentBy: createdBy }).catch(() => {});
     throw err;
   }
   await db.logEmailAttempt({ kind: "contact-update-link", to: link.sentTo, ok: true }).catch(() => {});
+  await db.logMemberMail({ kind: "contact-update-link", legalName: link.legalName, email: link.sentTo, ok: true, sentBy: createdBy }).catch(() => {});
   return { sentTo: link.sentTo };
 }
 
@@ -62,8 +64,14 @@ async function sendChangeConfirmation({ to, legalName }) {
     "",
     `— ${tag} (automated message)`
   ].join("\n");
-  await sendMail({ ...cfg, senderName: unionSenderName(localNo), to, subject: `[${tag}] Your contact details were updated`, text });
+  try {
+    await sendMail({ ...cfg, senderName: unionSenderName(localNo), to, subject: `[${tag}] Your contact details were updated`, text });
+  } catch (err) {
+    await db.logMemberMail({ kind: "contact-update-confirmation", legalName, email: to, ok: false, error: err.message }).catch(() => {});
+    throw err;
+  }
   await db.logEmailAttempt({ kind: "contact-update-confirmation", to, ok: true }).catch(() => {});
+  await db.logMemberMail({ kind: "contact-update-confirmation", legalName, email: to, ok: true }).catch(() => {});
 }
 
 module.exports = { sendUpdateLink, sendChangeConfirmation };

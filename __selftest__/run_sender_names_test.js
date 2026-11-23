@@ -19,6 +19,7 @@ const dbPath = path.resolve(__dirname, '..', 'server/db.js');
 require.cache[dbPath] = { id: dbPath, filename: dbPath, loaded: true, exports: {
   getOrgLocalNo: async () => '2858',
   logEmailAttempt: async () => {},
+  logMemberMail: async () => {},
   getLocationList: async () => ['NorthSide FCRC', 'North Suburban FCRC'],
   getNewsletterRecipients: async () => people.slice(0, 1),
   getNoticeRecipients: async () => people.slice(1),

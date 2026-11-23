@@ -42,6 +42,7 @@ const wait = ms => new Promise(r => setTimeout(r, ms));
     create table contact_update_links (token_hash text primary key, submission_id text not null, sent_to text not null default '', created_by text not null default '', created_at timestamptz not null default now(), expires_at timestamptz not null, used_at timestamptz);
     create table contact_submissions (id text primary key, location text not null, legal_name text not null default '', phone text not null default '', personal_email text not null default '', state_email text not null default '', consent_at timestamptz not null default now(), submitted_at timestamptz not null default now(), newsletter_opt_in boolean not null default false, newsletter_opt_in_at timestamptz, newsletter_unsubscribed_at timestamptz, unsubscribe_token text not null default '');
     create table newsletters (id text primary key, subject text not null, body text not null, audience text not null, location text not null default '', address_type text not null, reason text not null default '', sent_by text not null default '', created_at timestamptz not null default now(), finished_at timestamptz, recipients integer not null default 0, sent integer not null default 0, failed integer not null default 0, status text not null default 'sending', kind text not null default 'newsletter');
+    create table member_mail_log (row_id bigserial primary key, sent_at timestamptz not null default now(), kind text not null, newsletter_id text not null default '', legal_name text not null default '', email text not null default '', ok boolean not null default true, error text not null default '', sent_by text not null default '');
   `);
   await pool.query(`insert into setup_lists (key, items) values ('Location', '["North Suburban FCRC","NorthSide FCRC"]')`);
   await pool.query(`insert into app_meta (key, value) values ('orgLocalNo', '2858')`);
@@ -96,9 +97,13 @@ const wait = ms => new Promise(r => setTimeout(r, ms));
   assert.ok(!mail[0].html.includes('<script>'), 'no raw script tag in the email');
   assert.ok(mail[0].html.includes('/unsubscribe/') && mail[0].text.includes('/unsubscribe/'), 'each email has an unsubscribe link');
   assert.strictEqual(mail[0].replyTo, 'local2858fcrc@gmail.com', 'replies go to the union address');
-  const rec = (await db.listNewsletterRecords('steward1', false))[0];
+  const rec = (await db.listNewsletterRecords())[0];
   assert.strictEqual(rec.status, 'sent');
   assert.strictEqual(rec.sent, 1);
+  const fullRec = await db.getNewsletterRecord(started.id);
+  assert.strictEqual(fullRec.body, 'Meeting on Friday.\n\n<script>alert(1)</script>', 'the full text is kept');
+  assert.deepStrictEqual(fullRec.people.map(p => [p.legalName, p.email, p.ok]), [['Ann Lee', 'ann@x.gov', true]], 'each recipient is recorded with the result');
+  assert.strictEqual(await db.getNewsletterRecord('0'.repeat(20)), null, 'an unknown newsletter is not found');
   assert.ok((await pool.query("select count(*)::int as n from email_log where data->>'kind' = 'newsletter'")).rows[0].n >= 1, 'each send is logged');
   console.log('✓ One email per person, escaped text, unsubscribe link, reply-to set, and the send is recorded and logged');
 
@@ -130,9 +135,11 @@ const wait = ms => new Promise(r => setTimeout(r, ms));
   }
   assert.deepStrictEqual(sent.map(m => m.to), ['eve@state.gov'], 'the notice goes only to the state address');
   assert.ok(!/unsubscribe/i.test(sent[0].html + sent[0].text), 'no unsubscribe link in the notice');
-  const noticeRow = (await db.listNewsletterRecords('admin1', true)).find(r => r.id === notice.id);
+  const noticeRow = (await db.listNewsletterRecords()).find(r => r.id === notice.id);
   assert.strictEqual(noticeRow.kind, 'notice', 'the record shows it was a notice');
   assert.strictEqual(noticeRow.reason, 'Contract vote notice', 'the reason is recorded');
+  const noticeFull = await db.getNewsletterRecord(notice.id);
+  assert.deepStrictEqual(noticeFull.people.map(p => p.email), ['eve@state.gov'], 'the notice records its recipient');
   console.log('✓ Union notices go to state emails only, have no unsubscribe, and record the reason');
 
   // Test send goes to the test address only.
@@ -147,7 +154,10 @@ const wait = ms => new Promise(r => setTimeout(r, ms));
   await pool.query("insert into newsletters (id, subject, body, audience, address_type, created_at, status) values ('old-1', 'Old', 'x', 'all', 'personal', now() - interval '400 days', 'sent')");
   await db.purgeOldNewsletters();
   assert.strictEqual((await pool.query("select count(*)::int as n from newsletters where id = 'old-1'")).rows[0].n, 0, 'records older than a year are removed');
-  console.log('✓ Newsletter records older than one year are removed');
+  await pool.query("insert into member_mail_log (sent_at, kind, legal_name, email) values (now() - interval '400 days', 'contact-update-link', 'Old Person', 'old@x.gov'), (now(), 'contact-update-link', 'New Person', 'new@x.gov')");
+  await db.purgeOldNewsletters();
+  assert.deepStrictEqual((await db.listMemberMail()).map(m => m.email), ['new@x.gov'], 'member mail older than a year is removed, recent mail is kept');
+  console.log('✓ Newsletter records and member mail older than one year are removed');
 
   // Permissions over HTTP.
   const realCreateServer = http.createServer;
@@ -206,7 +216,21 @@ const wait = ms => new Promise(r => setTimeout(r, ms));
     assert.ok(Array.isArray(stewardHistory.json.newsletters));
     const adminSeesAll = await request(port, 'GET', '/api/newsletters', { cookie: admin });
     assert.ok(adminSeesAll.json.newsletters.length >= 1);
+    assert.ok(stewardHistory.json.newsletters.some(r => r.id === noticeOk.json.id), 'a steward sees a notice sent by a super steward');
     console.log('✓ Only admins and super stewards send (super stewards only to their location); other stewards and read-only accounts can read the history only');
+
+    // Everyone who can open the Members tab can read the full text and recipients.
+    const viewerDetail = await request(port, 'GET', '/api/newsletters/' + started.id, { cookie: viewer });
+    assert.strictEqual(viewerDetail.status, 200, 'a read-only account can open a past newsletter');
+    assert.strictEqual(viewerDetail.json.newsletter.body, 'Meeting on Friday.\n\n<script>alert(1)</script>', 'the full text is shown');
+    assert.strictEqual(viewerDetail.json.newsletter.people[0].email, 'ann@x.gov', 'the recipients are shown');
+    assert.strictEqual((await request(port, 'GET', '/api/newsletters/' + noticeOk.json.id, { cookie: steward })).status, 200, 'a steward can open a notice sent by someone else');
+    assert.strictEqual((await request(port, 'GET', '/api/newsletters/' + '0'.repeat(20), { cookie: viewer })).status, 404, 'an unknown newsletter is not found');
+    assert.strictEqual((await request(port, 'GET', '/api/newsletters/' + started.id)).status, 401, 'past communications need a login');
+    assert.strictEqual((await request(port, 'GET', '/api/member-mail', { cookie: viewer })).status, 200, 'a read-only account can read the member mail list');
+    assert.strictEqual((await request(port, 'GET', '/api/member-mail')).status, 401, 'the member mail list needs a login');
+    assert.strictEqual((await request(port, 'POST', '/api/newsletters/' + started.id, { cookie: admin, body: {} })).status, 404, 'a past newsletter cannot be changed');
+    console.log('✓ Everyone who can open the Members tab can read past communications with their full text and recipients; logins are required');
 
     // The unsubscribe page and its button.
     const tokenNow = (await pool.query("select unsubscribe_token from contact_submissions where legal_name = 'Cy Park'")).rows[0].unsubscribe_token;

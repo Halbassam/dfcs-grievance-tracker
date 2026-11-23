@@ -762,7 +762,9 @@ h1,h2,h3{letter-spacing:-0.012em;}
         <span id="nlStatus" style="font-size:13px;color:var(--grey);"></span>
       </div>
       </div>
-      <h4 style="font-family:var(--sans);font-size:14px;color:var(--green-1);margin:12px 0 8px;">Past newsletters</h4>
+      <h4 style="font-family:var(--sans);font-size:14px;color:var(--green-1);margin:12px 0 4px;">Past communications</h4>
+      <p style="font-size:13px;color:var(--grey);margin:0 0 10px;">Everything sent to members, kept for one year. Click a newsletter or notice to read its full text and see who it went to. Update links are listed without the link itself.</p>
+      <div id="nlDetail" class="panel" style="display:none;padding:14px;margin:0 0 12px;box-shadow:none;"></div>
       <div id="nlHistory" class="table-wrap" style="padding:0 14px;"></div>
     </div>
   </section><section class="page hidden" id="tab-settings">
@@ -1071,6 +1073,16 @@ h1,h2,h3{letter-spacing:-0.012em;}
           <p style="margin-bottom:8px;"><b>When the pool is empty</b> — a warning banner appears on Grievance Intake. Stewards can still type a grievance ID manually; the pool just means they don't have to. Refill the pool from Settings when it runs low.</p>
           <p style="margin-bottom:8px;"><b>Unused numbers come back</b> — if a steward assigns a number and then clears the form or opens a different grievance without saving, the number returns to the front of the pool. A number is only lost if the browser is closed before saving; an admin can add it back to the pool by typing it in.</p>
           <p style="margin-bottom:0;"><b>Race-condition protection</b> — if two stewards click <b>Assign next number</b> at the same moment, the system uses a database-level lock to ensure each gets a different number. You will never see the same ID issued twice.</p>
+        </div>
+      </div>
+
+      <!-- Members and past communications -->
+      <div class="panel panel-pad" style="margin-bottom:20px;">
+        <h3 style="font-family:var(--sans);color:var(--green-1);margin:0 0 14px;">Members, newsletters and past communications</h3>
+        <div style="font-size:13.5px;line-height:1.7;">
+          <p style="margin-bottom:8px;">The <b>Members</b> tab holds the member list, the shared sign-up link, and the <b>Newsletter</b> panel. Admins and super stewards can add, edit and send. Stewards can view and export the list and create the link. Read-only accounts can view.</p>
+          <p style="margin-bottom:8px;"><b>Past communications</b> — at the bottom of the Members tab. It lists every newsletter, union notice, update link and update confirmation sent to members, kept for one year. Click a newsletter or notice to read its full text and see who it went to, with each person's result. Update links are listed with the person's name and email, but the link itself is never kept.</p>
+          <p style="margin-bottom:8px;"><b>Who can see it</b> — everyone who can open the Members tab, including read-only accounts. The list shows names and email addresses, so keep it to people who need it.</p>
         </div>
       </div>
 
@@ -2986,32 +2998,134 @@ function nlSetStatus(msg, bad){
   el.style.color = bad ? 'var(--red)' : 'var(--grey)';
 }
 
+let _nlOpenId = null;
+
+function nlWhen(iso){
+  return iso ? escapeHtml(new Date(iso).toLocaleString('en-US')) : '';
+}
+
+function nlPastRow(item){
+  if(item.type === 'mail'){
+    const m = item.row;
+    const kind = m.kind === 'contact-update-link' ? 'Update link' : 'Update confirmation';
+    const status = m.ok ? 'Sent' : `Failed: ${escapeHtml(m.error || 'unknown error')}`;
+    return `<tr>
+      <td style="white-space:nowrap;font-size:12px;color:var(--grey);">${nlWhen(m.sentAt)}</td>
+      <td>${escapeHtml(kind)}</td>
+      <td>${escapeHtml(m.legalName || '')}</td>
+      <td>${escapeHtml(m.email || '')}</td>
+      <td>${m.ok ? '1 / 0' : '0 / 1'}</td>
+      <td>${status}</td>
+      <td>${m.sentBy ? escapeHtml(m.sentBy) : 'Automatic'}</td>
+    </tr>`;
+  }
+  const r = item.row;
+  const kind = r.kind === 'notice' ? 'Union notice' : 'Newsletter';
+  const to = r.audience === 'all' ? 'Whole local' : r.location;
+  const address = r.kind === 'notice' || r.addressType === 'state' ? 'state email' : 'personal email';
+  return `<tr>
+    <td style="white-space:nowrap;font-size:12px;color:var(--grey);">${nlWhen(r.createdAt)}</td>
+    <td>${escapeHtml(kind)}</td>
+    <td><button type="button" data-nl-open="${escapeHtml(r.id)}" style="background:none;border:0;padding:0;color:var(--brand);text-decoration:underline;cursor:pointer;font:inherit;text-align:left;">${escapeHtml(r.subject)}</button></td>
+    <td>${escapeHtml(to)}<br><span style="color:var(--grey);font-size:12px;">${escapeHtml(address)}</span></td>
+    <td>${r.sent} / ${r.failed} of ${r.recipients}</td>
+    <td>${escapeHtml(r.status === 'sent' ? 'Finished' : 'Sending…')}</td>
+    <td>${escapeHtml(r.sentBy || '')}</td>
+  </tr>`;
+}
+
 async function renderNewsletterHistory(){
   const box = $('nlHistory');
   if(!box || !CURRENT_USER) return;
   try{
-    const data = await apiGet('/api/newsletters');
-    const rows = data.newsletters || [];
-    if(!rows.length){
-      box.innerHTML = '<div style="padding:16px 0;text-align:center;color:var(--grey);font-size:13px;">No newsletters sent yet.</div>';
-      return;
+    const [nl, mail] = await Promise.all([apiGet('/api/newsletters'), apiGet('/api/member-mail')]);
+    const records = nl.newsletters || [];
+    const items = [
+      ...records.map(r => ({ type: 'record', when: r.createdAt || '', row: r })),
+      ...(mail.mail || []).map(m => ({ type: 'mail', when: m.sentAt || '', row: m }))
+    ].sort((a, b) => b.when.localeCompare(a.when));
+    if(!items.length){
+      box.innerHTML = '<div style="padding:16px 0;text-align:center;color:var(--grey);font-size:13px;">Nothing has been sent to members yet.</div>';
+    } else {
+      box.innerHTML = `<table style="width:100%;border-collapse:collapse;font-size:13px;">
+        <thead><tr><th style="text-align:left;">When</th><th style="text-align:left;">Type</th><th style="text-align:left;">Subject or person</th><th style="text-align:left;">To</th><th style="text-align:left;">Sent / failed of</th><th style="text-align:left;">Status</th><th style="text-align:left;">By</th></tr></thead>
+        <tbody>${items.map(nlPastRow).join('')}</tbody></table>`;
     }
-    box.innerHTML = `<table style="width:100%;border-collapse:collapse;font-size:13px;">
-      <thead><tr><th style="text-align:left;">When</th><th style="text-align:left;">Subject</th><th style="text-align:left;">To</th><th style="text-align:left;">Address</th><th style="text-align:left;">Sent / failed of</th><th style="text-align:left;">Status</th><th style="text-align:left;">By</th></tr></thead>
-      <tbody>${rows.map(r=>`<tr>
-        <td style="white-space:nowrap;font-size:12px;color:var(--grey);">${r.createdAt ? escapeHtml(new Date(r.createdAt).toLocaleString('en-US')) : ''}</td>
-        <td>${escapeHtml(r.subject)}</td>
-        <td>${escapeHtml(r.audience === 'all' ? 'Whole local' : r.location)}</td>
-        <td>${escapeHtml(r.kind === 'notice' ? 'Union notice (state email)' : (r.addressType === 'state' ? 'Newsletter, state email' : 'Newsletter, personal email'))}</td>
-        <td>${r.sent} / ${r.failed} of ${r.recipients}</td>
-        <td>${escapeHtml(r.status === 'sent' ? 'Finished' : 'Sending…')}</td>
-        <td>${escapeHtml(r.sentBy || '')}</td>
-      </tr>`).join('')}</tbody></table>`;
-    if(rows.some(r=>r.status !== 'sent')) startNlPoll(); else stopNlPoll();
+    const openRow = _nlOpenId && records.find(r => r.id === _nlOpenId);
+    if(openRow && openRow.status !== 'sent') loadNewsletterDetail(_nlOpenId);
+    if(records.some(r=>r.status !== 'sent')) startNlPoll(); else stopNlPoll();
   }catch(err){
-    box.textContent = 'Could not load past newsletters.';
+    box.textContent = 'Could not load past communications.';
   }
 }
+
+function nlDetailRow(label, value){
+  return `<div style="display:grid;grid-template-columns:150px 1fr;gap:8px;font-size:13px;padding:3px 0;"><div style="color:var(--grey);">${escapeHtml(label)}</div><div>${value}</div></div>`;
+}
+
+async function loadNewsletterDetail(id){
+  const box = $('nlDetail');
+  if(!box) return;
+  box.style.display = '';
+  try{
+    const { newsletter: r } = await apiGet(`/api/newsletters/${encodeURIComponent(id)}`);
+    const isNotice = r.kind === 'notice';
+    let people;
+    if(r.people.length){
+      people = `<table style="width:100%;border-collapse:collapse;font-size:13px;">
+        <thead><tr><th style="text-align:left;">Name</th><th style="text-align:left;">Email</th><th style="text-align:left;">Result</th><th style="text-align:left;">Time</th></tr></thead>
+        <tbody>${r.people.map(p=>`<tr>
+          <td>${escapeHtml(p.legalName || '')}</td>
+          <td>${escapeHtml(p.email || '')}</td>
+          <td>${p.ok ? 'Sent' : `<span style="color:var(--red);">Failed: ${escapeHtml(p.error || 'unknown error')}</span>`}</td>
+          <td style="white-space:nowrap;font-size:12px;color:var(--grey);">${nlWhen(p.sentAt)}</td>
+        </tr>`).join('')}</tbody></table>`;
+    } else if(r.status !== 'sent'){
+      people = '<div style="color:var(--grey);font-size:13px;">Still sending. Names appear as each email goes out.</div>';
+    } else if(r.recipients === 0){
+      people = '<div style="color:var(--grey);font-size:13px;">Nobody was on the list when this was sent.</div>';
+    } else {
+      people = '<div style="color:var(--grey);font-size:13px;">The recipient list was not kept for this send, because it was sent before recipient records were kept.</div>';
+    }
+    box.innerHTML = `
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;margin-bottom:8px;">
+        <h4 style="font-family:var(--sans);font-size:15px;color:var(--green-1);margin:0;">${escapeHtml(r.subject)}</h4>
+        <button type="button" class="btn btn-ghost" id="nlDetailClose" style="padding:4px 10px;">Close</button>
+      </div>
+      ${nlDetailRow('Type', escapeHtml(isNotice ? 'Union notice (state email, no unsubscribe)' : 'Newsletter (opted-in members, with unsubscribe link)'))}
+      ${nlDetailRow('Sent to', escapeHtml(r.audience === 'all' ? 'Whole local' : r.location))}
+      ${nlDetailRow('Address used', escapeHtml(isNotice || r.addressType === 'state' ? 'State email' : 'Personal email'))}
+      ${isNotice ? nlDetailRow('Reason', escapeHtml(r.reason || '')) : ''}
+      ${nlDetailRow('Sent by', escapeHtml(r.sentBy || ''))}
+      ${nlDetailRow('Started', nlWhen(r.createdAt))}
+      ${nlDetailRow('Finished', r.finishedAt ? nlWhen(r.finishedAt) : 'Still sending')}
+      ${nlDetailRow('Results', `${r.sent} sent, ${r.failed} failed, of ${r.recipients}`)}
+      <h5 style="font-family:var(--sans);font-size:13px;color:var(--green-1);margin:14px 0 6px;">Text</h5>
+      <div style="white-space:pre-wrap;border:1px solid var(--line);border-radius:8px;padding:12px;font-size:14px;line-height:1.5;background:#fff;color:var(--ink);">${escapeHtml(r.body)}</div>
+      <h5 style="font-family:var(--sans);font-size:13px;color:var(--green-1);margin:14px 0 6px;">Recipients</h5>
+      <div class="table-wrap">${people}</div>`;
+  }catch(err){
+    box.innerHTML = `<div style="color:var(--red);font-size:13px;">${escapeHtml(err.message || 'Could not load this communication.')}</div>`;
+  }
+}
+
+function closeNewsletterDetail(){
+  _nlOpenId = null;
+  const box = $('nlDetail');
+  if(box){ box.style.display = 'none'; box.innerHTML = ''; }
+}
+
+$('nlHistory')?.addEventListener('click', e => {
+  const btn = e.target.closest('[data-nl-open]');
+  if(!btn) return;
+  _nlOpenId = btn.getAttribute('data-nl-open');
+  loadNewsletterDetail(_nlOpenId);
+  $('nlDetail')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+});
+
+$('nlDetail')?.addEventListener('click', e => {
+  if(e.target.closest('#nlDetailClose')) closeNewsletterDetail();
+});
 
 function startNlPoll(){
   if(_nlPoll) return;

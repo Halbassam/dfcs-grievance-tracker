@@ -41,6 +41,7 @@ function request(port, method, pathname, { body, cookie, headers = {} } = {}) {
     create table contact_links (token_hash text primary key, created_by text not null default '', created_at timestamptz not null default now(), expires_at timestamptz not null, revoked_at timestamptz);
     create table contact_update_links (token_hash text primary key, submission_id text not null, sent_to text not null default '', created_by text not null default '', created_at timestamptz not null default now(), expires_at timestamptz not null, used_at timestamptz);
     create table contact_submissions (id text primary key, location text not null, legal_name text not null default '', phone text not null default '', personal_email text not null default '', state_email text not null default '', consent_at timestamptz not null default now(), submitted_at timestamptz not null default now(), newsletter_opt_in boolean not null default false, newsletter_opt_in_at timestamptz, newsletter_unsubscribed_at timestamptz, unsubscribe_token text not null default '');
+    create table member_mail_log (row_id bigserial primary key, sent_at timestamptz not null default now(), kind text not null, newsletter_id text not null default '', legal_name text not null default '', email text not null default '', ok boolean not null default true, error text not null default '', sent_by text not null default '');
   `);
   await pool.query(`insert into setup_lists (key, items) values ('Location', '["North Suburban FCRC","NorthSide FCRC"]')`);
   await pool.query(`insert into app_meta (key, value) values ('orgLocalNo', '2858')`);
@@ -257,6 +258,12 @@ function request(port, method, pathname, { body, cookie, headers = {} } = {}) {
     const updToken = (mail.text.match(/\/update\/([a-f0-9]{48})/) || [])[1];
     assert.ok(updToken, 'the email contains the update link');
     assert.ok((await pool.query('select token_hash from contact_update_links')).rows.every(r => r.token_hash !== updToken), 'the raw update token is never stored');
+    const mailRow = (await pool.query("select kind, legal_name, email, ok, sent_by from member_mail_log where kind = 'contact-update-link'")).rows;
+    assert.strictEqual(mailRow.length, 1, 'the update link email is recorded in past communications');
+    assert.deepStrictEqual([mailRow[0].legal_name, mailRow[0].email.toLowerCase(), mailRow[0].ok, mailRow[0].sent_by], ['Ann Lee', 'ann@personal.example', true, 'plus1'], 'with the person, the address, and who sent it');
+    assert.ok(!JSON.stringify((await pool.query('select * from member_mail_log')).rows).includes(updToken), 'the update link itself is never stored in past communications');
+    const mailList = await request(port, 'GET', '/api/member-mail', { cookie: viewer });
+    assert.ok(mailList.json.mail.some(m => m.kind === 'contact-update-link' && m.email.toLowerCase() === 'ann@personal.example'), 'a read-only account sees the update link in past communications');
     console.log('✓ A steward sends an update link to the personal email on file, and only a hash is stored');
 
     // 12. The update form opens blank: no existing details are shown.

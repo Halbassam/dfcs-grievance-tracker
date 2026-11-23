@@ -1387,11 +1387,11 @@ async function finishNewsletterRecord(id, sent, failed) {
   );
 }
 
-async function listNewsletterRecords(username, admin) {
+/** Every newsletter and notice, newest first. Everyone who can open the Members tab sees all of them. */
+async function listNewsletterRecords() {
   const res = await query(
     `select id, subject, audience, location, address_type, reason, sent_by, created_at, finished_at, recipients, sent, failed, status, kind
-       from newsletters ${admin ? "" : "where sent_by = $1"} order by created_at desc limit 100`,
-    admin ? [] : [String(username || "")]
+       from newsletters order by created_at desc limit 500`
   );
   return res.rows.map(r => ({
     id: r.id, subject: r.subject, audience: r.audience, location: r.location, addressType: r.address_type,
@@ -1402,8 +1402,62 @@ async function listNewsletterRecords(username, admin) {
   }));
 }
 
-/** Removes newsletter records older than one year. */
+/** One newsletter or notice with its full text and the people it was sent to. Returns null if missing. */
+async function getNewsletterRecord(id) {
+  const res = await query(
+    `select id, subject, body, audience, location, address_type, reason, sent_by, created_at, finished_at, recipients, sent, failed, status, kind
+       from newsletters where id = $1`,
+    [String(id || "")]
+  );
+  const r = res.rows[0];
+  if (!r) return null;
+  const people = await query(
+    `select legal_name, email, ok, error, sent_at from member_mail_log
+      where newsletter_id = $1 order by row_id`,
+    [r.id]
+  );
+  return {
+    id: r.id, subject: r.subject, body: r.body, audience: r.audience, location: r.location, addressType: r.address_type,
+    kind: r.kind, reason: r.reason, sentBy: r.sent_by,
+    createdAt: r.created_at ? new Date(r.created_at).toISOString() : null,
+    finishedAt: r.finished_at ? new Date(r.finished_at).toISOString() : null,
+    recipients: r.recipients, sent: r.sent, failed: r.failed, status: r.status,
+    people: people.rows.map(p => ({
+      legalName: p.legal_name, email: p.email, ok: p.ok, error: p.error,
+      sentAt: p.sent_at ? new Date(p.sent_at).toISOString() : null
+    }))
+  };
+}
+
+/**
+ * Records one email sent to a member. Newsletter and notice recipients pass newsletterId.
+ * Update links and confirmations pass no newsletterId, and the link itself is never stored.
+ */
+async function logMemberMail({ kind, newsletterId = "", legalName = "", email = "", ok = true, error = "", sentBy = "" }) {
+  await query(
+    `insert into member_mail_log (kind, newsletter_id, legal_name, email, ok, error, sent_by)
+     values ($1,$2,$3,$4,$5,$6,$7)`,
+    [kind, String(newsletterId || ""), String(legalName || "").slice(0, 200), String(email || "").slice(0, 320), !!ok, String(error || "").slice(0, 300), String(sentBy || "")]
+  );
+}
+
+/** Member emails that are not part of a newsletter (update links and confirmations), newest first. */
+async function listMemberMail(limit = 500) {
+  const res = await query(
+    `select row_id, sent_at, kind, legal_name, email, ok, error, sent_by from member_mail_log
+      where newsletter_id = '' and sent_at >= now() - interval '365 days'
+      order by row_id desc limit $1`,
+    [limit]
+  );
+  return res.rows.map(r => ({
+    id: String(r.row_id), kind: r.kind, legalName: r.legal_name, email: r.email, ok: r.ok, error: r.error,
+    sentBy: r.sent_by, sentAt: r.sent_at ? new Date(r.sent_at).toISOString() : null
+  }));
+}
+
+/** Removes newsletter records, and member mail log rows, older than one year. */
 async function purgeOldNewsletters() {
+  await query("delete from member_mail_log where sent_at < now() - interval '365 days'");
   await query("delete from newsletters where created_at < now() - interval '365 days'");
 }
 
@@ -2002,7 +2056,7 @@ async function getAuditLog(limit = 200, filterUsername = null, filterActions = [
 }
 
 module.exports = {
-  getAll, readRaw, writeRawAtomic, getEmailLog, createContactLink, getContactLink, getLocationList, submitContact, listContacts, revokeContactLink, removeContactSubmission, updateContactSubmission, addContactManually, createContactUpdateLink, expireContactUpdateLink, getContactUpdateLink, submitContactUpdate, getNewsletterRecipients, unsubscribeByToken, createNewsletterRecord, updateNewsletterProgress, finishNewsletterRecord, listNewsletterRecords, purgeOldNewsletters, getNoticeRecipients, withLock, logEmailAttempt, pingKeepAlive,
+  getAll, readRaw, writeRawAtomic, getEmailLog, createContactLink, getContactLink, getLocationList, submitContact, listContacts, revokeContactLink, removeContactSubmission, updateContactSubmission, addContactManually, createContactUpdateLink, expireContactUpdateLink, getContactUpdateLink, submitContactUpdate, getNewsletterRecipients, unsubscribeByToken, createNewsletterRecord, updateNewsletterProgress, finishNewsletterRecord, listNewsletterRecords, getNewsletterRecord, logMemberMail, listMemberMail, purgeOldNewsletters, getNoticeRecipients, withLock, logEmailAttempt, pingKeepAlive,
   getEmailRunState, saveEmailRunState, getLastEmailRunDate, linkGrievanceToInvestigation, deleteOtherSessions, chicagoDateISO,
   submitGrievance, logActivity, archiveClosed, sendCourtesyNotice,
   updateSetupList, getSetupList, updateHolidays, updateOrgSettings,
