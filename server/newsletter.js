@@ -123,38 +123,50 @@ async function recipientsFor({ kind, location, addressType }) {
   });
 }
 
-/** Sends one copy of a finished newsletter or notice to the copy address (set in the Members tab).
- *  The copy has the text and the results. It does not list names or addresses; those stay in the app. */
+/** Sends one copy of a finished newsletter or notice to each copy address: the copy address
+ *  set in the Members tab, and the record-keeping address set in Settings. A blank address is
+ *  skipped, and an address that appears twice gets one copy. The copy has the text and the
+ *  results. It does not list names or addresses; those stay in the app. */
 async function sendCopy({ cfg, localNo, id, isNotice, v, audience, loc, type, reason, sentBy, sent, failed, total }) {
-  let to = "";
+  let targets;
   try {
-    to = await db.getNewsletterCopyEmail();
-    const when = new Date().toLocaleString("en-US", { timeZone: "America/Chicago" });
-    const who = audience === "all" ? "the whole local" : loc;
-    const addr = isNotice || type === "state" ? "state" : "personal";
-    const text = [
-      `A copy of a ${isNotice ? "union business notice" : "newsletter"} sent to members.`,
-      "",
-      `Subject: ${v.subject}`,
-      `Sent by: ${sentBy || "(unknown)"}`,
-      `Sent at: ${when}`,
-      `Sent to: ${who}, ${addr} email addresses`,
-      ...(isNotice ? [`Reason: ${String(reason || "").trim()}`] : []),
-      `Results: ${sent} sent, ${failed} failed, of ${total}`,
-      "",
-      "Text as written:",
-      "",
-      v.body,
-      "",
-      `Each member's copy also had the union header${isNotice ? "" : " and a personal unsubscribe link"} added automatically.`,
-      "",
-      "This copy is sent automatically. Names and addresses of recipients are in the Members tab under Past communications."
-    ].join("\n");
-    await sendMail({ ...cfg, senderName: localTag(localNo), to, subject: `[Copy] ${v.subject}`, text, replyTo: cfg.replyTo });
-    await db.logEmailAttempt({ kind: "newsletter-copy", gid: id, to, ok: true }).catch(() => {});
+    const membersCopy = await db.getNewsletterCopyEmail();
+    const recordCopy = await db.getRecordKeepingEmail();
+    targets = [...new Set([membersCopy, recordCopy].filter(Boolean))];
   } catch (err) {
-    console.error("[newsletter] copy failed:", err.message);
-    await db.logEmailAttempt({ kind: "newsletter-copy", gid: id, to, ok: false, error: err.message }).catch(() => {});
+    console.error("[newsletter] copy addresses failed:", err.message);
+    await db.logEmailAttempt({ kind: "newsletter-copy", gid: id, to: "", ok: false, error: err.message }).catch(() => {});
+    return;
+  }
+  const when = new Date().toLocaleString("en-US", { timeZone: "America/Chicago" });
+  const who = audience === "all" ? "the whole local" : loc;
+  const addr = isNotice || type === "state" ? "state" : "personal";
+  const text = [
+    `A copy of a ${isNotice ? "union business notice" : "newsletter"} sent to members.`,
+    "",
+    `Subject: ${v.subject}`,
+    `Sent by: ${sentBy || "(unknown)"}`,
+    `Sent at: ${when}`,
+    `Sent to: ${who}, ${addr} email addresses`,
+    ...(isNotice ? [`Reason: ${String(reason || "").trim()}`] : []),
+    `Results: ${sent} sent, ${failed} failed, of ${total}`,
+    "",
+    "Text as written:",
+    "",
+    v.body,
+    "",
+    `Each member's copy also had the union header${isNotice ? "" : " and a personal unsubscribe link"} added automatically.`,
+    "",
+    "This copy is sent automatically. Names and addresses of recipients are in the Members tab under Past communications."
+  ].join("\n");
+  for (const to of targets) {
+    try {
+      await sendMail({ ...cfg, senderName: localTag(localNo), to, subject: `[Copy] ${v.subject}`, text, replyTo: cfg.replyTo });
+      await db.logEmailAttempt({ kind: "newsletter-copy", gid: id, to, ok: true }).catch(() => {});
+    } catch (err) {
+      console.error("[newsletter] copy failed:", err.message);
+      await db.logEmailAttempt({ kind: "newsletter-copy", gid: id, to, ok: false, error: err.message }).catch(() => {});
+    }
   }
 }
 

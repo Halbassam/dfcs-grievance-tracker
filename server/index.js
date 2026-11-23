@@ -843,6 +843,28 @@ const server = http.createServer(async (req, res) => {
       return sendJson(res, 200, result);
     }
 
+    // Record-keeping copy: a second address that gets a copy of every newsletter and union
+    // notice. Set in Settings, by admins only. A blank address turns the record copy off.
+    if (pathname === "/api/record-email" && req.method === "GET") {
+      if (!isAdmin(currentUser)) return sendJson(res, 403, { error: "Only admins can view the record-keeping address." });
+      return sendJson(res, 200, { email: await db.getRecordKeepingEmail() });
+    }
+    if (pathname === "/api/record-email" && req.method === "POST") {
+      if (!isAdmin(currentUser)) return sendJson(res, 403, { error: "Only admins can change the record-keeping address." });
+      try {
+        const body = await readBody(req);
+        const email = String(body.email || "").trim().toLowerCase();
+        if (email && (email.length > 320 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))) {
+          return sendJson(res, 400, { error: "Enter a valid email address, or leave it blank to turn the record copy off." });
+        }
+        await db.setRecordKeepingEmail(email);
+        await db.writeAuditLog(currentUser.username, "record_email_change", email ? "record-keeping address set" : "record-keeping address cleared", clientIp(req));
+        return sendJson(res, 200, { ok: true, email });
+      } catch (err) {
+        return sendJson(res, 400, { error: err.message });
+      }
+    }
+
     if (pathname === "/api/org-settings" && req.method === "POST") {
       if (!isAdmin(currentUser)) return sendJson(res, 403, { error: "Only admins can edit org settings." });
       const body = await readBody(req);

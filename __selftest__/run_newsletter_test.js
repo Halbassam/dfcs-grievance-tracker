@@ -265,6 +265,41 @@ const wait = ms => new Promise(r => setTimeout(r, ms));
     assert.ok(!/unsubscribe/i.test(copyMail.text), 'a notice copy has no unsubscribe');
     console.log('✓ A copy of each newsletter and notice goes to the copy address; admins and super stewards can change it; the change is audited');
 
+    // The record-keeping address in Settings: admins only.
+    assert.strictEqual((await request(port, 'GET', '/api/record-email', { cookie: admin })).json.email, '', 'the record-keeping address is blank until it is set');
+    assert.strictEqual((await request(port, 'GET', '/api/record-email', { cookie: plus })).status, 403, 'a super steward cannot see the record-keeping address');
+    assert.strictEqual((await request(port, 'POST', '/api/record-email', { cookie: plus, body: { email: 'x@example.org' } })).status, 403, 'a super steward cannot change the record-keeping address');
+    assert.strictEqual((await request(port, 'POST', '/api/record-email', { cookie: steward, body: { email: 'x@example.org' } })).status, 403, 'a steward cannot change the record-keeping address');
+    assert.strictEqual((await request(port, 'POST', '/api/record-email', { cookie: admin, body: { email: 'bad' } })).status, 400, 'an invalid record-keeping address is refused');
+    const recSaved = await request(port, 'POST', '/api/record-email', { cookie: admin, body: { email: ' Records@Example.ORG ' } });
+    assert.strictEqual(recSaved.status, 200);
+    assert.strictEqual(recSaved.json.email, 'records@example.org', 'the address is trimmed and lowercased');
+    assert.ok((await pool.query("select count(*)::int as n from audit_log where action = 'record_email_change'")).rows[0].n >= 1, 'changing the record-keeping address is audited');
+
+    // With both addresses set, each gets a copy.
+    sent.length = 0;
+    await nl.startNewsletter({ kind: 'notice', subject: 'Record check', body: 'Both addresses.', audience: 'location', location: 'NorthSide FCRC', addressType: 'state', reason: 'Record check', businessConfirm: true, sentBy: 'admin1', baseUrl: 'https://app.example', localNo: '2858' });
+    for (let i = 0; i < 40 && sent.filter(m => m.subject === '[Copy] Record check').length < 2; i++) await wait(100);
+    assert.deepStrictEqual(sent.filter(m => m.subject === '[Copy] Record check').map(m => m.to).sort(), ['office@example.org', 'records@example.org'], 'the copy goes to the Members copy address and the record-keeping address');
+
+    // The same address in both places gives one copy. A blank record address gives only the Members copy.
+    assert.strictEqual((await request(port, 'POST', '/api/record-email', { cookie: admin, body: { email: 'OFFICE@example.org' } })).status, 200);
+    sent.length = 0;
+    await nl.startNewsletter({ kind: 'notice', subject: 'Same address', body: 'Once.', audience: 'location', location: 'NorthSide FCRC', addressType: 'state', reason: 'Same address', businessConfirm: true, sentBy: 'admin1', baseUrl: 'https://app.example', localNo: '2858' });
+    for (let i = 0; i < 40 && !sent.some(m => m.subject === '[Copy] Same address'); i++) await wait(100);
+    await wait(300);
+    assert.deepStrictEqual(sent.filter(m => m.subject === '[Copy] Same address').map(m => m.to), ['office@example.org'], 'one copy when both addresses are the same');
+
+    const blanked = await request(port, 'POST', '/api/record-email', { cookie: admin, body: { email: '' } });
+    assert.strictEqual(blanked.status, 200, 'the record-keeping address can be cleared');
+    assert.strictEqual((await request(port, 'GET', '/api/record-email', { cookie: admin })).json.email, '');
+    sent.length = 0;
+    await nl.startNewsletter({ kind: 'notice', subject: 'Blank record', body: 'Members copy only.', audience: 'location', location: 'NorthSide FCRC', addressType: 'state', reason: 'Blank record', businessConfirm: true, sentBy: 'admin1', baseUrl: 'https://app.example', localNo: '2858' });
+    for (let i = 0; i < 40 && !sent.some(m => m.subject === '[Copy] Blank record'); i++) await wait(100);
+    await wait(300);
+    assert.deepStrictEqual(sent.filter(m => m.subject === '[Copy] Blank record').map(m => m.to), ['office@example.org'], 'with no record-keeping address, only the Members copy is sent');
+    console.log('✓ The record-keeping address is set by admins in Settings; every newsletter and notice copy goes to both addresses, once each, and a blank address is skipped');
+
     // The unsubscribe page and its button.
     const tokenNow = (await pool.query("select unsubscribe_token from contact_submissions where legal_name = 'Cy Park'")).rows[0].unsubscribe_token;
     const page = await new Promise((resolve, reject) => { http.get({ host: '127.0.0.1', port, path: '/unsubscribe/' + tokenNow }, r => { let d = ''; r.on('data', c => d += c); r.on('end', () => resolve({ status: r.statusCode, text: d })); }).on('error', reject); });

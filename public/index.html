@@ -795,6 +795,16 @@ h1,h2,h3{letter-spacing:-0.012em;}
       <button class="btn btn-primary" id="orgSettingsSaveBtn">Save</button>
     </div>
 
+<div class="panel panel-pad" style="margin-bottom:24px;display:none;" id="recordEmailPanel">
+      <h3 style="font-family:var(--sans);color:var(--green-1);margin:0 0 6px;font-size:17px;">Record-keeping copy of newsletters</h3>
+      <p style="font-size:13px;color:var(--grey);margin:6px 0 14px;">Every newsletter and union notice sent to members is also copied to this address, for your records. The copy has the text and the results, not the list of names and addresses. Leave it blank to turn the record copy off.</p>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:6px;">
+        <input type="email" id="recordEmailInput" maxlength="320" autocomplete="off" placeholder="name@example.org" style="max-width:320px;">
+        <button class="btn btn-primary" id="recordEmailSaveBtn">Save</button>
+      </div>
+      <div id="recordEmailStatus" style="font-size:13px;color:var(--grey);min-height:18px;"></div>
+    </div>
+
 <div class="panel panel-pad" style="margin-bottom:24px;" id="userAccountsPanel">
       <div style="display:flex;justify-content:space-between;align-items:baseline;flex-wrap:wrap;gap:10px;margin-bottom:14px;">
         <h3 style="font-family:var(--sans);color:var(--green-1);margin:0;font-size:17px;">User accounts</h3>
@@ -1087,7 +1097,7 @@ h1,h2,h3{letter-spacing:-0.012em;}
         <h3 style="font-family:var(--sans);color:var(--green-1);margin:0 0 14px;">Members, newsletters and past communications</h3>
         <div style="font-size:13.5px;line-height:1.7;">
           <p style="margin-bottom:8px;">The <b>Members</b> tab holds the member list, the shared sign-up link, and the <b>Newsletter</b> panel. Admins and super stewards can add, edit and send. Stewards can view and export the list and create the link. Read-only accounts can view.</p>
-          <p style="margin-bottom:8px;"><b>Copies</b> — a copy of every newsletter and union notice goes to the copy address shown above the newsletter form. It is set to local2858fcrc@gmail.com. Admins and super stewards can change it there. The copy has the text and the results, but not the list of names and addresses.</p>
+          <p style="margin-bottom:8px;"><b>Copies</b> — a copy of every newsletter and union notice goes to the copy address shown above the newsletter form. It is set to local2858fcrc@gmail.com. Admins and super stewards can change it there. Admins can also set a record-keeping address in <b>Settings</b>, which gets the same copies. The copy has the text and the results, but not the list of names and addresses.</p>
           <p style="margin-bottom:8px;"><b>Past communications</b> — at the bottom of the Members tab. It lists every newsletter, union notice, update link and update confirmation sent to members, kept for one year. Click a newsletter or notice to read its full text and see who it went to, with each person's result. Update links are listed with the person's name and email, but the link itself is never kept.</p>
           <p style="margin-bottom:8px;"><b>Who can see it</b> — everyone who can open the Members tab, including read-only accounts. The list shows names and email addresses, so keep it to people who need it.</p>
         </div>
@@ -2998,6 +3008,35 @@ function nlApplyKind(){
   $('nlSendBtn').textContent = isNotice ? 'Send notice' : 'Send newsletter';
 }
 
+async function loadRecordEmail(){
+  const input = $('recordEmailInput');
+  if(!input) return;
+  try{
+    const r = await apiGet('/api/record-email');
+    if(document.activeElement !== input) input.value = r.email || '';
+    $('recordEmailStatus').style.color = 'var(--grey)';
+    $('recordEmailStatus').textContent = r.email ? '' : 'Not set. No record copy is sent.';
+  }catch(err){
+    $('recordEmailStatus').textContent = 'Could not load the record-keeping address.';
+  }
+}
+
+async function saveRecordEmail(){
+  const input = $('recordEmailInput');
+  const status = $('recordEmailStatus');
+  try{
+    const r = await apiPost('/api/record-email', { email: input.value.trim() });
+    input.value = r.email;
+    status.style.color = 'var(--grey)';
+    status.textContent = r.email ? `Saved. Record copies now go to ${r.email}.` : 'Saved. No record copy is sent.';
+  }catch(err){
+    status.style.color = 'var(--red)';
+    status.textContent = err.message || 'Could not save the record-keeping address.';
+  }
+}
+
+$('recordEmailSaveBtn')?.addEventListener('click', saveRecordEmail);
+
 async function loadNewsletterCopy(){
   const input = $('nlCopyEmail');
   if(!input || !CURRENT_USER) return;
@@ -4547,6 +4586,9 @@ function applyRoleVisibility(user){
   });
   const orgSettingsPanel = $('orgSettingsPanel');
   if(orgSettingsPanel) orgSettingsPanel.style.display = admin ? '' : 'none';
+  const recordEmailPanel = $('recordEmailPanel');
+  if(recordEmailPanel) recordEmailPanel.style.display = admin ? '' : 'none';
+  if(admin) loadRecordEmail();
   const adminFilterEl = $('adminLocationFilter');
   if(adminFilterEl) adminFilterEl.classList.toggle('hidden', !admin);
   const userPanel = $('userAccountsPanel');
