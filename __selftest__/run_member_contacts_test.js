@@ -184,6 +184,32 @@ function request(port, method, pathname, { body, cookie, headers = {} } = {}) {
     assert.strictEqual((await request(port, 'POST', '/api/member-contacts/link', { cookie: viewer, body: {} })).status, 403, 'a read-only account cannot create links');
     console.log('✓ Stewards see submissions and whether the link is live; read-only accounts cannot');
 
+    // 9a. Staff edits: admins and super stewards can correct any field; other stewards cannot.
+    await pool.query(`insert into contact_submissions (id, location, legal_name, phone, personal_email, state_email) values ('staff-edit', 'NorthSide FCRC', 'Sam Trial', '3125550140', 'sam@x.gov', '')`);
+    const target = { id: 'staff-edit' };
+    const editBody = { id: target.id, location: 'NorthSide FCRC', legalName: 'Jo Smith', phone: '(312) 555-0166', personalEmail: 'jo.smith@x.gov', stateEmail: '', newsletter: false };
+    assert.strictEqual((await request(port, 'POST', '/api/member-contacts/update', { cookie: steward, body: editBody })).status, 403, 'a steward cannot edit entries');
+    const edited = await request(port, 'POST', '/api/member-contacts/update', { cookie: plus, body: editBody });
+    assert.strictEqual(edited.status, 200, JSON.stringify(edited.json));
+    assert.ok(edited.json.changed.includes('legal name') && edited.json.changed.includes('phone'), 'the changed fields are reported');
+    const afterEdit = (await pool.query("select legal_name, phone from contact_submissions where id = $1", [target.id])).rows[0];
+    assert.strictEqual(afterEdit.legal_name, 'Jo Smith');
+    assert.strictEqual(afterEdit.phone, '(312) 555-0166');
+    assert.strictEqual((await request(port, 'POST', '/api/member-contacts/update', { cookie: plus, body: { ...editBody, personalEmail: 'not-an-email' } })).status, 400, 'a bad email is refused');
+    // Opting someone in, then staff turning it off counts as an unsubscribe; staff cannot turn it back on.
+    assert.strictEqual((await request(port, 'POST', '/api/member-contacts/update', { cookie: plus, body: { ...editBody, newsletter: true } })).status, 200, 'staff can opt a person in');
+    assert.strictEqual((await request(port, 'POST', '/api/member-contacts/update', { cookie: plus, body: { ...editBody, newsletter: false } })).status, 200, 'staff can opt a person out');
+    const unsub = (await pool.query("select newsletter_unsubscribed_at from contact_submissions where id = $1", [target.id])).rows[0];
+    assert.ok(unsub.newsletter_unsubscribed_at, 'turning newsletters off by staff is recorded as an unsubscribe');
+    const reopen = await request(port, 'POST', '/api/member-contacts/update', { cookie: plus, body: { ...editBody, newsletter: true } });
+    assert.strictEqual(reopen.status, 400, 'staff cannot re-subscribe someone who unsubscribed');
+    assert.ok(/only they can opt back in/i.test(reopen.json.error));
+    // The audit log names the fields changed, but not their new values.
+    const audit = (await pool.query("select detail from audit_log where action = 'member_edit' order by id")).rows.map(r => r.detail);
+    assert.ok(audit.some(d => /legal name/.test(d) && /phone/.test(d)), 'the edit is recorded with the changed fields');
+    assert.ok(audit.every(d => !/Jo Smith|555-0166|jo\.smith/.test(d)), 'the audit log does not contain the new values');
+    console.log('✓ Admins and super stewards can edit entries; other stewards cannot; unsubscribes are respected; the audit log names fields, not values');
+
     // 9b. Other stewards can view, export and create the link, but not edit.
     const stewardEdit = (await request(port, 'POST', '/api/member-contacts/remove', { cookie: steward, body: { id: 'x' } }));
     assert.strictEqual(stewardEdit.status, 403, 'a steward cannot remove entries');

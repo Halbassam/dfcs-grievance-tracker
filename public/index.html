@@ -3072,16 +3072,17 @@ function applyMemberFilters(){
   table.innerHTML = `<table style="width:100%;border-collapse:collapse;font-size:13px;">
     <thead><tr>
       <th style="text-align:left;">Submitted</th><th style="text-align:left;">Location</th><th style="text-align:left;">Legal name</th>
-      <th style="text-align:left;">Phone</th><th style="text-align:left;">Personal email</th><th style="text-align:left;">State email</th><th></th>
+      <th style="text-align:left;">Phone</th><th style="text-align:left;">Personal email</th><th style="text-align:left;">State email</th><th style="text-align:left;">Newsletter</th><th></th>
     </tr></thead>
-    <tbody>${rows.map(c=>`<tr>
+    <tbody>${rows.map(c=>`<tr data-mc-row="${escapeHtml(c.id)}">
       <td style="white-space:nowrap;font-size:12px;color:var(--grey);">${c.submittedAt ? escapeHtml(new Date(c.submittedAt).toLocaleDateString('en-US')) : ''}</td>
       <td>${escapeHtml(c.location||'')}</td>
       <td>${escapeHtml(c.legalName||'')}</td>
       <td style="white-space:nowrap;">${escapeHtml(c.phone||'')}</td>
       <td style="word-break:break-all;">${escapeHtml(c.personalEmail||'')}</td>
       <td style="word-break:break-all;">${escapeHtml(c.stateEmail||'')}</td>
-      <td style="text-align:right;white-space:nowrap;">${canEditMembers() ? `<button class="btn btn-tiny" data-mc-update="${escapeHtml(c.id)}" data-mc-name="${escapeHtml(c.legalName||'')}"${c.personalEmail ? '' : ' disabled title="No personal email on file"'}>Send update link</button> <button class="btn btn-tiny" data-mc-remove="${escapeHtml(c.id)}" data-mc-name="${escapeHtml(c.legalName||'')}">Remove</button>` : ''}</td>
+      <td style="white-space:nowrap;font-size:12.5px;">${c.newsletterOptIn ? 'Opted in' : (c.newsletterUnsubscribed ? '<span style="color:var(--red);">Unsubscribed</span>' : '<span style="color:var(--grey);">Not opted in</span>')}</td>
+      <td style="text-align:right;white-space:nowrap;">${canEditMembers() ? `<button class="btn btn-tiny" data-mc-edit="${escapeHtml(c.id)}">Edit</button> <button class="btn btn-tiny" data-mc-update="${escapeHtml(c.id)}" data-mc-name="${escapeHtml(c.legalName||'')}"${c.personalEmail ? '' : ' disabled title="No personal email on file"'}>Send update link</button> <button class="btn btn-tiny" data-mc-remove="${escapeHtml(c.id)}" data-mc-name="${escapeHtml(c.legalName||'')}">Remove</button>` : ''}</td>
     </tr>`).join('')}</tbody>
   </table>`;
 }
@@ -3107,6 +3108,57 @@ async function renderMemberContactsPanel(){
     table.textContent = 'Could not load member contacts.';
   }
 }
+
+function startMemberEdit(id){
+  const c = _memberSubs.find(x => x.id === id);
+  const tr = document.querySelector(`tr[data-mc-row="${CSS.escape(id)}"]`);
+  if(!c || !tr) return;
+  const locOpts = (SETUP.Location||[]).map(l=>`<option value="${escapeHtml(l)}"${l===c.location?' selected':''}>${escapeHtml(l)}</option>`).join('');
+  const inp = (name, val, type='text') => `<input type="${type}" data-mc-f="${name}" value="${escapeHtml(val||'')}" style="width:100%;min-width:120px;">`;
+  tr.innerHTML = `
+    <td style="white-space:nowrap;font-size:12px;color:var(--grey);">${c.submittedAt ? escapeHtml(new Date(c.submittedAt).toLocaleDateString('en-US')) : ''}</td>
+    <td><select data-mc-f="location" style="width:100%;min-width:140px;">${locOpts}</select></td>
+    <td>${inp('legalName', c.legalName)}</td>
+    <td>${inp('phone', c.phone, 'tel')}</td>
+    <td>${inp('personalEmail', c.personalEmail, 'email')}</td>
+    <td>${inp('stateEmail', c.stateEmail, 'email')}</td>
+    <td style="white-space:nowrap;"><label style="font-weight:400;font-size:13px;display:flex;gap:6px;align-items:center;"><input type="checkbox" data-mc-f="newsletter"${c.newsletterOptIn?' checked':''}> Opted in</label></td>
+    <td style="text-align:right;white-space:nowrap;"><button class="btn btn-tiny btn-primary" data-mc-save="${escapeHtml(id)}">Save</button> <button class="btn btn-tiny" data-mc-cancel="1">Cancel</button></td>`;
+}
+
+async function saveMemberEdit(id){
+  const tr = document.querySelector(`tr[data-mc-row="${CSS.escape(id)}"]`);
+  if(!tr) return;
+  const get = name => {
+    const el = tr.querySelector(`[data-mc-f="${name}"]`);
+    if(!el) return '';
+    return el.type === 'checkbox' ? el.checked : el.value.trim();
+  };
+  const payload = {
+    id,
+    location: get('location'),
+    legalName: get('legalName'),
+    phone: get('phone'),
+    personalEmail: get('personalEmail'),
+    stateEmail: get('stateEmail'),
+    newsletter: get('newsletter') === true
+  };
+  try{
+    const r = await apiPost('/api/member-contacts/update', payload);
+    toast(r.changed && r.changed.length ? `Saved: ${r.changed.join(', ')}.` : 'Nothing changed.');
+    renderMemberContactsPanel();
+  }catch(err){
+    toast(err.message || 'Could not save the changes.', 'err');
+  }
+}
+
+$('mcTable')?.addEventListener('click', (e)=>{
+  const edit = e.target.closest('[data-mc-edit]');
+  if(edit){ startMemberEdit(edit.getAttribute('data-mc-edit')); return; }
+  const save = e.target.closest('[data-mc-save]');
+  if(save){ saveMemberEdit(save.getAttribute('data-mc-save')); return; }
+  if(e.target.closest('[data-mc-cancel]')){ applyMemberFilters(); }
+});
 
 $('mcSearch')?.addEventListener('input', applyMemberFilters);
 $('mcLocFilter')?.addEventListener('change', applyMemberFilters);

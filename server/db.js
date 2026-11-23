@@ -1124,10 +1124,59 @@ async function listContacts() {
       personalEmail: r.personal_email,
       stateEmail: r.state_email,
       submittedAt: r.submitted_at ? new Date(r.submitted_at).toISOString() : null,
-      newsletterOptIn: !!r.newsletter_opt_in && !r.newsletter_unsubscribed_at
+      newsletterOptIn: !!r.newsletter_opt_in && !r.newsletter_unsubscribed_at,
+      newsletterUnsubscribed: !!r.newsletter_unsubscribed_at && !r.newsletter_opt_in
     })),
     activeLink: expires ? { expiresAt: new Date(expires).toISOString() } : null
   };
+}
+
+/** A staff correction to one entry. Same checks as the forms. Staff can turn newsletters
+ *  off for someone, which counts as an unsubscribe. Staff cannot turn them back on for a
+ *  person who unsubscribed: only that person can opt back in. Returns the fields changed. */
+async function updateContactSubmission(id, input) {
+  const key = String(id || "").trim();
+  if (!key) throw new Error("Entry id is required.");
+  const cur = await query("select * from contact_submissions where id = $1", [key]);
+  if (!cur.rows.length) throw new Error("That entry no longer exists.");
+  const old = cur.rows[0];
+  const v = input || {};
+  const location = String(v.location || "").trim();
+  const legalName = String(v.legalName || "").trim().replace(/\s+/g, " ");
+  const phone = String(v.phone || "").trim();
+  const personalEmail = String(v.personalEmail || "").trim();
+  const stateEmail = String(v.stateEmail || "").trim();
+  const newsletter = v.newsletter === true;
+  if (!(await getLocationList()).includes(location)) throw new Error("Choose a location from the list.");
+  if (legalName.length < 2 || legalName.length > 120) throw new Error("Enter the legal name.");
+  if (!phone && !personalEmail && !stateEmail) throw new Error("Enter a phone number or at least one email address.");
+  if (phone && !isValidContactPhone(phone)) throw new Error("That phone number does not look right.");
+  if (personalEmail && !isValidContactEmail(personalEmail)) throw new Error("That personal email address does not look right.");
+  if (stateEmail && !isValidContactEmail(stateEmail)) throw new Error("That state email address does not look right.");
+  if (newsletter && !old.newsletter_opt_in && old.newsletter_unsubscribed_at) {
+    throw new Error("This person unsubscribed from newsletters. Only they can opt back in, using their update form.");
+  }
+
+  const changed = [];
+  if (old.location !== location) changed.push("location");
+  if (old.legal_name !== legalName) changed.push("legal name");
+  if (old.phone !== phone) changed.push("phone");
+  if (old.personal_email !== personalEmail) changed.push("personal email");
+  if (old.state_email !== stateEmail) changed.push("state email");
+  if (!!old.newsletter_opt_in !== newsletter) changed.push("newsletter");
+
+  // Turning newsletters off by staff is recorded as an unsubscribe.
+  const stoppingNewsletter = !!old.newsletter_opt_in && !newsletter;
+  await query(
+    `update contact_submissions
+        set location = $2, legal_name = $3, phone = $4, personal_email = $5, state_email = $6,
+            newsletter_opt_in = $7,
+            newsletter_opt_in_at = case when $7 and not newsletter_opt_in then now() else newsletter_opt_in_at end,
+            newsletter_unsubscribed_at = case when $8 then now() else newsletter_unsubscribed_at end
+      where id = $1`,
+    [key, location, legalName, phone, personalEmail, stateEmail, newsletter, stoppingNewsletter]
+  );
+  return { ok: true, changed };
 }
 
 async function revokeContactLink() {
@@ -1916,7 +1965,7 @@ async function getAuditLog(limit = 200, filterUsername = null, filterActions = [
 }
 
 module.exports = {
-  getAll, readRaw, writeRawAtomic, getEmailLog, createContactLink, getContactLink, getLocationList, submitContact, listContacts, revokeContactLink, removeContactSubmission, createContactUpdateLink, expireContactUpdateLink, getContactUpdateLink, submitContactUpdate, getNewsletterRecipients, unsubscribeByToken, createNewsletterRecord, updateNewsletterProgress, finishNewsletterRecord, listNewsletterRecords, purgeOldNewsletters, getNoticeRecipients, withLock, logEmailAttempt, pingKeepAlive,
+  getAll, readRaw, writeRawAtomic, getEmailLog, createContactLink, getContactLink, getLocationList, submitContact, listContacts, revokeContactLink, removeContactSubmission, updateContactSubmission, createContactUpdateLink, expireContactUpdateLink, getContactUpdateLink, submitContactUpdate, getNewsletterRecipients, unsubscribeByToken, createNewsletterRecord, updateNewsletterProgress, finishNewsletterRecord, listNewsletterRecords, purgeOldNewsletters, getNoticeRecipients, withLock, logEmailAttempt, pingKeepAlive,
   getEmailRunState, saveEmailRunState, getLastEmailRunDate, linkGrievanceToInvestigation, deleteOtherSessions, chicagoDateISO,
   submitGrievance, logActivity, archiveClosed, sendCourtesyNotice,
   updateSetupList, getSetupList, updateHolidays, updateOrgSettings,

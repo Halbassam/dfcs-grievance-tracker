@@ -987,6 +987,20 @@ const server = http.createServer(async (req, res) => {
           return sendJson(res, 400, { error: err.message });
         }
       }
+      if (pathname === "/api/member-contacts/update" && req.method === "POST") {
+        if (!canEditMemberContacts(currentUser)) return sendJson(res, 403, { error: "Only admins and super stewards can edit entries." });
+        try {
+          const body = await readBody(req);
+          const result = await db.updateContactSubmission(body.id, body);
+          // The log records which fields changed, not their values.
+          await db.writeAuditLog(currentUser.username, "member_edit",
+            `${String(body.id || "").slice(0, 40)}: ${result.changed.join(", ") || "no changes"}`, clientIp(req))
+            .catch(err => console.error("[audit] member edit log failed:", err.message));
+          return sendJson(res, 200, result);
+        } catch (err) {
+          return sendJson(res, 400, { error: err.message });
+        }
+      }
       if (pathname === "/api/member-contacts/remove" && req.method === "POST") {
         if (!canEditMemberContacts(currentUser)) return sendJson(res, 403, { error: "Only admins and super stewards can remove entries." });
         try {
