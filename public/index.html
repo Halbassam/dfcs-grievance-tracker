@@ -695,6 +695,15 @@ h1,h2,h3{letter-spacing:-0.012em;}
     </div>
   </div></section><section class="page hidden" id="tab-members">
     <div class="section-head"><div><h2>Members</h2><div class="sub">Share the member contact link and see who has given their details. Stewards and admins only.</div></div></div>
+    <div id="mcToolbar" class="panel panel-pad" style="margin-bottom:16px;padding-top:16px;padding-bottom:16px;">
+      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:12px;">
+        <input type="search" id="mcSearch" placeholder="Search name, phone, email or location" style="flex:1;min-width:220px;max-width:420px;">
+        <select id="mcLocFilter" style="width:auto;min-width:200px;"><option value="">All locations</option></select>
+        <button class="btn btn-secondary" id="mcAddBtn">Add member</button>
+        <button class="btn btn-secondary" id="mcExportBtn">Export CSV</button>
+        <span id="mcCount" style="font-size:12.5px;color:var(--grey);"></span>
+      </div>
+    </div>
     <div class="panel panel-pad" id="memberContactsPanel" style="margin-bottom:24px;">
       <h3 style="font-family:var(--sans);color:var(--green-1);margin:0 0 6px;font-size:17px;">Member contacts</h3>
       <p style="font-size:13px;color:var(--grey);margin:6px 0 14px;">Create one contact link and email it to all employees. Each person chooses their location from the list and enters their own details. The link expires after 30 days. Creating a new link replaces the old one. Only stewards can see the details.</p>
@@ -718,13 +727,6 @@ h1,h2,h3{letter-spacing:-0.012em;}
           <button class="btn btn-primary" id="mcAddSave">Save member</button>
           <button class="btn btn-ghost" id="mcAddCancel">Cancel</button>
         </div>
-      </div>
-      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:12px;">
-        <input type="search" id="mcSearch" placeholder="Search name, phone, email or location" style="flex:1;min-width:220px;max-width:420px;">
-        <select id="mcLocFilter" style="width:auto;min-width:200px;"><option value="">All locations</option></select>
-        <button class="btn btn-secondary" id="mcAddBtn">Add member</button>
-        <button class="btn btn-secondary" id="mcExportBtn">Export CSV</button>
-        <span id="mcCount" style="font-size:12.5px;color:var(--grey);"></span>
       </div>
       <div id="mcTable" class="table-wrap" style="padding:0 14px;"></div>
     </div>
@@ -3206,7 +3208,11 @@ $('mcAddSave')?.addEventListener('click', async ()=>{
 });
 
 $('mcSearch')?.addEventListener('input', applyMemberFilters);
-$('mcLocFilter')?.addEventListener('change', applyMemberFilters);
+$('mcLocFilter')?.addEventListener('change', ()=>{
+  applyMemberFilters();
+  // Bring the list into view, so the chosen location is seen straight away.
+  if($('mcLocFilter').value){ $('mcToolbar').scrollIntoView({ behavior: 'smooth', block: 'start' }); }
+});
 
 $('mcExportBtn')?.addEventListener('click', async ()=>{
   const loc = $('mcLocFilter') ? $('mcLocFilter').value : '';
