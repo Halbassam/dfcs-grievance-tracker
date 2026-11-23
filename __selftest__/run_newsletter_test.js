@@ -89,8 +89,14 @@ const wait = ms => new Promise(r => setTimeout(r, ms));
     if (row && row.status === 'sent') break;
     await wait(100);
   }
+  for (let i = 0; i < 40 && !sent.some(m => m.subject.startsWith('[Copy]')); i++) await wait(100);
   const mail = sent.filter(m => m.to === 'ann@x.gov');
   assert.strictEqual(mail.length, 1, 'one email to the one recipient');
+  const newsCopy = sent.find(m => m.subject.startsWith('[Copy]'));
+  assert.ok(newsCopy, 'a copy of the newsletter is sent');
+  assert.strictEqual(newsCopy.to, 'local2858fcrc@gmail.com', 'a copy of the newsletter goes to the union copy address');
+  assert.strictEqual(newsCopy.subject, '[Copy] June update', 'the copy is marked and carries the subject');
+  assert.ok(newsCopy.text.includes('Meeting on Friday.') && !newsCopy.text.includes('ann@x.gov'), 'the copy has the text and no recipient addresses');
   assert.ok(sent.every(m => m.to !== 'ben@x.gov'), 'a person who did not opt in is never emailed');
   assert.ok(mail[0].subject.includes('June update') && mail[0].subject.includes('2858'), 'subject carries the subject and the local');
   assert.ok(mail[0].html.includes('&lt;script&gt;'), 'the text is escaped, so it cannot inject markup');
@@ -133,8 +139,12 @@ const wait = ms => new Promise(r => setTimeout(r, ms));
     if (row && row.status === 'sent') break;
     await wait(100);
   }
-  assert.deepStrictEqual(sent.map(m => m.to), ['eve@state.gov'], 'the notice goes only to the state address');
-  assert.ok(!/unsubscribe/i.test(sent[0].html + sent[0].text), 'no unsubscribe link in the notice');
+  for (let i = 0; i < 40 && !sent.some(m => m.subject === '[Copy] Contract vote'); i++) await wait(100);
+  const noticeMails = sent.filter(m => !m.subject.startsWith('[Copy]'));
+  assert.deepStrictEqual(noticeMails.map(m => m.to), ['eve@state.gov'], 'the notice goes only to the state address');
+  assert.ok(!/unsubscribe/i.test(noticeMails[0].html + noticeMails[0].text), 'no unsubscribe link in the notice');
+  const noticeCopy = sent.find(m => m.subject === '[Copy] Contract vote');
+  assert.strictEqual(noticeCopy.to, 'local2858fcrc@gmail.com', 'a copy of the notice goes to the union copy address');
   const noticeRow = (await db.listNewsletterRecords()).find(r => r.id === notice.id);
   assert.strictEqual(noticeRow.kind, 'notice', 'the record shows it was a notice');
   assert.strictEqual(noticeRow.reason, 'Contract vote notice', 'the reason is recorded');
@@ -231,6 +241,29 @@ const wait = ms => new Promise(r => setTimeout(r, ms));
     assert.strictEqual((await request(port, 'GET', '/api/member-mail')).status, 401, 'the member mail list needs a login');
     assert.strictEqual((await request(port, 'POST', '/api/newsletters/' + started.id, { cookie: admin, body: {} })).status, 404, 'a past newsletter cannot be changed');
     console.log('✓ Everyone who can open the Members tab can read past communications with their full text and recipients; logins are required');
+
+    // The copy address: everyone who can open Members can read it; admins and super stewards change it.
+    const copyGet = await request(port, 'GET', '/api/newsletters/copy-address', { cookie: viewer });
+    assert.strictEqual(copyGet.json.email, 'local2858fcrc@gmail.com', 'the copy goes to the union address by default');
+    assert.strictEqual((await request(port, 'POST', '/api/newsletters/copy-address', { cookie: steward, body: { email: 'x@example.org' } })).status, 403, 'a steward cannot change the copy address');
+    assert.strictEqual((await request(port, 'POST', '/api/newsletters/copy-address', { cookie: viewer, body: { email: 'x@example.org' } })).status, 403, 'a read-only account cannot change the copy address');
+    assert.strictEqual((await request(port, 'POST', '/api/newsletters/copy-address', { cookie: plus, body: { email: 'not-an-address' } })).status, 400, 'an invalid copy address is refused');
+    const copySaved = await request(port, 'POST', '/api/newsletters/copy-address', { cookie: plus, body: { email: '  Office@Example.ORG ' } });
+    assert.strictEqual(copySaved.status, 200);
+    assert.strictEqual(copySaved.json.email, 'office@example.org', 'the copy address is trimmed and lowercased');
+    assert.strictEqual((await request(port, 'GET', '/api/newsletters/copy-address', { cookie: viewer })).json.email, 'office@example.org', 'everyone sees the new copy address');
+    assert.ok((await pool.query("select count(*)::int as n from audit_log where action = 'newsletter_copy_change'")).rows[0].n >= 1, 'changing the copy address is audited');
+    sent.length = 0;
+    await nl.startNewsletter({ kind: 'notice', subject: 'Copy check', body: 'Sent after the change.', audience: 'location', location: 'NorthSide FCRC', addressType: 'state', reason: 'Copy check', businessConfirm: true, sentBy: 'plus1', baseUrl: 'https://app.example', localNo: '2858' });
+    // Wait for this send's copy specifically; an earlier send's copy may still be arriving.
+    for (let i = 0; i < 40 && !sent.some(m => m.subject === '[Copy] Copy check'); i++) await wait(100);
+    const copyMail = sent.find(m => m.subject === '[Copy] Copy check');
+    assert.ok(copyMail, 'a copy is sent');
+    assert.strictEqual(copyMail.to, 'office@example.org', 'the copy goes to the new address');
+    assert.ok(copyMail.text.includes('Sent by: plus1') && copyMail.text.includes('Sent to: NorthSide FCRC, state email addresses') && copyMail.text.includes('Sent after the change.'), 'the copy has who sent it, where, and the text');
+    assert.ok(!copyMail.text.includes('dee@state.gov'), 'the copy does not list recipient addresses');
+    assert.ok(!/unsubscribe/i.test(copyMail.text), 'a notice copy has no unsubscribe');
+    console.log('✓ A copy of each newsletter and notice goes to the copy address; admins and super stewards can change it; the change is audited');
 
     // The unsubscribe page and its button.
     const tokenNow = (await pool.query("select unsubscribe_token from contact_submissions where legal_name = 'Cy Park'")).rows[0].unsubscribe_token;

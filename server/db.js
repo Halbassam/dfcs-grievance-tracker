@@ -1441,6 +1441,24 @@ async function logMemberMail({ kind, newsletterId = "", legalName = "", email = 
   );
 }
 
+/** The default address that gets a copy of every newsletter and union notice. */
+const NEWSLETTER_COPY_DEFAULT = "local2858fcrc@gmail.com";
+
+/** The address that gets a copy of every newsletter and union notice. Set in the Members tab. */
+async function getNewsletterCopyEmail() {
+  const res = await query("select value from app_meta where key = 'newsletterCopyEmail'");
+  const value = res.rows[0] && String(res.rows[0].value || "").trim();
+  return value || NEWSLETTER_COPY_DEFAULT;
+}
+
+async function setNewsletterCopyEmail(email) {
+  await query(
+    `insert into app_meta (key, value) values ('newsletterCopyEmail', $1)
+     on conflict (key) do update set value = excluded.value`,
+    [String(email || "").trim().toLowerCase()]
+  );
+}
+
 /** Member emails that are not part of a newsletter (update links and confirmations), newest first. */
 async function listMemberMail(limit = 500) {
   const res = await query(
@@ -2056,7 +2074,7 @@ async function getAuditLog(limit = 200, filterUsername = null, filterActions = [
 }
 
 module.exports = {
-  getAll, readRaw, writeRawAtomic, getEmailLog, createContactLink, getContactLink, getLocationList, submitContact, listContacts, revokeContactLink, removeContactSubmission, updateContactSubmission, addContactManually, createContactUpdateLink, expireContactUpdateLink, getContactUpdateLink, submitContactUpdate, getNewsletterRecipients, unsubscribeByToken, createNewsletterRecord, updateNewsletterProgress, finishNewsletterRecord, listNewsletterRecords, getNewsletterRecord, logMemberMail, listMemberMail, purgeOldNewsletters, getNoticeRecipients, withLock, logEmailAttempt, pingKeepAlive,
+  getAll, readRaw, writeRawAtomic, getEmailLog, createContactLink, getContactLink, getLocationList, submitContact, listContacts, revokeContactLink, removeContactSubmission, updateContactSubmission, addContactManually, createContactUpdateLink, expireContactUpdateLink, getContactUpdateLink, submitContactUpdate, getNewsletterRecipients, unsubscribeByToken, createNewsletterRecord, updateNewsletterProgress, finishNewsletterRecord, listNewsletterRecords, getNewsletterRecord, logMemberMail, listMemberMail, getNewsletterCopyEmail, setNewsletterCopyEmail, purgeOldNewsletters, getNoticeRecipients, withLock, logEmailAttempt, pingKeepAlive,
   getEmailRunState, saveEmailRunState, getLastEmailRunDate, linkGrievanceToInvestigation, deleteOtherSessions, chicagoDateISO,
   submitGrievance, logActivity, archiveClosed, sendCourtesyNotice,
   updateSetupList, getSetupList, updateHolidays, updateOrgSettings,

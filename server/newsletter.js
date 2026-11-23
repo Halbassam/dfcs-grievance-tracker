@@ -123,6 +123,41 @@ async function recipientsFor({ kind, location, addressType }) {
   });
 }
 
+/** Sends one copy of a finished newsletter or notice to the copy address (set in the Members tab).
+ *  The copy has the text and the results. It does not list names or addresses; those stay in the app. */
+async function sendCopy({ cfg, localNo, id, isNotice, v, audience, loc, type, reason, sentBy, sent, failed, total }) {
+  let to = "";
+  try {
+    to = await db.getNewsletterCopyEmail();
+    const when = new Date().toLocaleString("en-US", { timeZone: "America/Chicago" });
+    const who = audience === "all" ? "the whole local" : loc;
+    const addr = isNotice || type === "state" ? "state" : "personal";
+    const text = [
+      `A copy of a ${isNotice ? "union business notice" : "newsletter"} sent to members.`,
+      "",
+      `Subject: ${v.subject}`,
+      `Sent by: ${sentBy || "(unknown)"}`,
+      `Sent at: ${when}`,
+      `Sent to: ${who}, ${addr} email addresses`,
+      ...(isNotice ? [`Reason: ${String(reason || "").trim()}`] : []),
+      `Results: ${sent} sent, ${failed} failed, of ${total}`,
+      "",
+      "Text as written:",
+      "",
+      v.body,
+      "",
+      `Each member's copy also had the union header${isNotice ? "" : " and a personal unsubscribe link"} added automatically.`,
+      "",
+      "This copy is sent automatically. Names and addresses of recipients are in the Members tab under Past communications."
+    ].join("\n");
+    await sendMail({ ...cfg, senderName: localTag(localNo), to, subject: `[Copy] ${v.subject}`, text, replyTo: cfg.replyTo });
+    await db.logEmailAttempt({ kind: "newsletter-copy", gid: id, to, ok: true }).catch(() => {});
+  } catch (err) {
+    console.error("[newsletter] copy failed:", err.message);
+    await db.logEmailAttempt({ kind: "newsletter-copy", gid: id, to, ok: false, error: err.message }).catch(() => {});
+  }
+}
+
 /** Sends to everyone for the chosen audience. Returns at once with the record id and the
  *  number of recipients. Sending continues in the background. */
 async function startNewsletter({ kind, subject, body, audience, location, addressType, reason, businessConfirm, sentBy, baseUrl, localNo }) {
@@ -168,6 +203,7 @@ async function startNewsletter({ kind, subject, body, audience, location, addres
       await new Promise(r => setTimeout(r, SEND_PAUSE_MS));
     }
     await db.finishNewsletterRecord(id, sent, failed).catch(err => console.error("[newsletter] finish failed:", err.message));
+    await sendCopy({ cfg, localNo, id, isNotice, v, audience, loc, type, reason, sentBy, sent, failed, total: recipients.length });
   })().catch(err => console.error("[newsletter] send failed:", err.message));
 
   db.purgeOldNewsletters().catch(() => {});
