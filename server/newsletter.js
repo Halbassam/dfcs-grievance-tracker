@@ -123,18 +123,16 @@ async function recipientsFor({ kind, location, addressType }) {
   });
 }
 
-/** Sends one copy of a finished newsletter or notice to each copy address: the copy address
- *  set in the Members tab, and the record-keeping address set in Settings. A blank address is
- *  skipped, and an address that appears twice gets one copy. The copy has the text and the
- *  results. It does not list names or addresses; those stay in the app. */
+/** Sends one copy of a finished newsletter or notice to the record-keeping address set in
+ *  Settings. A blank address means no copy. The copy has the text and the results. It does not
+ *  list names or addresses; those stay in the app. */
 async function sendCopy({ cfg, localNo, id, isNotice, v, audience, loc, type, reason, sentBy, sent, failed, total }) {
   let targets;
   try {
-    const membersCopy = await db.getNewsletterCopyEmail();
     const recordCopy = await db.getRecordKeepingEmail();
-    targets = [...new Set([membersCopy, recordCopy].filter(Boolean))];
+    targets = recordCopy ? [recordCopy] : [];
   } catch (err) {
-    console.error("[newsletter] copy addresses failed:", err.message);
+    console.error("[newsletter] copy address failed:", err.message);
     await db.logEmailAttempt({ kind: "newsletter-copy", gid: id, to: "", ok: false, error: err.message }).catch(() => {});
     return;
   }

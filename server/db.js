@@ -1441,34 +1441,23 @@ async function logMemberMail({ kind, newsletterId = "", legalName = "", email = 
   );
 }
 
-/** The default address that gets a copy of every newsletter and union notice. */
-const NEWSLETTER_COPY_DEFAULT = "local2858fcrc@gmail.com";
+/** The address that gets a copy of every newsletter and union notice. Set in Settings, by admins.
+ *  If it has never been set, it is the union address. Blank means no copies. */
+const RECORD_EMAIL_DEFAULT = "local2858fcrc@gmail.com";
 
-/** The record-keeping address that also gets a copy of every newsletter and union notice. Set in
- *  Settings. Blank means no record copy. */
 async function getRecordKeepingEmail() {
-  const res = await query("select value from app_meta where key = 'newsletterRecordEmail'");
-  return res.rows[0] ? String(res.rows[0].value || "").trim() : "";
+  const res = await query("select key, value from app_meta where key in ('newsletterRecordEmail', 'newsletterCopyEmail')");
+  const byKey = Object.fromEntries(res.rows.map(r => [r.key, String(r.value || "").trim()]));
+  // A value saved in Settings wins, even if blank. Before that, an address saved on the old
+  // Members-tab field carries over. Otherwise the union address is used.
+  if ("newsletterRecordEmail" in byKey) return byKey.newsletterRecordEmail;
+  if ("newsletterCopyEmail" in byKey && byKey.newsletterCopyEmail) return byKey.newsletterCopyEmail;
+  return RECORD_EMAIL_DEFAULT;
 }
 
 async function setRecordKeepingEmail(email) {
   await query(
     `insert into app_meta (key, value) values ('newsletterRecordEmail', $1)
-     on conflict (key) do update set value = excluded.value`,
-    [String(email || "").trim().toLowerCase()]
-  );
-}
-
-/** The address that gets a copy of every newsletter and union notice. Set in the Members tab. */
-async function getNewsletterCopyEmail() {
-  const res = await query("select value from app_meta where key = 'newsletterCopyEmail'");
-  const value = res.rows[0] && String(res.rows[0].value || "").trim();
-  return value || NEWSLETTER_COPY_DEFAULT;
-}
-
-async function setNewsletterCopyEmail(email) {
-  await query(
-    `insert into app_meta (key, value) values ('newsletterCopyEmail', $1)
      on conflict (key) do update set value = excluded.value`,
     [String(email || "").trim().toLowerCase()]
   );
@@ -2089,7 +2078,7 @@ async function getAuditLog(limit = 200, filterUsername = null, filterActions = [
 }
 
 module.exports = {
-  getAll, readRaw, writeRawAtomic, getEmailLog, createContactLink, getContactLink, getLocationList, submitContact, listContacts, revokeContactLink, removeContactSubmission, updateContactSubmission, addContactManually, createContactUpdateLink, expireContactUpdateLink, getContactUpdateLink, submitContactUpdate, getNewsletterRecipients, unsubscribeByToken, createNewsletterRecord, updateNewsletterProgress, finishNewsletterRecord, listNewsletterRecords, getNewsletterRecord, logMemberMail, listMemberMail, getNewsletterCopyEmail, setNewsletterCopyEmail, getRecordKeepingEmail, setRecordKeepingEmail, purgeOldNewsletters, getNoticeRecipients, withLock, logEmailAttempt, pingKeepAlive,
+  getAll, readRaw, writeRawAtomic, getEmailLog, createContactLink, getContactLink, getLocationList, submitContact, listContacts, revokeContactLink, removeContactSubmission, updateContactSubmission, addContactManually, createContactUpdateLink, expireContactUpdateLink, getContactUpdateLink, submitContactUpdate, getNewsletterRecipients, unsubscribeByToken, createNewsletterRecord, updateNewsletterProgress, finishNewsletterRecord, listNewsletterRecords, getNewsletterRecord, logMemberMail, listMemberMail, getRecordKeepingEmail, setRecordKeepingEmail, purgeOldNewsletters, getNoticeRecipients, withLock, logEmailAttempt, pingKeepAlive,
   getEmailRunState, saveEmailRunState, getLastEmailRunDate, linkGrievanceToInvestigation, deleteOtherSessions, chicagoDateISO,
   submitGrievance, logActivity, archiveClosed, sendCourtesyNotice,
   updateSetupList, getSetupList, updateHolidays, updateOrgSettings,

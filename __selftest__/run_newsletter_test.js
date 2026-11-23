@@ -242,31 +242,12 @@ const wait = ms => new Promise(r => setTimeout(r, ms));
     assert.strictEqual((await request(port, 'POST', '/api/newsletters/' + started.id, { cookie: admin, body: {} })).status, 404, 'a past newsletter cannot be changed');
     console.log('✓ Everyone who can open the Members tab can read past communications with their full text and recipients; logins are required');
 
-    // The copy address: everyone who can open Members can read it; admins and super stewards change it.
-    const copyGet = await request(port, 'GET', '/api/newsletters/copy-address', { cookie: viewer });
-    assert.strictEqual(copyGet.json.email, 'local2858fcrc@gmail.com', 'the copy goes to the union address by default');
-    assert.strictEqual((await request(port, 'POST', '/api/newsletters/copy-address', { cookie: steward, body: { email: 'x@example.org' } })).status, 403, 'a steward cannot change the copy address');
-    assert.strictEqual((await request(port, 'POST', '/api/newsletters/copy-address', { cookie: viewer, body: { email: 'x@example.org' } })).status, 403, 'a read-only account cannot change the copy address');
-    assert.strictEqual((await request(port, 'POST', '/api/newsletters/copy-address', { cookie: plus, body: { email: 'not-an-address' } })).status, 400, 'an invalid copy address is refused');
-    const copySaved = await request(port, 'POST', '/api/newsletters/copy-address', { cookie: plus, body: { email: '  Office@Example.ORG ' } });
-    assert.strictEqual(copySaved.status, 200);
-    assert.strictEqual(copySaved.json.email, 'office@example.org', 'the copy address is trimmed and lowercased');
-    assert.strictEqual((await request(port, 'GET', '/api/newsletters/copy-address', { cookie: viewer })).json.email, 'office@example.org', 'everyone sees the new copy address');
-    assert.ok((await pool.query("select count(*)::int as n from audit_log where action = 'newsletter_copy_change'")).rows[0].n >= 1, 'changing the copy address is audited');
-    sent.length = 0;
-    await nl.startNewsletter({ kind: 'notice', subject: 'Copy check', body: 'Sent after the change.', audience: 'location', location: 'NorthSide FCRC', addressType: 'state', reason: 'Copy check', businessConfirm: true, sentBy: 'plus1', baseUrl: 'https://app.example', localNo: '2858' });
-    // Wait for this send's copy specifically; an earlier send's copy may still be arriving.
-    for (let i = 0; i < 40 && !sent.some(m => m.subject === '[Copy] Copy check'); i++) await wait(100);
-    const copyMail = sent.find(m => m.subject === '[Copy] Copy check');
-    assert.ok(copyMail, 'a copy is sent');
-    assert.strictEqual(copyMail.to, 'office@example.org', 'the copy goes to the new address');
-    assert.ok(copyMail.text.includes('Sent by: plus1') && copyMail.text.includes('Sent to: NorthSide FCRC, state email addresses') && copyMail.text.includes('Sent after the change.'), 'the copy has who sent it, where, and the text');
-    assert.ok(!copyMail.text.includes('dee@state.gov'), 'the copy does not list recipient addresses');
-    assert.ok(!/unsubscribe/i.test(copyMail.text), 'a notice copy has no unsubscribe');
-    console.log('✓ A copy of each newsletter and notice goes to the copy address; admins and super stewards can change it; the change is audited');
-
-    // The record-keeping address in Settings: admins only.
-    assert.strictEqual((await request(port, 'GET', '/api/record-email', { cookie: admin })).json.email, '', 'the record-keeping address is blank until it is set');
+    // The record-keeping address in Settings: admins only. It starts as the union address.
+    // A value saved on the old Members-tab field carries over until the Settings value is set.
+    await pool.query("insert into app_meta (key, value) values ('newsletterCopyEmail', 'legacy@example.org') on conflict (key) do update set value = excluded.value");
+    assert.strictEqual((await request(port, 'GET', '/api/record-email', { cookie: admin })).json.email, 'legacy@example.org', 'an address saved on the old field carries over');
+    await pool.query("delete from app_meta where key = 'newsletterCopyEmail'");
+    assert.strictEqual((await request(port, 'GET', '/api/record-email', { cookie: admin })).json.email, 'local2858fcrc@gmail.com', 'with nothing saved, the union address is used');
     assert.strictEqual((await request(port, 'GET', '/api/record-email', { cookie: plus })).status, 403, 'a super steward cannot see the record-keeping address');
     assert.strictEqual((await request(port, 'POST', '/api/record-email', { cookie: plus, body: { email: 'x@example.org' } })).status, 403, 'a super steward cannot change the record-keeping address');
     assert.strictEqual((await request(port, 'POST', '/api/record-email', { cookie: steward, body: { email: 'x@example.org' } })).status, 403, 'a steward cannot change the record-keeping address');
@@ -276,29 +257,28 @@ const wait = ms => new Promise(r => setTimeout(r, ms));
     assert.strictEqual(recSaved.json.email, 'records@example.org', 'the address is trimmed and lowercased');
     assert.ok((await pool.query("select count(*)::int as n from audit_log where action = 'record_email_change'")).rows[0].n >= 1, 'changing the record-keeping address is audited');
 
-    // With both addresses set, each gets a copy.
+    // Each newsletter and notice copy goes to that address, with no names or addresses listed.
     sent.length = 0;
-    await nl.startNewsletter({ kind: 'notice', subject: 'Record check', body: 'Both addresses.', audience: 'location', location: 'NorthSide FCRC', addressType: 'state', reason: 'Record check', businessConfirm: true, sentBy: 'admin1', baseUrl: 'https://app.example', localNo: '2858' });
-    for (let i = 0; i < 40 && sent.filter(m => m.subject === '[Copy] Record check').length < 2; i++) await wait(100);
-    assert.deepStrictEqual(sent.filter(m => m.subject === '[Copy] Record check').map(m => m.to).sort(), ['office@example.org', 'records@example.org'], 'the copy goes to the Members copy address and the record-keeping address');
-
-    // The same address in both places gives one copy. A blank record address gives only the Members copy.
-    assert.strictEqual((await request(port, 'POST', '/api/record-email', { cookie: admin, body: { email: 'OFFICE@example.org' } })).status, 200);
-    sent.length = 0;
-    await nl.startNewsletter({ kind: 'notice', subject: 'Same address', body: 'Once.', audience: 'location', location: 'NorthSide FCRC', addressType: 'state', reason: 'Same address', businessConfirm: true, sentBy: 'admin1', baseUrl: 'https://app.example', localNo: '2858' });
-    for (let i = 0; i < 40 && !sent.some(m => m.subject === '[Copy] Same address'); i++) await wait(100);
+    await nl.startNewsletter({ kind: 'notice', subject: 'Record check', body: 'Sent after the change.', audience: 'location', location: 'NorthSide FCRC', addressType: 'state', reason: 'Record check', businessConfirm: true, sentBy: 'admin1', baseUrl: 'https://app.example', localNo: '2858' });
+    for (let i = 0; i < 40 && !sent.some(m => m.subject === '[Copy] Record check'); i++) await wait(100);
     await wait(300);
-    assert.deepStrictEqual(sent.filter(m => m.subject === '[Copy] Same address').map(m => m.to), ['office@example.org'], 'one copy when both addresses are the same');
+    assert.deepStrictEqual(sent.filter(m => m.subject === '[Copy] Record check').map(m => m.to), ['records@example.org'], 'the copy goes to the record-keeping address');
+    const copyMail = sent.find(m => m.subject === '[Copy] Record check');
+    assert.ok(copyMail.text.includes('Sent by: admin1') && copyMail.text.includes('Sent to: NorthSide FCRC, state email addresses') && copyMail.text.includes('Sent after the change.'), 'the copy has who sent it, where, and the text');
+    assert.ok(!copyMail.text.includes('dee@state.gov'), 'the copy does not list recipient addresses');
+    assert.ok(!/unsubscribe/i.test(copyMail.text), 'a notice copy has no unsubscribe');
 
+    // A blank address turns copies off: the members still get their email, but no copy is sent.
     const blanked = await request(port, 'POST', '/api/record-email', { cookie: admin, body: { email: '' } });
     assert.strictEqual(blanked.status, 200, 'the record-keeping address can be cleared');
-    assert.strictEqual((await request(port, 'GET', '/api/record-email', { cookie: admin })).json.email, '');
+    assert.strictEqual((await request(port, 'GET', '/api/record-email', { cookie: admin })).json.email, '', 'a cleared address stays cleared');
     sent.length = 0;
-    await nl.startNewsletter({ kind: 'notice', subject: 'Blank record', body: 'Members copy only.', audience: 'location', location: 'NorthSide FCRC', addressType: 'state', reason: 'Blank record', businessConfirm: true, sentBy: 'admin1', baseUrl: 'https://app.example', localNo: '2858' });
-    for (let i = 0; i < 40 && !sent.some(m => m.subject === '[Copy] Blank record'); i++) await wait(100);
+    await nl.startNewsletter({ kind: 'notice', subject: 'Blank record', body: 'No copy.', audience: 'location', location: 'NorthSide FCRC', addressType: 'state', reason: 'Blank record', businessConfirm: true, sentBy: 'admin1', baseUrl: 'https://app.example', localNo: '2858' });
+    for (let i = 0; i < 40 && !sent.some(m => m.to === 'dee@state.gov'); i++) await wait(100);
     await wait(300);
-    assert.deepStrictEqual(sent.filter(m => m.subject === '[Copy] Blank record').map(m => m.to), ['office@example.org'], 'with no record-keeping address, only the Members copy is sent');
-    console.log('✓ The record-keeping address is set by admins in Settings; every newsletter and notice copy goes to both addresses, once each, and a blank address is skipped');
+    assert.deepStrictEqual(sent.filter(m => m.subject.startsWith('[Copy]')), [], 'with a blank address, no copy is sent');
+    assert.ok(sent.some(m => m.to === 'dee@state.gov' && m.subject.includes('Blank record')), 'the members still receive the notice');
+    console.log('✓ One record-keeping address, set by admins in Settings; every newsletter and notice copy goes to it, and a blank address turns copies off');
 
     // The unsubscribe page and its button.
     const tokenNow = (await pool.query("select unsubscribe_token from contact_submissions where legal_name = 'Cy Park'")).rows[0].unsubscribe_token;

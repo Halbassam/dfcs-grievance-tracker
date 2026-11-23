@@ -20,7 +20,6 @@ require.cache[dbPath] = { id: dbPath, filename: dbPath, loaded: true, exports: {
   getOrgLocalNo: async () => '2858',
   logEmailAttempt: async () => {},
   logMemberMail: async () => {},
-  getNewsletterCopyEmail: async () => 'copy@x.gov',
   getRecordKeepingEmail: async () => '',
   getLocationList: async () => ['NorthSide FCRC', 'North Suburban FCRC'],
   getNewsletterRecipients: async () => people.slice(0, 1),

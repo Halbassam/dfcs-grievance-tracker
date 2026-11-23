@@ -1071,26 +1071,6 @@ const server = http.createServer(async (req, res) => {
         if (!record) return sendJson(res, 404, { error: "That newsletter was not found." });
         return sendJson(res, 200, { newsletter: record });
       }
-      // The address that gets a copy of every newsletter and union notice. Everyone who can
-      // open the Members tab can read it. Only admins and super stewards can change it (the
-      // POST guard above already limits POST to them).
-      if (pathname === "/api/newsletters/copy-address" && req.method === "GET") {
-        return sendJson(res, 200, { email: await db.getNewsletterCopyEmail() });
-      }
-      if (pathname === "/api/newsletters/copy-address" && req.method === "POST") {
-        try {
-          const body = await readBody(req);
-          const email = String(body.email || "").trim().toLowerCase();
-          if (email.length > 320 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-            return sendJson(res, 400, { error: "Enter a valid email address, for example name@example.com." });
-          }
-          await db.setNewsletterCopyEmail(email);
-          await db.writeAuditLog(currentUser.username, "newsletter_copy_change", "copy address changed", clientIp(req));
-          return sendJson(res, 200, { ok: true, email });
-        } catch (err) {
-          return sendJson(res, 400, { error: err.message });
-        }
-      }
       if (pathname === "/api/newsletters/preview" && req.method === "POST") {
         try {
           const body = await readBody(req);

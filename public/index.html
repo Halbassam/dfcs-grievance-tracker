@@ -745,12 +745,6 @@ h1,h2,h3{letter-spacing:-0.012em;}
     <div class="panel panel-pad" id="newsletterPanel" style="margin-top:24px;">
       <h3 style="font-family:var(--sans);color:var(--green-1);margin:0 0 6px;font-size:17px;">Newsletter</h3>
       <p style="font-size:13px;color:var(--grey);margin:6px 0 14px;">Send to members who have opted in to newsletters. Each person gets their own email with an unsubscribe link. Stewards can send to their own location; admins can send to any location or the whole local. Emails go out one at a time, and the record is kept for one year.</p>
-      <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin:0 0 14px;font-size:13px;">
-        <span>A copy of every newsletter and union notice goes to:</span>
-        <input type="email" id="nlCopyEmail" maxlength="320" autocomplete="off" style="max-width:300px;" disabled>
-        <button class="btn btn-secondary" id="nlCopySave" style="display:none;">Save copy address</button>
-        <span id="nlCopyStatus" style="color:var(--grey);"></span>
-      </div>
       <div id="nlCompose">
       <div class="field" style="margin-bottom:12px;"><label for="nlKind">What is this?</label>
         <select id="nlKind">
@@ -1111,7 +1105,7 @@ h1,h2,h3{letter-spacing:-0.012em;}
         <h3 style="font-family:var(--sans);color:var(--green-1);margin:0 0 14px;">Members, newsletters and past communications</h3>
         <div style="font-size:13.5px;line-height:1.7;">
           <p style="margin-bottom:8px;">The <b>Members</b> tab holds the member list, the shared sign-up link, and the <b>Newsletter</b> panel. Admins and super stewards can add, edit and send. Stewards can view and export the list and create the link. Read-only accounts can view.</p>
-          <p style="margin-bottom:8px;"><b>Copies</b> — a copy of every newsletter and union notice goes to the copy address shown above the newsletter form. It is set to local2858fcrc@gmail.com. Admins and super stewards can change it there. Admins can also set a record-keeping address in <b>Settings</b>, which gets the same copies. The copy has the text and the results, but not the list of names and addresses.</p>
+          <p style="margin-bottom:8px;"><b>Copies</b> — every newsletter and union notice is also copied to the record-keeping address. Admins set it in <b>Settings</b>. It starts as local2858fcrc@gmail.com; clear it to turn copies off. The copy has the text and the results, but not the list of names and addresses.</p>
           <p style="margin-bottom:8px;"><b>Past communications</b> — the second tab inside the Members tab, next to <b>Members and newsletter</b>. It lists every newsletter, union notice, update link and update confirmation sent to members, kept for one year. Click a newsletter or notice to read its full text and see who it went to, with each person's result. Update links are listed with the person's name and email, but the link itself is never kept.</p>
           <p style="margin-bottom:8px;"><b>Who can see it</b> — everyone who can open the Members tab, including read-only accounts. The list shows names and email addresses, so keep it to people who need it.</p>
         </div>
@@ -2767,7 +2761,7 @@ function switchTab(target){
   // Refresh audit log when admin opens it
   if(view === 'audit') loadAuditLog();
   if(view === 'emaillog') refreshEmailStatus();
-  if(page === 'members'){ renderMemberContactsPanel(); nlAudienceOptions(); nlApplyKind(); renderNewsletterHistory(); loadNewsletterCopy(); }
+  if(page === 'members'){ renderMemberContactsPanel(); nlAudienceOptions(); nlApplyKind(); renderNewsletterHistory(); }
 }
 document.querySelectorAll('.view-bar [data-view]').forEach(b=>{
   b.addEventListener('click', ()=>switchTab(b.dataset.view));
@@ -3050,37 +3044,6 @@ async function saveRecordEmail(){
 }
 
 $('recordEmailSaveBtn')?.addEventListener('click', saveRecordEmail);
-
-async function loadNewsletterCopy(){
-  const input = $('nlCopyEmail');
-  if(!input || !CURRENT_USER) return;
-  const editable = canEditMembers();
-  input.disabled = !editable;
-  $('nlCopySave').style.display = editable ? '' : 'none';
-  try{
-    const r = await apiGet('/api/newsletters/copy-address');
-    if(document.activeElement !== input) input.value = r.email || '';
-    $('nlCopyStatus').textContent = '';
-  }catch(err){
-    $('nlCopyStatus').textContent = 'Could not load the copy address.';
-  }
-}
-
-async function saveNewsletterCopy(){
-  const input = $('nlCopyEmail');
-  const status = $('nlCopyStatus');
-  try{
-    const r = await apiPost('/api/newsletters/copy-address', { email: input.value });
-    input.value = r.email;
-    status.style.color = 'var(--grey)';
-    status.textContent = `Saved. Copies now go to ${r.email}.`;
-  }catch(err){
-    status.style.color = 'var(--red)';
-    status.textContent = err.message || 'Could not save the copy address.';
-  }
-}
-
-$('nlCopySave')?.addEventListener('click', saveNewsletterCopy);
 
 function nlSetStatus(msg, bad){
   const el = $('nlStatus');
